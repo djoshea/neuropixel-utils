@@ -1,0 +1,354 @@
+classdef KiloSortTrialSegmentedDataset < handle & matlab.mixin.Copyable
+    properties
+        dataset
+
+        trial_ids(:, 1) uint32
+
+        % nTrials x 1
+        trial_has_data(:, 1) logical
+
+        % nTrials x 1
+        trial_start(:, 1) uint64
+
+        % nTrials x 1
+        trial_stop(:, 1) uint64
+
+        % indices into master dataset: trials x clusters
+        spike_idx(:, :) cell
+
+        % cluster ids corresponding to each column of the {nTrials, nClusters} properties
+        cluster_ids(:, 1) int32
+    end
+
+    properties(Dependent)
+        raw_dataset
+        nTrials
+        nClusters
+        nChannels
+        nChannelsConnected
+    end
+
+    properties
+        % each of these is nTrials x nTemplates cell with the same inner size as in Dataset (as described)
+
+        %  [nSpikes, ] double vector with the amplitude scaling factor that was applied to the template when extracting that spike
+        amplitudes(:,:) cell
+
+        % [nSpikes, nFeaturesPerChannel, nPCFeatures] single matrix giving the PC values for each spike.
+        % The channels that those features came from are specified in pc_features_ind.npy. E.g. the value at pc_features[123, 1, 5]
+        % is the projection of the 123rd spike onto the 1st PC on the channel given by pc_feature_ind[5].
+        pc_features(:,:) cell
+
+        % [nSpikes, ] uint64 vector giving the sample index of each spike
+        % in the raw data file
+        spike_times(:, :) cell
+        
+        % [nSpikes, ] double vector giving the spike time of each spike in ms from trial start
+        spike_times_ms_rel_start(:, :) cell
+
+        % [nSpikes, nTempFeatures] single matrix giving the magnitude of the projection of each spike onto nTempFeatures other features.
+        % Which other features is specified in template_feature_ind.npybrew
+        template_features(:, :) cell
+
+        % [nSpikes, ] uint32 vector specifying the identity of the template that was used to extract each spike
+        spike_templates(:, :) cell
+    end
+
+    methods
+        function seg = KiloSortTrialSegmentedDataset(dataset, tsi, trial_ids)
+            % trial_ids specifies the id of each trial that will appear in
+            % this segmented dataset. tsi has its own trialId field, and
+            % the data will be copied over where these ids match. But the
+            % ultimate size will be set according to trial_ids
+            seg.dataset = dataset;
+            seg.trial_ids = trial_ids;
+
+            % trials here are over the requested trial_ids, which are different
+            % from those in trialInfo (which comes from the sync line and is limited
+            % to the trials in the neuropixel file)
+            nTrials = numel(trial_ids);
+            nUnits = dataset.nTemplates;
+
+            % filter trialInfo included in trial_ids
+            tsi_trial_ids = tsi.trialId;
+            tsi_start_idx = tsi.idxStart;
+            tsi_stop_idx = tsi.idxStop;
+
+            [trial_info_included, trial_idx_each_trial_info] = ismember(tsi_trial_ids, trial_ids);
+            if ~any(trial_info_included)
+                warning('No trial ids found in trialInfo were included');
+                return;
+            end
+            tsi_trial_ids = tsi_trial_ids(trial_info_included);
+            tsi_start_idx = tsi_start_idx(trial_info_included);
+            tsi_stop_idx = tsi_stop_idx(trial_info_included);
+            trial_idx_each_trial_info = trial_idx_each_trial_info(trial_info_included);
+
+            seg.trial_start = nan(nTrials, 1);
+            seg.trial_start(trial_idx_each_trial_info) = tsi_start_idx;
+
+            seg.trial_stop = nan(nTrials, 1);
+            seg.trial_stop(trial_idx_each_trial_info) = tsi_stop_idx;
+
+            seg.trial_has_data = false(nTrials, 1);
+            seg.trial_has_data(trial_idx_each_trial_info) = true;
+
+            % lookup from columns of all the nTrials x nUnits back into template ids
+            seg.cluster_ids = unique(dataset.spike_clusters);
+
+            % figure out which trial each spike in spike_times belongs
+            % to do discard data that occurs after trial stop, here we assume that each
+            % trial ends at the next's start and the last trial ends at EOF
+            edges = [tsi_start_idx; tsi_stop_idx(end)];
+            trial_info_idx_each_spike = discretize(seg.dataset.spike_times, edges);
+            trial_info_trial_id_each_spike = TensorUtils.selectAlongDimensionWithNaNs(tsi_trial_ids, 1, trial_info_idx_each_spike);
+
+            % convert trial info idx into trial_ids idx
+            [~, trial_idx_each_spike] = ismember(trial_info_trial_id_each_spike, trial_ids);
+
+            % which cluster does each spike belong to
+            [~, unit_idx_each_spike] = ismember(seg.dataset.spike_clusters, seg.cluster_ids);
+
+            subs = [trial_idx_each_spike, unit_idx_each_spike];
+
+            prog = ProgressBar(6, 'Segmenting trials: spike_times');
+            prog.increment();
+            spike_times_grouped = TensorUtils.splitAlongDimensionBySubscripts(...
+                dataset.spike_times, 1, [nTrials, nUnits], subs);
+
+            seg.spike_times = spike_times_grouped;
+            
+            % convert samples to ms relative to trial_start
+            for iT = 1:nTrials
+                if ~seg.trial_has_data(iT), continue, end
+                for iU = 1:nUnits
+                    if isempty(spike_times_grouped{iT, iU})
+                        spike_times_grouped{iT, iU} = nan(0, 1, 'single');
+                    else
+                        spike_times_grouped{iT, iU} = single(spike_times_grouped{iT, iU} - seg.trial_start(iT)) / single(seg.dataset.sample_rate / 1000);
+                    end
+                end
+            end
+            seg.spike_times_ms_rel_start = spike_times_grouped;
+
+            prog.increment('Segmenting trials: spike_idx');
+            seg.spike_idx = TensorUtils.splitAlongDimensionBySubscripts(...
+                (1:seg.dataset.nSpikes)', 1, [nTrials, nUnits], subs);
+
+            % slice the other fields into trials x unit:
+            prog.increment('Segmenting trials: amplitudes');
+            seg.amplitudes = TensorUtils.splitAlongDimensionBySubscripts(...
+                dataset.amplitudes, 1, [nTrials, nUnits], subs);
+
+            prog.increment('Segmenting trials: pc_features');
+            seg.pc_features = TensorUtils.splitAlongDimensionBySubscripts(...
+                dataset.amplitudes, 1, [nTrials, nUnits], subs);
+
+            prog.increment('Segmenting trials: template_features');
+            seg.template_features = TensorUtils.splitAlongDimensionBySubscripts(...
+                dataset.template_features, 1, [nTrials, nUnits], subs);
+
+            prog.increment('Segmenting trials: spike_clusters');
+            seg.spike_templates = TensorUtils.splitAlongDimensionBySubscripts(...
+                dataset.spike_templates, 1, [nTrials, nUnits], subs);
+
+            prog.finish();
+        end
+
+        function n = get.nTrials(seg)
+            n = numel(seg.trial_ids);
+        end
+
+        function n = get.nClusters(seg)
+            n = numel(seg.cluster_ids);
+        end
+
+        function n = get.nChannels(seg)
+            n = seg.raw_dataset.nChannels;
+        end
+        
+        function rd = get.raw_dataset(seg)
+            rd = seg.dataset.raw_dataset;
+        end
+
+        function td = addSpikesToTrialData(seg, td, array)
+            if nargin < 3
+                array = 'npix_';
+            end
+
+            assert(td.nTrials == seg.nTrials, 'Trial counts do not match');
+
+            chNameFn = @(iU) sprintf('%s%03d', array, seg.cluster_ids(iU));
+
+            prog = ProgressBar(seg.nClusters, 'Adding spike channels to TrialData');
+            for iU = 1:seg.nClusters
+                prog.update(iU);
+                td.warnIfNoArgOut(nargout);
+
+                td = td.addSpikeChannel(chNameFn(iU), seg.spike_times_ms_rel_start(:, iU), 'isAligned', false);
+            end
+            prog.finish();
+
+            td = td.addOrUpdateBooleanParam(sprintf('%s_has_data', array), seg.trial_has_data);
+        end
+
+    end
+
+    % pulling things from raw data
+    methods
+        function snippet_set = getWaveformsFromRawData(seg, cluster_ids, mask_cell, varargin)
+            % mask_cell is nTrials x nClusters cell of mask or indices over spike times within that bin
+            
+            p = inputParser();
+            % from KiloSortDataset.readAPSnippets
+            p.addParameter('channel_idx', seg.dataset.channel_map, @isvector); % specify a subset of channels to extract
+            p.addParameter('best_n_channels', NaN, @isscalar); % or take the best n channels based on this clusters template when cluster_id is scalar 
+
+            % other params:
+            p.addParameter('window', [-40 41], @isvector); % Number of samples before and after spiketime to include in waveform
+            p.addParameter('car', false, @islogical);
+            p.addParameter('center', 20, @(x) isscalar(x) || islogical(x)); % subtract mean of each waveform's first n samples, don't do if false
+            p.addParameter('num_waveforms', Inf, @isscalar); % caution: Inf will request ALL waveforms in order (typically useful if spike_times directly specified)
+             
+            p.addParameter('raw_dataset', seg.raw_dataset, @(x) true); 
+            
+            p.parse(varargin{:});
+
+            % lookup cluster_ids from
+            [tf, cluster_idx] = ismember(cluster_ids, seg.cluster_ids);
+            if any(~tf)
+                error('Some cluster_ids were not found in dataset');
+            end
+
+            nClu = numel(cluster_idx);
+            assert(size(mask_cell, 1) == seg.nTrials, 'mask_cell must be nTrials along dim 1');
+            assert(size(mask_cell, 2) == nClu, 'mask_cell must be nClusters along dim 2');
+
+            % assemble spike_times we want to collect, all at once
+            masked_times = cellfun(@(times, mask) times(mask), seg.spike_times(:, cluster_idx), mask_cell, 'UniformOutput', false);
+            masked_times = cat(1, masked_times{:});
+
+            snippet_set = seg.dataset.getWaveformsFromRawData('spike_times', masked_times, 'cluster_id', cluster_ids, p.Results);
+        end
+        
+        function snippet_set = getSnippetsFromRawData(seg, rel_start_ms_each_trial, duration_or_window_ms, varargin)
+            % rel_start_ms_each_trial is nTrials x 1  in ms relative to
+            % the start of each trial, specifying the window to grab on
+            % each trial. rel_start_ms_each_trial should have the same length
+            % nTrials as 'trialIdx', which defaults to 1:seg.nTrials. If
+            % start_ms_each_trial is NaN, the snippet will be set to NaN
+            %
+            % if duration_or_window is scalar, the window will be [0
+            % duration_or_window], else the window will
+            % rel_start_ms_each_trial + (window(1):window(2))
+
+            p = inputParser();
+            p.addParameter('trial_idx', 1:seg.nTrials, @isvector);
+            p.addParameter('channel_idx', 1:seg.nChannels, @isvector);
+            p.addParameter('raw_dataset', seg.raw_dataset, @(x) true); 
+            p.parse(varargin{:});
+            
+            trial_idx = TensorUtils.vectorMaskToIndices(p.Results.trial_idx);
+            nTrials = numel(trial_idx); %#ok<*PROPLC>
+            ms_to_samples =  seg.raw_dataset.fsAP / 1000;
+            
+            assert(numel(rel_start_ms_each_trial) == nTrials);
+            
+            if isscalar(duration_or_window_ms )
+                window_ms = [0 duration_or_window_ms];
+            else
+                window_ms = duration_or_window_ms;
+            end
+            window_samples = round(window_ms * ms_to_samples);
+            
+            % deal with only non nans with raw dataset
+            rel_start_ms_each_trial(~seg.trial_has_data(trial_idx)) = NaN;
+            mask_non_nan = ~isnan(rel_start_ms_each_trial);
+            rel_start_ms_each_trial = rel_start_ms_each_trial(mask_non_nan);
+            
+            % zero time of each snippet in samples
+            trial_starts = seg.trial_start(trial_idx);
+            trial_starts = trial_starts(mask_non_nan);
+            req_zero = uint64(round(rel_start_ms_each_trial * ms_to_samples)) + uint64(trial_starts);
+
+            channel_idx = p.Results.channel_idx;
+            
+            snippet_set = Neuropixel.SnippetSet(seg.dataset);
+            
+            % inflate back to full trials
+            snippet_set.data = TensorUtils.inflateMaskedTensor(...
+                p.Results.raw_dataset.readAPSnippets(req_zero, window_samples, channel_idx), ...
+                3, mask_non_nan, 0);
+            
+            snippet_set.valid = mask_non_nan;
+            snippet_set.sample_idx = req_zero;
+            snippet_set.channel_idx = channel_idx;
+            snippet_set.cluster_idx = [];
+            snippet_set.trial_idx = trial_idx;
+            snippet_set.window = window_samples;
+        end 
+    end
+
+%     methods(Static)
+%         function seg = emptyWithSize(nTrials, nUnits)
+%             seg = KiloSort.TrialSegmentedDataset;
+%
+%             seg.trial_ids = nan(nTrials, 1);
+%             seg.trial_has_data = false(nTrials, 1);
+%             seg.trial_start = zeros(nTrials, 1, 'uint64');
+%             seg.cluster_ids = zeros(nTrials, 1, 'uint32');
+%
+%             c = cell(nTrials, nUnits);
+%             seg.spike_idx = c;
+%             seg.amplitudes = c;
+%             seg.pc_features = c;
+%             seg.spike_times_ms_rel_start = c;
+%             seg.template_features = c;
+%             seg.spike_clusters = c;
+%         end
+%
+%         % merge over trials
+%         function dsmerge = mergeDatasets(varargin)
+%             if numel(varargin) == 1
+%                 dsmerge = varargin{1};
+%                 return;
+%             end
+%
+%             nTrials = cellfun(@(seg) seg.nTrials, varargin);
+%             assert(all(nTrials == nTrials(1)), 'nTrials do not match');
+%             nTrials = nTrials(1);
+%
+%             nUnits = cellfun(@(seg) seg.nUnits, varargin);
+%             assert(all(nUnits == nUnits(1)), 'nUnits do not match');
+%             nUnits = nUnits(1);
+%
+%             dsmerge = KiloSort.TrialSegmentedDataset.emptyWithSize(nTrials, nUnits);
+%             dsmerge.dataset = varargin{1}.dataset;
+%             nMerge = numel(varargin);
+%
+%             occmat = nan(nTrials, nMerge);
+%             for iM = 1:nMerge
+%                 occmat(:, iM) = varargin{iM}.trial_has_data;
+%             end
+%             nOcc = sum(occmat, 2);
+%             assert(max(nOcc) < 2, 'At least one trial has data in multiple segmented datasets');
+%
+%             for iM = 1:nMerge
+%                 seg = varargin{iM};
+%                 idx = occmat(:, iM);
+%                 dsmerge.trial_ids(idx) = seg.trial_ids(idx);
+%                 dsmerge.trial_has_data = seg.trial_has_data(idx);
+%                 dsmerge.trial_start(idx) = seg.trial_start(idx);
+%                 dsmerge.cluster_ids(idx) = seg.cluster_ids(idx);
+%
+%                 dsmerge.spike_idx(idx, :) = seg.spike_idx(idx, :);
+%                 dsmerge.amplitudes(idx, :) = seg.amplitudes(idx, :);
+%                 dsmerge.pc_features(idx, :) = pc_features(idx, :);
+%                 dsmerge.spike_times_ms_rel_start(idx, :) = spike_times_rel_start(idx, :);
+%                 dsmerge.template_features(idx, :) = template_features(idx, :);
+%                 dsmerge.spike_clusters(idx, :) = spike_clusters(idx, :);
+%             end
+%         end
+%     end
+
+end

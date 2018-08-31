@@ -1,0 +1,892 @@
+classdef ImecDataFile < handle
+
+    properties(SetAccess = protected)
+        pathRoot char = '';
+        fileStem char = '';
+        creationTime = NaN;
+        nChannels = NaN;
+
+        nSamplesAP = 0;
+        nSamplesLF = 0;
+        fsAP = NaN; % samples_per_second
+        fsLF = NaN; % samples_per_second
+        highPassFilterHz = NaN;
+        apGain = NaN;
+        apRange = [];
+        lfGain = NaN;
+        lfRange = []
+
+        adcBits = 10;
+
+        channelMap = []; % can be stored using set channelMap
+
+        syncChannelIndex = NaN; % if in AP file, specify this
+        syncInApFile logical = true; % is the sync info in the ap file, or in a separate .sync file
+
+        % use markGoodChannels to set this
+        goodChannels = [];
+
+        syncBitNames cell;
+    end
+
+    properties
+        % will be cached after loading, can also be cleared by user
+        syncRaw int16 = [];
+    end
+
+    properties(Constant)
+        bytesPerSample = 2;
+    end
+
+    properties(Dependent)
+        hasAP
+        hasLF
+
+        channelMapFile
+        mappedChannels
+        nChannelsMapped % number of channels in the channel map (excludes sync)
+
+        connectedChannels
+        nChannelsConnected % excludes reference and sync channels
+
+        nGoodChannels
+
+        pathAP % .imec.ap.bin file
+        pathAPMeta
+
+        pathLF % .imec.lf.bin file
+        pathLFMeta
+
+        pathSync % .imec.sync.bin file
+
+        creationTimeStr
+
+        apScaleToUv % multiply raw int16 by this to get uV
+        lfScaleToUv
+    end
+
+    methods
+        function df = ImecDataFile(fileOrFileStem, channelMapFile, varargin)
+            p = inputParser();
+            p.addParameter('syncInApFile', true, @islogical);
+            p.addParameter('syncChannelIndex', NaN, @isscalar);
+            p.addParameter('syncBitNames', {}, @iscell);
+            p.parse(varargin{:})
+
+            if exist(fileOrFileStem, 'dir')
+                % it's a directory, assume only one imec file in directory
+                path = fileOrFileStem;
+                apFiles = Neuropixel.ImecDataFile.listAPFilesInDir(path);
+
+                if isempty(apFiles)
+                    %warning('No imec.ap.bin files found in directory %s', path);
+                elseif numel(apFiles) > 1
+                    [~, leaf] = fileparts(fileOrFileStem);
+                    apMatching = [leaf '.imec.ap.bin'];
+                    if ismember(apMatching, apFiles)
+                        % use ap.bin file with same name as its containing
+                        % folder
+                        fileOrFileStem = fullfile(fileOrFileStem, apMatching);
+                    else
+                        error('Multiple Imec ap.bin files found in directory %s and none matches name of containing directory', path);
+                    end
+                else
+                    fileOrFileStem = fullfile(path, apFiles{1});
+                end
+            end
+
+            [df.pathRoot, df.fileStem] = Neuropixel.ImecDataFile.parseImecFileName(fileOrFileStem);
+            if exist(df.pathAP, 'file')
+                df.readInfo();
+            else
+                error('Could not find AP bin file %s', df.pathAP);
+            end
+
+            if nargin >= 2 && ~isempty(channelMapFile)
+                df.channelMap = Neuropixel.ChannelMap(channelMapFile);
+                assert(df.channelMap.nChannels <= df.nChannels, 'Channel count is less than number of channels in channel map');
+            end
+
+            if p.Results.syncInApFile
+                if isnan(p.Results.syncChannelIndex)
+                    % assume last channel in ap file
+                    df.syncChannelIndex = df.nChannels;
+                else
+                    df.syncChannelIndex = p.Results.syncChannelIndex;
+                end
+                df.syncInApFile = true;
+            else
+                if isnan(p.Results.syncChannelIndex)
+                    % assume first channel in sync file
+                    df.syncChannelIndex = 1;
+                else
+                    df.syncChannelIndex = p.Results.syncChannelIndex;
+                end
+                df.syncInApFile = false;
+            end
+
+            df.syncBitNames = repmat({''}, 16, 1);
+            if ~isempty(p.Results.syncBitNames)
+                assert(numel(p.Results.syncBitNames) < 16, 'syncBitNames must be length 16 or less');
+                df.syncBitNames(1:numel(p.Results.syncBitNames)) = p.Resuls.syncBitNames;
+            end
+        end
+
+        function readInfo(df)
+            meta = df.readAPMeta();
+            df.nChannels = meta.nSavedChans;
+            df.fsAP = meta.imSampRate;
+            df.highPassFilterHz = meta.imHpFlt;
+            df.creationTime = datenum(meta.fileCreateTime, 'yyyy-mm-ddTHH:MM:SS');
+
+            if df.hasLF
+                metaLF = df.readLFMeta();
+                df.fsLF = metaLF.imSampRate;
+            end
+            
+            % parse imroTable
+            m = regexp(meta.imroTbl, '\(([\d, ]*)\)', 'tokens');
+            gainVals = strsplit(m{2}{1}, ' ');
+            df.apGain = str2double(gainVals{4});
+            df.lfGain = str2double(gainVals{5});
+
+            df.apRange = [meta.imAiRangeMin meta.imAiRangeMax];
+            df.lfRange = [meta.imAiRangeMin meta.imAiRangeMax];
+
+            if df.hasAP
+                fid = df.openAPFile();
+                fseek(fid, 0, 'eof');
+                bytes = ftell(fid);
+                fclose(fid);
+
+                df.nSamplesAP = bytes / df.bytesPerSample / df.nChannels;
+                assert(round(df.nSamplesAP) == df.nSamplesAP, 'AP bin file size is not an integral number of samples');
+            end
+
+            if df.hasLF
+                fid = df.openLFFile();
+                fseek(fid, 0, 'eof');
+                bytes = ftell(fid);
+                fclose(fid);
+                df.nSamplesLF = bytes / df.bytesPerSample / df.nChannels;
+                assert(round(df.nSamplesAP) == df.nSamplesAP, 'LF bin file size is not an integral number of samples');
+            end
+        end
+
+        function setSyncBitNames(df, idx, names)
+            if isscalar(idx) && ischar(names)
+                df.syncBitNames{idx} = names;
+            else
+                assert(iscellstr(names)) %#ok<ISCLSTR>
+                df.syncBitNames(idx) = names;
+            end
+        end
+
+        function idx = lookupSyncBitByName(df, names)
+            if ischar(names)
+                names = {names};
+            end
+            assert(iscellstr(names));
+
+            [tf, idx] = ismember(names, df.syncBitNames);
+            assert(all(tf), 'Not all sync bit names found');
+        end
+
+        function newImec = copyToNewLocation(df, newRoot, newStem)
+            if nargin < 3
+                newStem = df.fileStem;
+            end
+            mkdirRecursive(newRoot);
+
+            f = @(suffix) fullfile(newRoot, [newStem suffix]);
+            docopy(df.pathAP, f('.imec.ap.bin'));
+            docopy(df.pathAPMeta, f('.imec.ap.meta'));
+            docopy(df.pathLF, f('.imec.lf.bin'));
+            docopy(df.pathLFMeta, f('.imec.lf.meta'));
+            docopy(df.pathSync, f('.imec.sync.bin'));
+
+            newImec = Neuropixel.ImecDataFile(fullfile(newRoot, newStem), df.channelMapFile);
+
+            function docopy(from, to)
+                if ~exist(from, 'file')
+                    return;
+                end
+                debug('Copying to %s\n', to);
+                [success, message, ~] = copyfile(from, to);
+                if ~success
+                    error('Error writing %s: %s', to, message);
+                end
+            end
+
+        end
+    end
+
+    % these functions read a contiguous block of samples over a contiguous band of channels
+    methods
+        function data_ch_by_time = readAPChannelBand(df, chFirst, chLast, sampleFirst, sampleLast, msg)
+            if nargin < 4 || isempty(sampleFirst)
+                sampleFirst = 1;
+            end
+            if nargin < 5 || isempty(sampleLast)
+                sampleLast = df.nSamplesAP;
+            end
+            if nargin < 6 || isempty(msg)
+                msg = 'Reading channels from neuropixel AP file';
+            end
+
+            data_ch_by_time = df.readChannelBand('ap', chFirst, chLast, sampleFirst, sampleLast, msg);
+        end
+
+        function data_ch_by_time = readLFChannelBand(df, chFirst, chLast, sampleFirst, sampleLast, msg)
+            if nargin < 4 || isempty(sampleFirst)
+                sampleFirst = 1;
+            end
+            if nargin < 5 || isempty(sampleLast)
+                sampleLast = df.nSamplesLF;
+            end
+            if nargin < 6 || isempty(msg)
+                msg = 'Reading channels from neuropixel LF file';
+            end
+
+            data_ch_by_time = df.readChannelBand('lf', chFirst, chLast, sampleFirst, sampleLast, msg);
+        end
+
+        function data_by_time = readAPSingleChannel(df, ch, varargin)
+            data_by_time = df.readAPChannelBand(ch, ch, varargin{:})';
+        end
+
+        function data_by_time = readLFSingleChannel(df, ch, varargin)
+            data_by_time = df.readLFChannelBand(ch, ch, varargin{:})';
+        end
+
+        function syncRaw = readSyncChannel(df, reload)
+            if nargin < 2
+                reload = false;
+            end
+            if isempty(df.syncRaw) || reload
+                % this will automatically redirect to a seaprate sync file
+                % or to the ap file depending on .syncInApFile
+                idx = df.syncChannelIndex;
+                df.syncRaw = df.readChannelBand('ap', idx, idx, [], [], 'Loading sync data');
+%                   mm = df.memmapSync_full();
+%                   df.syncRaw = mm.Data.x(df.syncChannelIndex, :)';
+            end
+            syncRaw = df.syncRaw;
+        end
+
+        function tf = getSyncBit(df, bit)
+            tf = logical(bitget(df.readSyncChannel(), bit));
+        end
+    end
+
+    methods
+        function mm = memmapAP_by_sample(df)
+            mm = memmapfile(df.pathAP, 'Format', {'int16', [df.nChannels 1], 'x'}, ...
+               'Repeat', df.nSamplesAP);
+        end
+
+        function mm = memmapLF_by_sample(df)
+            mm = memmapfile(df.pathLF, 'Format', {'int16', [df.nChannels 1], 'x'}, ...
+               'Repeat', df.nSamplesLF);
+        end
+
+        function mm = memmapAP_by_chunk(df, nSamplesPerChunk)
+            mm = memmapfile(df.pathAP, 'Format', {'int16', [df.nChannels nSamplesPerChunk], 'x'}, ...
+               'Repeat', floor(df.nSamplesAP/nSamplesPerChunk));
+        end
+
+        function mm = memmapLF_by_chunk(df, nSamplesPerChunk)
+            mm = memmapfile(df.pathLF, 'Format', {'int16', [df.nChannels nSamplesPerChunk], 'x'}, ...
+               'Repeat', floor(df.nSamplesLF/nSamplesPerChunk));
+        end
+
+        function mm = memmapAP_full(df, varargin)
+            p = inputParser();
+            p.addParameter('Writable', false, @islogical);
+            p.parse(varargin{:});
+
+            mm = memmapfile(df.pathAP, 'Format', {'int16', [df.nChannels df.nSamplesAP], 'x'}, 'Writable', p.Results.Writable);
+        end
+
+        function mm = memmapLF_full(df, varargin)
+            p = inputParser();
+            p.addParameter('Writable', false, @islogical);
+            p.parse(varargin{:});
+
+            mm = memmapfile(df.pathLF, 'Format', {'int16', [df.nChannels df.nSamplesLF], 'x'}, 'Writable', p.Results.Writable);
+        end
+
+        function mm = memmapSync_full(df)
+            if df.syncInApFile
+                % still has nChannels
+                mm = memmapfile(df.pathSync, 'Format', {'int16', [df.nChannels df.nSamplesAP], 'x'});
+            else
+                % only sync channel
+                mm = memmapfile(df.pathSync, 'Format', {'int16', [1 df.nSamplesAP], 'x'});
+            end
+        end
+    end
+
+    methods % Read data at specified times
+        function data_ch_by_time_by_snippet = readAPSnippets(df, times, window, channel_idx, varargin)
+            % for each sample index in times, read the window times + window(1):window(2)
+            % of samples around this time from all channels
+
+            if nargin < 4
+                channel_idx = true(df.nChannels, 1);
+            end
+            p = inputParser();
+            p.addParameter('car', false, @islogical); % subtract median over channels
+            p.parse(varargin{:});
+
+            channel_idx = TensorUtils.vectorIndicesToMask(channel_idx, df.nChannels);
+
+            mm = df.memmapAP_full();
+            nC = nnz(channel_idx);
+            nS = numel(times);
+            nT = numel(window(1):window(2));
+            out = zeros(nC, nT, nS, 'int16');
+
+            prog = ProgressBar(numel(times), 'Extracting AP snippets');
+            for iS = 1:numel(times)
+                prog.update(iS);
+                
+                idx_start = times(iS)+window(1);
+                idx_stop = idx_start + nT - 1;
+                if p.Results.car
+                    extract = mm.Data.x(:, idx_start:idx_stop);
+                    out(:, :, iS) = extract(channel_idx, :) - median(extract, 1);
+                else
+                    out(:, :, iS) = mm.Data.x(channel_idx, idx_start:idx_stop);
+                end
+            end
+            data_ch_by_time_by_snippet = out;
+            prog.finish();
+        end
+
+        function rms = computeRMSByChannel(df, varargin)
+            p = inputParser();
+            p.addParameter('sampleMask', [], @(x) isempty(x) || islogical(x));
+            p.parse(varargin{:});
+            % skip the first few chunks
+
+            skipChunks = 5;
+            useChunks = 5;
+            chunkSize = 1000000;
+            mm = df.memmapAP_by_chunk(chunkSize);
+
+
+            sumByChunk = nan(df.nChannels, useChunks);
+            prog = ProgressBar(useChunks, 'Computing RMS per channel');
+            for iC =  1:useChunks
+                prog.increment();
+                data = mm.Data(iC+skipChunks).x;
+
+                if ~isempty(p.Results.sampleMask)
+                    idx = (iC+skipChunks-1)*chunkSize + (1:chunkSize);
+                    mask = p.Results.sampleMask(idx);
+                    data = data(:, mask);
+                end
+
+                sumByChunk(:, iC) = sum(single(data - median(data, 2)).^2, 2);
+            end
+            prog.finish();
+            rms = sqrt(sum(sumByChunk, 2) ./ (useChunks * chunkSize));
+            rms = rms * df.apScaleToUv;
+        end
+
+        function goodChannels = markGoodChannelsByRMS(df, varargin)
+            p = inputParser();
+            p.addParameter('rmsRange', [3 100], @isvector);
+            p.addParameter('sampleMask', [], @(x) isempty(x) || islogical(x));
+            p.parse(varargin{:});
+
+            channelMask = true(df.nChannels, 1);
+
+            channelMask(~df.channelMap.connected) = false;
+
+            rms = df.computeRMSByChannel('sampleMask', p.Results.sampleMask);
+            rmsMin = p.Results.rmsRange(1);
+            rmsMax = p.Results.rmsRange(2);
+            channelMask(rms < rmsMin | rms > rmsMax) = false;
+
+            df.goodChannels = find(channelMask);
+            goodChannels = df.goodChannels;
+        end
+
+        function markGoodChannels(df, list)
+            df.goodChannels = list;
+        end
+
+        function imecOut = saveTranformedDataset(df, outPath, varargin)
+            p = inputParser();
+            p.addParameter('transformAP', {}, @(x) iscell(x) || isa(x, 'function_handle')); % list of transformation functions that accept (df, dataChunk) and return dataChunk someplace
+            p.addParameter('transformLF', {}, @(x) iscell(x) || isa(x, 'function_handle')); % list of transformation functions that accept (df, dataChunk) and return dataChunk someplace
+
+            p.addParameter('gpuArray', false, @islogical);
+            p.addParameter('applyScaling', false, @islogical); % convert to uV before processing
+
+            p.addParameter('writeAP', true, @islogical);
+            p.addParameter('goodChannelsOnly', false, @islogical);
+            p.addParameter('writeSyncSeparate', false, @islogical); % true means ap will get only mapped channels, false will preserve channels as is
+            p.addParameter('writeLF', false, @islogical);
+            p.addParameter('chunkSize', 2^20, @isscalar);
+            p.parse(varargin{:});
+
+            % this uses the same syntax as writeConcatenatedFileMatchGains
+            imecOut = Neuropixel.ImecDataFile.writeConcatenatedFileMatchGains({df}, outPath, p.Results);
+        end
+    end
+
+    methods(Hidden)
+        function data_ch_by_time = readChannelBand(df, type, chFirst, chLast, sampleFirst, sampleLast, msg)
+            if nargin < 5 || isempty(sampleFirst)
+                sampleFirst = 1;
+            end
+            if nargin < 7 || isempty(msg)
+                msg = 'Loading data from IMEC data file';
+            end
+
+            switch type
+                case 'ap'
+                    fid = df.openAPFile();
+                    nSamplesFull = df.nSamplesAP;
+                case 'lf'
+                    fid = df.openLFFile();
+                    nSamplesFull = df.nSamplesLF;
+                otherwise
+                    error('Unknown type %s', type);
+            end
+            if nargin < 6 || isempty(sampleLast)
+                sampleLast = nSamplesFull;
+            end
+
+            % skip to the sampleFirst channel
+            bytesOffsetSample = (sampleFirst-1)*df.nChannels*df.bytesPerSample;
+
+            % skip to the chFirst channel
+            bytesOffsetChannel = (chFirst-1)*df.bytesPerSample;
+
+            fseek(fid, bytesOffsetSample + bytesOffsetChannel,'bof');
+
+            % read this channel only
+            nChRead = chLast - chFirst + 1;
+            skipBytes = (df.nChannels-nChRead)*df.bytesPerSample;
+            readStr = sprintf('%d*int16', nChRead);
+            nSamplesRead = sampleLast - sampleFirst + 1;
+
+            % split into large reads
+            samplesPerSplit = 2^18;
+            nReadSplits = ceil(nSamplesRead / samplesPerSplit);
+            prog = ProgressBar(nReadSplits, msg);
+            data_ch_by_time = zeros(nChRead, nSamplesRead, 'int16');
+            sampleOffset = 0;
+            for iS = 1:nReadSplits
+                prog.update(iS);
+                nSamplesReadThis = min(samplesPerSplit, nSamplesRead - sampleOffset);
+                data_ch_by_time(:, sampleOffset + (1:nSamplesReadThis)) = fread(fid, [nChRead, nSamplesReadThis], readStr, skipBytes);
+                sampleOffset = sampleOffset + nSamplesReadThis;
+            end
+            fclose(fid);
+        end
+
+        function fid = openAPFile(df)
+            if ~exist(df.pathAP, 'file')
+                error('RawDataFile: %s not found', df.pathAP);
+            end
+            fid = fopen(df.pathAP, 'r');
+
+            if fid == -1
+                 error('RawDataFile: Could not open %s', df.pathAP);
+            end
+        end
+
+        function fid = openLFFile(df)
+            if ~exist(df.pathLF, 'file')
+                error('RawDataFile: %s not found', df.pathAP);
+            end
+            fid = fopen(df.pathLF, 'r');
+
+            if fid == -1
+                 error('RawDataFile: Could not open %s', df.pathAP);
+            end
+        end
+
+        function fid = openSyncFile(df)
+            if ~exist(df.pathSync, 'file')
+                error('RawDataFile: %s not found', df.pathSync);
+            end
+            fid = fopen(df.pathSync, 'r');
+
+            if fid == -1
+                 error('RawDataFile: Could not open %s', df.pathSync);
+            end
+        end
+    end
+
+    methods % Dependent properties
+        function pathAP = get.pathAP(df)
+            pathAP = fullfile(df.pathRoot, [df.fileStem '.imec.ap.bin']);
+        end
+
+        function tf = get.hasAP(df)
+            tf = exist(df.pathAP, 'file') == 2;
+        end
+
+        function pathAPMeta = get.pathAPMeta(df)
+            pathAPMeta = fullfile(df.pathRoot, [df.fileStem '.imec.ap.meta']);
+        end
+
+        function pathLF = get.pathLF(df)
+            pathLF = fullfile(df.pathRoot, [df.fileStem '.imec.lf.bin']);
+        end
+
+        function pathLFMeta = get.pathLFMeta(df)
+            pathLFMeta = fullfile(df.pathRoot, [df.fileStem '.imec.lf.meta']);
+        end
+
+        function tf = get.hasLF(df)
+            tf = exist(df.pathLF, 'file') == 2;
+        end
+
+        function pathSync = get.pathSync(df)
+            if df.syncInApFile
+                pathSync = df.pathAP;
+            else
+                pathSync = fullfile(df.pathRoot, [df.fileStem '.imec.sync.bin']);
+            end
+        end
+
+        function scale = get.apScaleToUv(df)
+            scale = (df.apRange(2) - df.apRange(1)) / (2^df.adcBits) / df.apGain * 1e6;
+        end
+
+        function scale = get.lfScaleToUv(df)
+            scale = (df.apRange(2) - df.apRange(1)) / (2^df.adcBits) / df.apGain * 1e6;
+        end
+
+        function file = get.channelMapFile(df)
+            if isempty(df.channelMap)
+                file = '';
+            else
+                file = df.channelMap.file;
+            end
+        end
+
+        function list = get.mappedChannels(df)
+            if isempty(df.channelMap)
+                list = [];
+            else
+                list = df.channelMap.chanMap;
+            end
+        end
+
+        function list = get.connectedChannels(df)
+            if isempty(df.channelMap)
+                list = [];
+            else
+                list = df.channelMap.connectedChannels;
+            end
+        end
+
+        function n = get.nChannelsMapped(df)
+            if isempty(df.channelMap)
+                n = NaN;
+            else
+                n = df.channelMap.nChannels;
+            end
+        end
+
+        function n = get.nChannelsConnected(df)
+            if isempty(df.channelMap)
+                n = NaN;
+            else
+                n = nnz(df.channelMap.connected);
+            end
+        end
+
+        function n = get.nGoodChannels(df)
+            n = numel(df.goodChannels);
+        end
+
+        function meta = readAPMeta(df)
+            meta = Neuropixel.readINI(df.pathAPMeta);
+        end
+
+        function meta = readLFMeta(df)
+            meta = Neuropixel.readINI(df.pathLFMeta);
+        end
+
+        function str = get.creationTimeStr(df)
+            str = datestr(df.creationTime);
+        end
+    end
+
+    methods(Static)
+        function [pathRoot, fileStem, type] = parseImecFileName(file)
+            if iscell(file)
+                [pathRoot, fileStem, type] = cellfun(@Neuropixel.ImecDataFile.parseImecFileName, file, 'UniformOutput', false);
+                return;
+            end
+
+            [pathRoot, f, e] = fileparts(file);
+            file = [f, e];
+
+
+            match = regexp(file, '(?<stem>\w+).imec.ap.bin', 'names', 'once');
+            if ~isempty(match)
+                type = 'ap';
+                fileStem = match.stem;
+                return;
+            end
+
+            match = regexp(file, '(?<stem>\w+).imec.lf.bin', 'names', 'once');
+            if ~isempty(match)
+                type = 'lf';
+                fileStem = match.stem;
+                return;
+            end
+
+            fileStem = file;
+            type = 'stem';
+        end
+
+        function apFiles = listAPFilesInDir(path)
+            info = dir(fullfile(path, '*.imec.ap.bin'));
+            apFiles = {info.name}';
+        end
+
+        function lfFiles = listLFFilesInDir(path)
+            info = dir(fullfile(path, '*.imec.lf.bin'));
+            lfFiles = {info.name}';
+        end
+
+        function imecOut = writeConcatenatedFileMatchGains(imecList, outPath, varargin)
+            p = inputParser();
+            p.addParameter('writeAP', true, @islogical);
+            p.addParameter('goodChannelsOnly', false, @islogical);
+            p.addParameter('writeSyncSeparate', false, @islogical); % true means ap will get only mapped channels, false will preserve channels as is
+            p.addParameter('writeLF', false, @islogical);
+            p.addParameter('chunkSize', 2^20, @isscalar);
+
+            p.addParameter('gpuArray', false, @islogical);
+            p.addParameter('applyScaling', false, @islogical); % convert to uV before processing
+
+            p.addParameter('transformAP', {}, @(x) iscell(x) || isa(x, 'function_handle')); % list of transformation functions that accept (df, dataChunk) and return dataChunk someplace
+            p.addParameter('transformLF', {}, @(x) iscell(x) || isa(x, 'function_handle')); % list of transformation functions that accept (df, dataChunk) and return dataChunk someplace
+
+            p.parse(varargin{:});
+
+            nFiles = numel(imecList);
+            stemList = cellfun(@(imec) imec.fileStem, imecList, 'UniformOutput', false);
+
+            function s = lastFilePart(f)
+                [~, f, e] = fileparts(f);
+                s = [f, e];
+            end
+
+            if ~exist(outPath, 'dir')
+                mkdirRecursive(outPath);
+            end
+            [~, leaf] = fileparts(outPath);
+
+            % determine the gains that we will use
+            function [multipliers, gain] = determineCommonGain(gains)
+                uGains = unique(gains);
+
+                if numel(uGains) == 1
+                    gain = uGains;
+                    multipliers = ones(nFiles, 1);
+                    debug('All files have common gain of %d\n', gain);
+                else
+                    % find largest gain that we can achieve by multiplying each
+                    % file by an integer (GCD)
+                    gain = uGains(1);
+                    for g = uGains(2:end)
+                        gain = lcm(gain, g);
+                    end
+                    multipliers = gain ./ gains;
+                    assert(all(multipliers==round(multipliers)));
+                    debug('Converting all files to gain of %d\n', gain);
+                end
+
+                multipliers = int16(multipliers);
+            end
+
+            % figure out which channels to keep
+            imec1 = imecList{1};
+            if p.Results.goodChannelsOnly
+                goodMat = false(imec1.nChannels, nFiles);
+                for i = 1:nFiles
+                    goodMat(imecList{i}.goodChannels, i) = true;
+                end
+                chIdx = find(all(goodMat, 2));
+                assert(~isempty(chIdx), 'No goodChannels specified across all datasets')
+
+            elseif p.Results.writeSyncSeparate
+                chIdx = imec1.mappedChannels; % excludes sync channel
+                assert(~isempty(chIdx), 'No mapped channels found in first dataset');
+
+            else
+                chIdx = 1:imec1.nChannels;
+            end
+
+            chunkSize = p.Results.chunkSize;
+
+            useGpuArray = p.Results.gpuArray;
+            applyScaling = p.Results.applyScaling;
+
+            if p.Results.writeAP
+                gains = cellfun(@(imec) imec.apGain, imecList);
+                [multipliers, gain] = determineCommonGain(gains);
+
+                outFile = fullfile(outPath, [leaf '.imec.ap.bin']);
+                metaOutFile = fullfile(outPath, [leaf '.imec.ap.meta']);
+
+                % generate new meta file
+                meta = imecList{1}.readAPMeta();
+                % adjust imroTabl to set gain correctly
+                m = regexp(meta.imroTbl, '\(([\d, ]*)\)', 'tokens');
+                pieces = cell(numel(m), 1);
+                pieces{1} = m{1}{1};
+                for iM = 2:numel(m)
+                    gainVals = strsplit(m{iM}{1}, ' ');
+                    gainVals{4} = sprintf('%d', gain);
+                    pieces{iM} = strjoin(gainVals, ' ');
+                end
+                meta.imroTbl = ['(' strjoin(pieces, ')('), ')'];
+                meta.fileName = [leaf '.imec.ap.bin'];
+                meta.concatenated = strjoin(stemList, ':');
+
+                debug('Writing AP meta file %s\n', lastFilePart(metaOutFile));
+                Neuropixel.writeINI(metaOutFile, meta);
+
+                debug('Writing AP bin file %s\n', lastFilePart(outFile));
+                writeCatFile(outFile, chIdx, 'ap', multipliers, chunkSize, p.Results.transformAP);
+            end
+
+            if p.Results.writeLF
+                gains = cellfun(@(imec) imec.lfGain, imecList);
+                [multipliers, gain] = determineCommonGain(gains);
+
+                outFile = fullfile(outPath, [leaf '.imec.lf.bin']);
+                metaOutFile = fullfile(outPath, [leaf '.imec.lf.meta']);
+
+                % generate new meta file
+                meta = imecList{1}.readLFMeta();
+                % adjust imroTabl to set gain correctly
+                m = regexp(meta.imroTbl, '\(([\d, ]*)\)', 'tokens');
+                pieces = cell(numel(m), 1);
+                pieces{1} = m{1}{1};
+                for iM = 2:numel(m)
+                    gainVals = strsplit(m{iM}{1}, ' ');
+                    gainVals{4} = sprintf('%d', gain);
+                    pieces{iM} = strjoin(gainVals, ' ');
+                end
+                meta.imroTbl = ['(' strjoin(pieces, ')('), ')'];
+                meta.fileName = [leaf '.imec.lf.bin'];
+                meta.concatenated = strjoin(stemList, ':');
+
+                debug('Writing LF meta file %s\n', lastFilePart(metaOutFile));
+                Neuropixel.writeINI(metaOutFile, meta);
+
+                debug('Writing LF bin file %s\n', lastFilePart(outFile));
+                writeCatFile(outFile, chIdx, 'lf', multipliers, chunkSize);
+            end
+
+            if p.Results.writeSyncSeparate
+                outFile = fullfile(outPath, [leaf '.imec.sync.bin']);
+                debug('Writing separate sync bin file %s', lastFilePart(outFile));
+                writeCatFile(outFile, imec1.syncChannelIndex, 'sync', ones(nFiles, 1, 'int16'), chunkSize, p.Results.transformAP);
+            end
+
+            imecOut = Neuropixel.ImecDataFile(outPath, imec1.channelMapFile);
+
+            function writeCatFile(outFile, chIdx, mode, multipliers, chunkSize, procFnList)
+                if nargin < 6
+                    procFnList = {};
+                end
+                if ~iscell(procFnList)
+                    procFnList = {procFnList};
+                end
+                multipliers = int16(multipliers);
+
+                 % generate new ap.bin file
+                fidOut = fopen(outFile, 'w');
+                if fidOut == -1
+                    error('Error opening output file %s', outFile);
+                end
+
+                for iF = 1:nFiles
+                    debug("Writing contents of %s\n", imecList{iF}.fileStem);
+                    switch mode
+                        case 'ap'
+                            mm = imecList{iF}.memmapAP_full();
+                        case 'lf'
+                            mm = imecList{iF}.memmapLF_full();
+                        case 'sync'
+                            mm = imecList{iF}.memmapSync_full();
+                    end
+
+                    nChunks = ceil(size(mm.Data.x, 2) / chunkSize);
+                    prog = ProgressBar(nChunks, 'Copying %s file %d / %d: %s', mode, iF, nFiles, imecList{iF}.fileStem);
+                    for iCh = 1:nChunks
+                        if iCh == nChunks
+                            idx = (iCh-1)*(chunkSize)+1 : size(mm.Data.x, 2);
+                        else
+                            idx = (iCh-1)*(chunkSize) + (1:chunkSize);
+                        end
+
+                        data = mm.Data.x(chIdx, idx);
+                        ch_mask = imecList{iF}.connectedChannels;
+
+                        if multipliers(iF) > 1
+                            data(ch_mask, :) = data(ch_mask, :) * multipliers(iF);
+                        end
+
+                        % do additional processing here
+                        if ~isempty(procFnList)
+                            if applyScaling
+                                % convert to uV and to single
+                                switch mode
+                                    case 'ap'
+                                        data = single(data);
+                                        data(ch_mask, :) = data(ch_mask, :) * single(imecList{iF}.apScaleToUv);
+                                    case 'lf'
+                                        data = single(data);
+                                        data(ch_mask, :) = data(ch_mask, :) * single(imecList{iF}.lfScaleToUv);
+                                end
+                            end
+
+                            if useGpuArray
+                                data = gpuArray(data);
+                            end
+
+                            % apply each procFn sequentially
+                            for iFn = 1:numel(procFnList)
+                                fn = procFnList{iFn};
+                                data = fn(imecList{iF}, data);
+                            end
+
+                            if useGpuArray
+                                data = gather(data);
+                            end
+
+                            if applyScaling
+                                data(ch_mask, :) = data(ch_mask, :) ./ imecList{iF}.scaleToUv;
+                            end
+
+                            data = int16(data);
+                        end
+
+                        fwrite(fidOut, data, 'int16');
+                        prog.increment();
+                    end
+                    prog.finish();
+                end
+            end
+
+        end
+
+    end
+end
