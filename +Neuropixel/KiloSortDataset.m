@@ -6,21 +6,34 @@ classdef KiloSortDataset < handle
     %   in .channel_map (which will match the other properties)
 
     properties
-        path
+        path(1, :) char
 
-        raw_dataset % typicaly an ImecDataFile
+        raw_dataset % Neuropixel.ImecDataset instance
 
         cluster_best_template_channels % nClusters x nClosest, indexed as in data file
+        
+        loadSync logical = false; % if false, won't load sync channel on load()
     end
 
     properties(Dependent)
+        pathLeaf
+        isLoaded
+        hasRawDataset
         nSpikes
         nChannelsSorted % number of channels in channel_map
         nClusters
         nTemplates
         nPCFeatures
         nFeaturesPerChannel
+        nChannels
         channelMap
+        
+        % pass through to sync information in raw_dataset if present
+        sync(:, 1) uint16 % nSamples sync channel contents
+    end
+    
+    properties(Dependent, SetAccess=protected)
+        syncBitNames(:, 1) cell
     end
 
     properties % Primary data properties
@@ -101,6 +114,18 @@ classdef KiloSortDataset < handle
     end
 
     methods % Dependent properties
+        function leaf = get.pathLeaf(ds)
+            [~, leaf] = fileparts(ds.path);
+        end
+        
+        function tf = get.isLoaded(ds)
+            tf = ~isempty(ds.spike_times);
+        end
+        
+        function tf = get.hasRawDataset(ds)
+            tf = ~isempty(ds.raw_dataset);
+        end
+        
         function n = get.nSpikes(ds)
             if isempty(ds.spike_times)
                 n = NaN;
@@ -148,23 +173,144 @@ classdef KiloSortDataset < handle
                 n = size(ds.pc_features, 2);
             end
         end
-
+        
+        function n = get.nChannels(ds)
+            if isempty(ds.channel_map)
+                n = NaN;
+            else
+                n = numel(ds.channel_map);
+            end
+        end
+        
         function map = get.channelMap(ds)
             map = ds.raw_dataset.channelMap;
+        end
+        
+        function sync = get.sync(ds)
+            if isempty(ds.raw_dataset) || ~ds.isLoaded || ~ds.loadSync
+                % don't autoload on print out make sure this only gets
+                % called by load
+                sync = zeros(0, 1, 'uint16');
+            else
+                sync = ds.raw_dataset.readSyncChannel();
+            end
+        end
+        
+        function syncBitNames = get.syncBitNames(ds)
+            if isempty(ds.raw_dataset)
+                if isempty(ds.syncBitNames)
+                    syncBitNames = repmat({''}, 16, 1);
+                else
+                    syncBitNames = ds.syncBitNames;
+                end
+            else
+                syncBitNames = ds.raw_dataset.syncBitNames;
+            end
         end
     end
 
     methods
-        function ds = KiloSortDataset(path, channelMap)
+        function ds = KiloSortDataset(path, varargin)
             if nargin == 0
                 return;
             end
+            
+            p = inputParser();
+            p.addParameter('channelMap', Neuropixel.Utils.getDefaultChannelMapFile(), @(x) true);
+            p.addParameter('imecDataset', [], @(x) true);
+            p.addParameter('loadSync', false, @islogical);
+            p.parse(varargin{:});
+            
+            if isa(path, 'Neuropixel.ImecDataset')
+                ds.raw_dataset = path;
+                path = ds.raw_dataset.pathRoot;
+            end
+            
             assert(exist(path, 'dir') == 7, 'Path %s not found', path);
             ds.path = path;
-            ds.raw_dataset = Neuropixel.ImecDataFile(path, channelMap);
+            
+            ds.loadSync = p.Results.loadSync; % if false, won't load sync channel on load()
+            
+            if isempty(ds.raw_dataset)
+                if isa(p.Results.imecDataset, 'Neuropixel.ImecDataset')
+                    ds.raw_dataset = p.Results.imecDataset;
+                elseif ischar(p.Results.imecDataset) || isempty(p.Results.imecDataset)
+                    raw_path = p.Results.imecDataset;
+                    if isempty(raw_path), raw_path = path; end
+                    if Neuropixel.ImecDataset.folderContainsDataset(raw_path)
+                        ds.raw_dataset = Neuropixel.ImecDataset(raw_path, 'channelMap', p.Results.channelMap);
+                    end
+                end
+            end
+        end
+        
+        function s = computeBasicStats(ds, varargin)
+            % a way of computing basic statistics without fully loading
+            % from disk. see printBasicStats
+            
+            p = inputParser();
+            p.addParameter('frThresholdHz', 3, @isscalar);
+            p.parse(varargin{:});
+
+            % can work without loading raw data, much faster
+            if ds.isLoaded
+                s.spike_clusters = ds.spike_clusters; %#ok<*PROP>
+                s.cluster_ids = ds.cluster_ids; 
+                s.offset = ds.offset;
+                s.sample_rate = ds.sample_rate;
+                s.spike_times = ds.spike_times;
+            else
+                % partial load
+                s.spike_clusters = read('spike_clusters');
+                s.cluster_ids = unique(s.spike_clusters);
+                params = Neuropixel.readINI(fullfile(ds.path, 'params.py'));
+                s.sample_rate = params.sample_rate;
+                s.offset = params.offset;
+                s.spike_times = read('spike_times');
+            end
+            
+            s.nSpikes = numel(s.spike_clusters);
+            s.nClusters = numel(s.cluster_ids);
+            s.nSec = double(max(s.spike_times) - s.offset) / double(s.sample_rate);
+            
+            counts = histcounts(s.spike_clusters, sort(s.cluster_ids));
+            s.fr = counts / double(s.nSec);
+            s.thresh = p.Results.frThresholdHz;
+            
+            s.clusterMask = s.fr > s.thresh;
+            s.nClustersAboveThresh = nnz(s.clusterMask);
+            s.nSpikesAboveThresh = nnz(ismember(s.spike_clusters, s.cluster_ids(s.clusterMask)));
+            
+            function out = read(file)
+                out = Neuropixel.readNPY(fullfile(ds.path, [file '.npy']));
+            end
+        end
+        
+        function printBasicStats(ds, varargin)
+            s = ds.computeBasicStats(varargin{:});
+            
+            fprintf('%s: %.1f sec, %d (%d) spikes, %d (%d) clusters (with fr > %g Hz)\n', ds.pathLeaf, s.nSec, ...
+                s.nSpikes, s.nSpikesAboveThresh, ...
+                s.nClusters, s.nClustersAboveThresh, s.thresh);
+            
+            plot(sort(s.fr, 'descend'), 'k-')
+            xlabel('Cluster');
+            ylabel('# spikes');
+            hold on
+            horzLine(s.thresh, 'Color', 'r');
+            hold off;
+            box off;
+            grid on;
         end
 
-        function load(ds)
+        function load(ds, reload)
+            if nargin < 2
+                reload = false;
+            end
+            if ds.isLoaded && ~reload
+                return;
+            end
+                
             params = Neuropixel.readINI(fullfile(ds.path, 'params.py'));
             ds.dat_path = params.dat_path;
             ds.n_channels_dat = params.n_channels_dat;
@@ -197,6 +343,9 @@ classdef KiloSortDataset < handle
             ds.whitening_mat_inv = read('whitening_mat_inv');
             ds.spike_clusters = read('spike_clusters');
             ds.cluster_ids = unique(ds.spike_clusters);
+            
+            % do auto loading now
+            ds.sync;
 
             prog.finish()
 
@@ -211,6 +360,29 @@ classdef KiloSortDataset < handle
                 ds.load();
             end
         end
+        
+        function setSyncBitNames(ds, idx, names)
+            if ~isempty(ds.raw_dataset)
+                ds.raw_dataset.setSyncBitNames(idx, names);
+            else
+                if isscalar(idx) && ischar(names)
+                    ds.syncBitNames{idx} = names;
+                else
+                    assert(iscellstr(names)) %#ok<ISCLSTR>
+                    ds.syncBitNames(idx) = names;
+                end
+            end
+        end
+        
+        function idx = lookupSyncBitByName(ds, names)
+            if ischar(names)
+                names = {names};
+            end
+            assert(iscellstr(names));
+
+            [tf, idx] = ismember(names, ds.syncBitNames);
+            idx(~tf) = NaN;
+        end
 
         function seg = segmentIntoClusters(ds)
             % generates a KiloSortTrialSegmentedDataset with only 1 trial.
@@ -221,7 +393,12 @@ classdef KiloSortDataset < handle
             tsi.trialId = 0;
             tsi.conditionId = 0;
             tsi.idxStart = 1;
-            tsi.idxStop = ds.raw_dataset.nSamplesAP;
+            
+            if ds.hasRawDataset
+                tsi.idxStop = ds.raw_dataset.nSamplesAP;
+            else
+                tsi.idxStop = max(ds.spike_times) + 1;
+            end
 
             seg = ds.segmentIntoTrials(tsi, 0);
         end
@@ -274,7 +451,7 @@ classdef KiloSortDataset < handle
             templates = TensorUtils.linearCombinationAlongDimension(templates, 3, wmi');
         end
 
-        function snippet_set = getWaveformsFromRawData(ds, varargin)
+        function snippetSet = getWaveformsFromRawData(ds, varargin)
              % Extracts individual spike waveforms from the raw datafile, for multiple
              % clusters. Returns the waveforms and their means within clusters.
              %
@@ -307,12 +484,14 @@ classdef KiloSortDataset < handle
              p.addParameter('num_waveforms', 2000, @isscalar); % caution: Inf will request ALL waveforms in order (typically useful if spike_times directly specified)
              p.addParameter('window', [-40 41], @isvector); % Number of samples before and after spiketime to include in waveform
              p.addParameter('car', false, @islogical);
-             p.addParameter('center', 20, @(x) isscalar(x) || islogical(x)); % subtract mean of each waveform's first n samples, don't do if false
+             p.addParameter('centerUsingFirstSamples', 20, @(x) isscalar(x) || islogical(x)); % subtract mean of each waveform's first n samples, don't do if false
 
              p.addParameter('raw_dataset', ds.raw_dataset, @(x) true);
 
              p.parse(varargin{:});
 
+             assert(ds.hasRawDataset, 'KiloSortDataset has no raw ImecDataset');
+             
              ds.checkLoaded();
 
              cluster_idx = [];
@@ -351,19 +530,21 @@ classdef KiloSortDataset < handle
 
              % channel_map is provided since raw data often has additional channels that we're not interested in
              window = p.Results.window;
-             data_ch_by_time_by_snippet = p.Results.raw_dataset.readAPSnippets(spike_times, ...
+             snippetSet = p.Results.raw_dataset.readAPSnippetSet(spike_times, ...
                  window, channel_idx, 'car', p.Results.car);
 
-             if p.Results.center
-                 data_ch_by_time_by_snippet = data_ch_by_time_by_snippet - mean(data_ch_by_time_by_snippet(:, 1:p.Results.center, :), 2, 'native');
+             if p.Results.centerUsingFirstSamples
+                 snippetSet.data = snippetSet.data - mean(snippetSet.data(:, 1:p.Results.centerUsingFirstSamples, :), 2, 'native');
              end
-
-             snippet_set = Neuropixel.SnippetSet(ds);
-             snippet_set.data = data_ch_by_time_by_snippet;
-             snippet_set.sample_idx = spike_times;
-             snippet_set.channel_idx = channel_idx;
-             snippet_set.cluster_idx = cluster_idx;
-             snippet_set.window = window;
-         end
+             snippetSet.cluster_idx = cluster_idx;
+        end
+         
+        function snippetSet = readAPSnippetSet(ds, times, window, channel_idx, varargin)
+            if nargin < 4
+                channel_idx = 1:ds.nChannels;
+            end
+            snippetSet = ds.raw_dataset.readAPSnippetSet(times, window, channel_idx, varargin{:});
+        end
+            
     end
 end

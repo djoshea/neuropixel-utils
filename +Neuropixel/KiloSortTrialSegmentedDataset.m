@@ -18,6 +18,11 @@ classdef KiloSortTrialSegmentedDataset < handle & matlab.mixin.Copyable
 
         % cluster ids corresponding to each column of the {nTrials, nClusters} properties
         cluster_ids(:, 1) int32
+        
+        % sync channel segmented by trials
+        sync(:, 1) cell
+        
+        syncBitNames(:, 1) cell
     end
 
     properties(Dependent)
@@ -60,6 +65,8 @@ classdef KiloSortTrialSegmentedDataset < handle & matlab.mixin.Copyable
             % this segmented dataset. tsi has its own trialId field, and
             % the data will be copied over where these ids match. But the
             % ultimate size will be set according to trial_ids
+            dataset.load();
+            
             seg.dataset = dataset;
             seg.trial_ids = trial_ids;
 
@@ -152,6 +159,21 @@ classdef KiloSortTrialSegmentedDataset < handle & matlab.mixin.Copyable
             seg.spike_templates = TensorUtils.splitAlongDimensionBySubscripts(...
                 dataset.spike_templates, 1, [nTrials, nUnits], subs);
 
+            prog.increment('Segmenting trials: sync');
+            seg.syncBitNames = dataset.syncBitNames;
+            
+            sync = dataset.sync;
+            if ~isempty(sync)
+                trial_info_idx_each_sample = discretize(1:numel(sync), edges);
+                trial_info_trial_id_each_sample = TensorUtils.selectAlongDimensionWithNaNs(tsi_trial_ids, 1, trial_info_idx_each_sample);
+                % convert trial info idx into trial_ids idx
+                [~, trial_idx_each_sample] = ismember(trial_info_trial_id_each_sample, trial_ids);
+                seg.sync = TensorUtils.splitAlongDimensionBySubscripts(...
+                    sync, 1, nTrials, trial_idx_each_sample);
+            else
+                seg.sync = {};
+            end
+            
             prog.finish();
         end
 
@@ -169,6 +191,16 @@ classdef KiloSortTrialSegmentedDataset < handle & matlab.mixin.Copyable
         
         function rd = get.raw_dataset(seg)
             rd = seg.dataset.raw_dataset;
+        end
+        
+        function idx = lookupSyncBitByName(seg, names)
+            if ischar(names)
+                names = {names};
+            end
+            assert(iscellstr(names));
+
+            [tf, idx] = ismember(names, seg.syncBitNames);
+            idx(~tf) = NaN;
         end
 
         function td = addSpikesToTrialData(seg, td, array)
@@ -196,24 +228,27 @@ classdef KiloSortTrialSegmentedDataset < handle & matlab.mixin.Copyable
 
     % pulling things from raw data
     methods
-        function snippet_set = getWaveformsFromRawData(seg, cluster_ids, mask_cell, varargin)
-            % mask_cell is nTrials x nClusters cell of mask or indices over spike times within that bin
+        function snippet_set = getWaveformsFromRawData(seg, cluster_ids, varargin)
+            % mask_cell is nTrials x nClusters cell of mask or indices over
+            % spike times within that bin, if omitted, all spikes will be
+            % included
             
             p = inputParser();
             % from KiloSortDataset.readAPSnippets
+            p.addOptional('mask_cell', {}, @(x) isempty(x) || iscell(x));
             p.addParameter('channel_idx', seg.dataset.channel_map, @isvector); % specify a subset of channels to extract
             p.addParameter('best_n_channels', NaN, @isscalar); % or take the best n channels based on this clusters template when cluster_id is scalar 
 
             % other params:
             p.addParameter('window', [-40 41], @isvector); % Number of samples before and after spiketime to include in waveform
             p.addParameter('car', false, @islogical);
-            p.addParameter('center', 20, @(x) isscalar(x) || islogical(x)); % subtract mean of each waveform's first n samples, don't do if false
+            p.addParameter('centerUsingFirstSamples', 20, @(x) isscalar(x) || islogical(x)); % subtract mean of each waveform's first n samples, don't do if false
             p.addParameter('num_waveforms', Inf, @isscalar); % caution: Inf will request ALL waveforms in order (typically useful if spike_times directly specified)
              
             p.addParameter('raw_dataset', seg.raw_dataset, @(x) true); 
             
             p.parse(varargin{:});
-
+            
             % lookup cluster_ids from
             [tf, cluster_idx] = ismember(cluster_ids, seg.cluster_ids);
             if any(~tf)
@@ -221,14 +256,22 @@ classdef KiloSortTrialSegmentedDataset < handle & matlab.mixin.Copyable
             end
 
             nClu = numel(cluster_idx);
+            
+            mask_cell = p.Results.mask_cell;
+            if isempty(mask_cell)
+                mask_cell = cellfun(@(times) true(size(times)), seg.spike_times(:, cluster_idx), 'UniformOutput', false);
+            end
+
             assert(size(mask_cell, 1) == seg.nTrials, 'mask_cell must be nTrials along dim 1');
             assert(size(mask_cell, 2) == nClu, 'mask_cell must be nClusters along dim 2');
 
             % assemble spike_times we want to collect, all at once
             masked_times = cellfun(@(times, mask) times(mask), seg.spike_times(:, cluster_idx), mask_cell, 'UniformOutput', false);
             masked_times = cat(1, masked_times{:});
+            
+            args = rmfield(p.Results, 'mask_cell');
 
-            snippet_set = seg.dataset.getWaveformsFromRawData('spike_times', masked_times, 'cluster_id', cluster_ids, p.Results);
+            snippet_set = seg.dataset.getWaveformsFromRawData('spike_times', masked_times, 'cluster_id', cluster_ids, args);
         end
         
         function snippet_set = getSnippetsFromRawData(seg, rel_start_ms_each_trial, duration_or_window_ms, varargin)
@@ -273,19 +316,14 @@ classdef KiloSortTrialSegmentedDataset < handle & matlab.mixin.Copyable
 
             channel_idx = p.Results.channel_idx;
             
-            snippet_set = Neuropixel.SnippetSet(seg.dataset);
-            
             % inflate back to full trials
+            snippet_set = p.Results.raw_dataset.readAPSnippetSet(req_zero, window_samples, channel_idx);
             snippet_set.data = TensorUtils.inflateMaskedTensor(...
-                p.Results.raw_dataset.readAPSnippets(req_zero, window_samples, channel_idx), ...
-                3, mask_non_nan, 0);
+                snippet_set.data, 3, mask_non_nan, 0);
             
             snippet_set.valid = mask_non_nan;
-            snippet_set.sample_idx = req_zero;
-            snippet_set.channel_idx = channel_idx;
             snippet_set.cluster_idx = [];
             snippet_set.trial_idx = trial_idx;
-            snippet_set.window = window_samples;
         end 
     end
 

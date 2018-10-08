@@ -1,10 +1,12 @@
-classdef ImecDataFile < handle
+classdef ImecDataset < handle
 
     properties(SetAccess = protected)
         pathRoot char = '';
         fileStem char = '';
         creationTime = NaN;
         nChannels = NaN;
+        
+        fileTypeAP = 'ap'; % typically ap or ap_CAR
 
         nSamplesAP = 0;
         nSamplesLF = 0;
@@ -23,7 +25,7 @@ classdef ImecDataFile < handle
         syncChannelIndex = NaN; % if in AP file, specify this
         syncInApFile logical = true; % is the sync info in the ap file, or in a separate .sync file
 
-        % use markGoodChannels to set this
+        % use markGoodChannels to set this, defaults to connectedChannels
         goodChannels = [];
 
         syncBitNames cell;
@@ -51,10 +53,14 @@ classdef ImecDataFile < handle
 
         nGoodChannels
 
-        pathAP % .imec.ap.bin file
+        fileAP % .imec.ap.bin file without folder
+        pathAP % .imec.ap.bin file with folder
+        fileAPMeta
         pathAPMeta
 
-        pathLF % .imec.lf.bin file
+        fileLF % without folder
+        pathLF % .imec.lf.bin file with folder
+        fileLFMeta
         pathLFMeta
 
         pathSync % .imec.sync.bin file
@@ -66,43 +72,30 @@ classdef ImecDataFile < handle
     end
 
     methods
-        function df = ImecDataFile(fileOrFileStem, channelMapFile, varargin)
+        function df = ImecDataset(fileOrFileStem, varargin)
             p = inputParser();
+            p.addParameter('channelMap', Neuropixel.Utils.getDefaultChannelMapFile(), @(x) true);
             p.addParameter('syncInApFile', true, @islogical);
             p.addParameter('syncChannelIndex', NaN, @isscalar);
             p.addParameter('syncBitNames', {}, @iscell);
             p.parse(varargin{:})
-
-            if exist(fileOrFileStem, 'dir')
-                % it's a directory, assume only one imec file in directory
-                path = fileOrFileStem;
-                apFiles = Neuropixel.ImecDataFile.listAPFilesInDir(path);
-
-                if isempty(apFiles)
-                    %warning('No imec.ap.bin files found in directory %s', path);
-                elseif numel(apFiles) > 1
-                    [~, leaf] = fileparts(fileOrFileStem);
-                    apMatching = [leaf '.imec.ap.bin'];
-                    if ismember(apMatching, apFiles)
-                        % use ap.bin file with same name as its containing
-                        % folder
-                        fileOrFileStem = fullfile(fileOrFileStem, apMatching);
-                    else
-                        error('Multiple Imec ap.bin files found in directory %s and none matches name of containing directory', path);
-                    end
-                else
-                    fileOrFileStem = fullfile(path, apFiles{1});
-                end
+            
+            file = Neuropixel.ImecDataset.findImecFileInDir(fileOrFileStem, 'ap');
+            if isempty(file)
+                error('No AP Imec file found at or in %s', fileOrFileStem);
             end
-
-            [df.pathRoot, df.fileStem] = Neuropixel.ImecDataFile.parseImecFileName(fileOrFileStem);
+            [df.pathRoot, df.fileStem, df.fileTypeAP] = Neuropixel.ImecDataset.parseImecFileName(file);
             if exist(df.pathAP, 'file')
+                if ~exist(df.pathAPMeta, 'file')
+                    error('Could not find AP meta file %s', df.pathAPMeta);
+                end
                 df.readInfo();
             else
                 error('Could not find AP bin file %s', df.pathAP);
             end
 
-            if nargin >= 2 && ~isempty(channelMapFile)
+            channelMapFile = p.Results.channelMap;
+            if ~isempty(channelMapFile)
                 df.channelMap = Neuropixel.ChannelMap(channelMapFile);
                 assert(df.channelMap.nChannels <= df.nChannels, 'Channel count is less than number of channels in channel map');
             end
@@ -189,7 +182,7 @@ classdef ImecDataFile < handle
             assert(iscellstr(names));
 
             [tf, idx] = ismember(names, df.syncBitNames);
-            assert(all(tf), 'Not all sync bit names found');
+            idx(~tf) = NaN;
         end
 
         function newImec = copyToNewLocation(df, newRoot, newStem)
@@ -205,7 +198,7 @@ classdef ImecDataFile < handle
             docopy(df.pathLFMeta, f('.imec.lf.meta'));
             docopy(df.pathSync, f('.imec.sync.bin'));
 
-            newImec = Neuropixel.ImecDataFile(fullfile(newRoot, newStem), df.channelMapFile);
+            newImec = Neuropixel.ImecDataset(fullfile(newRoot, newStem), 'channelMap', df.channelMapFile);
 
             function docopy(from, to)
                 if ~exist(from, 'file')
@@ -264,10 +257,14 @@ classdef ImecDataFile < handle
                 reload = false;
             end
             if isempty(df.syncRaw) || reload
+                fprintf('Loading sync channel (this will take some time)...\n');
+                mm = df.memmapSync_full();
+                df.syncRaw = mm.Data.x(df.syncChannelIndex, :)';
+                
                 % this will automatically redirect to a seaprate sync file
                 % or to the ap file depending on .syncInApFile
-                idx = df.syncChannelIndex;
-                df.syncRaw = df.readChannelBand('ap', idx, idx, [], [], 'Loading sync data');
+%                 idx = df.syncChannelIndex;
+%                 df.syncRaw = df.readChannelBand('ap', idx, idx, [], [], 'Loading sync data');
 %                   mm = df.memmapSync_full();
 %                   df.syncRaw = mm.Data.x(df.syncChannelIndex, :)';
             end
@@ -328,12 +325,12 @@ classdef ImecDataFile < handle
     end
 
     methods % Read data at specified times
-        function data_ch_by_time_by_snippet = readAPSnippets(df, times, window, channel_idx, varargin)
+        function data_ch_by_time_by_snippet = readAPSnippetsRaw(df, times, window, channel_idx, varargin)
             % for each sample index in times, read the window times + window(1):window(2)
             % of samples around this time from all channels
 
             if nargin < 4
-                channel_idx = true(df.nChannels, 1);
+                channel_idx = 1:df.nChannels;
             end
             p = inputParser();
             p.addParameter('car', false, @islogical); % subtract median over channels
@@ -363,7 +360,19 @@ classdef ImecDataFile < handle
             data_ch_by_time_by_snippet = out;
             prog.finish();
         end
-
+        
+        function snippet_set = readAPSnippetSet(df, times, window, channel_idx, varargin)
+            if nargin < 4
+                channel_idx = 1:df.nChannels;
+            end
+            data_ch_by_time_by_snippet = df.readAPSnippetsRaw(times, window, channel_idx, varargin{:});
+            snippet_set = Neuropixel.SnippetSet(df);
+            snippet_set.data = data_ch_by_time_by_snippet;
+            snippet_set.sample_idx = times;
+            snippet_set.channel_idx = makecol(channel_idx);
+            snippet_set.window = window;
+        end
+            
         function rms = computeRMSByChannel(df, varargin)
             p = inputParser();
             p.addParameter('sampleMask', [], @(x) isempty(x) || islogical(x));
@@ -415,7 +424,15 @@ classdef ImecDataFile < handle
         end
 
         function markGoodChannels(df, list)
+            % this overwrites the current good channels list, so all good
+            % channels should be specified
             df.goodChannels = list;
+        end
+        
+        function markBadChannels(df, list)
+            % this adds to the set of bad channels, so multiple calls will
+            % remove additional channels
+            df.goodChannels = setdiff(df.goodChannels, list);
         end
 
         function imecOut = saveTranformedDataset(df, outPath, varargin)
@@ -434,7 +451,7 @@ classdef ImecDataFile < handle
             p.parse(varargin{:});
 
             % this uses the same syntax as writeConcatenatedFileMatchGains
-            imecOut = Neuropixel.ImecDataFile.writeConcatenatedFileMatchGains({df}, outPath, p.Results);
+            imecOut = Neuropixel.ImecDataset.writeConcatenatedFileMatchGains({df}, outPath, p.Results);
         end
     end
 
@@ -448,7 +465,7 @@ classdef ImecDataFile < handle
             end
 
             switch type
-                case 'ap'
+                case {'ap', 'ap_CAR'}
                     fid = df.openAPFile();
                     nSamplesFull = df.nSamplesAP;
                 case 'lf'
@@ -526,23 +543,39 @@ classdef ImecDataFile < handle
 
     methods % Dependent properties
         function pathAP = get.pathAP(df)
-            pathAP = fullfile(df.pathRoot, [df.fileStem '.imec.ap.bin']);
+            pathAP = fullfile(df.pathRoot, df.fileAP);
+        end
+        
+        function fileAP = get.fileAP(df)
+            fileAP = [df.fileStem '.imec.' df.fileTypeAP '.bin'];
         end
 
         function tf = get.hasAP(df)
             tf = exist(df.pathAP, 'file') == 2;
         end
+        
+        function fileAPMeta = get.fileAPMeta(df)
+            fileAPMeta = [df.fileStem '.imec.ap.meta'];
+        end
 
         function pathAPMeta = get.pathAPMeta(df)
-            pathAPMeta = fullfile(df.pathRoot, [df.fileStem '.imec.ap.meta']);
+            pathAPMeta = fullfile(df.pathRoot, df.fileAPMeta);
         end
 
         function pathLF = get.pathLF(df)
-            pathLF = fullfile(df.pathRoot, [df.fileStem '.imec.lf.bin']);
+            pathLF = fullfile(df.pathRoot, df.fileLF);
+        end
+        
+        function fileAP = get.fileLF(df)
+            fileAP = [df.fileStem '.imec.lf.bin'];
+        end
+        
+        function fileLFMeta = get.fileLFMeta(df)
+            fileLFMeta = [df.fileStem '.imec.lf.meta'];
         end
 
         function pathLFMeta = get.pathLFMeta(df)
-            pathLFMeta = fullfile(df.pathRoot, [df.fileStem '.imec.lf.meta']);
+            pathLFMeta = fullfile(df.pathRoot, df.fileLFMeta);
         end
 
         function tf = get.hasLF(df)
@@ -604,7 +637,15 @@ classdef ImecDataFile < handle
                 n = nnz(df.channelMap.connected);
             end
         end
-
+        
+        function ch = get.goodChannels(df)
+            if isempty(df.goodChannels)
+                ch = df.connectedChannels;
+            else
+                ch = df.goodChannels;
+            end
+        end
+            
         function n = get.nGoodChannels(df)
             n = numel(df.goodChannels);
         end
@@ -621,38 +662,258 @@ classdef ImecDataFile < handle
             str = datestr(df.creationTime);
         end
     end
+    
+    methods % Modify bin data files in place
+        function modifyAPInPlace(imec, varargin)
+            imec.modifyInPlaceInternal('ap', varargin{:});
+        end
+        
+        function modifyLFInPlace(imec, varargin)
+            imec.modifyInPlaceInternal('lf', varargin{:});
+        end
+        
+        function imecSym = symLinkAPIntoDirectory(imec, newFolder)
+            if ~exist(newFolder, 'dir')
+                mkdirRecursive(newFolder);
+            end
+            newAPPath = fullfile(newFolder, imec.fileAP);
+            makeSymLink(imec.pathAP, newAPPath);
+            
+            newAPMetaPath = fullfile(newFolder, imec.fileAPMeta);
+            makeSymLink(imec.pathAPMeta, newAPMetaPath);
+            
+            imecSym = Neuropixel.ImecDataset(newAPPath, 'channelMap', imec.channelMapFile);
+        end
+    end
+    
+    methods(Hidden)    
+        function modifyInPlaceInternal(imec, mode, procFnList, varargin)
+            p = inputParser();
+            p.addParameter('chunkSize', 2^20, @isscalar);
+            p.addParameter('gpuArray', false, @islogical);
+            p.addParameter('applyScaling', false, @islogical); % convert to uV before processing
+            p.addParameter('goodChannelsOnly', true, @islogical);
+            p.addParameter('mappedChannelsOnly', true, @islogical);
+            p.addParameter('debug', false, @islogical); % for testing proc fn before modifying file
+
+            p.parse(varargin{:});
+
+            chunkSize = p.Results.chunkSize;
+            useGpuArray = p.Results.gpuArray;
+            applyScaling = p.Results.applyScaling;
+            debug = p.Results.debug;
+            
+            if ~iscell(procFnList)
+                procFnList = {procFnList};
+            end
+            if isempty(procFnList)
+                error('No modification functions provided');
+            end
+
+            % open writable memmapfile
+            switch mode
+                case 'ap'
+                    mm = imec.memmapAP_full('Writable', ~debug);
+                case 'lf'
+                    mm = imec.memmapLF_full('Writable', ~debug);
+                otherwise
+                    error('Unknown mode %s', mode);
+            end
+            
+            % figure out which channels to keep
+            if p.Results.goodChannelsOnly
+                chIdx = imec.goodChannels;
+                assert(~isempty(chIdx), 'No goodChannels specified across all datasets')
+
+            elseif p.Results.mappedChannelsOnly
+                chIdx = imec.mappedChannels; % excludes sync channel
+                assert(~isempty(chIdx), 'No mapped channels found in first dataset');
+            else
+                chIdx = 1:imec.nChannels;
+            end
+
+            nChunks = ceil(size(mm.Data.x, 2) / chunkSize);
+            prog = ProgressBar(nChunks, 'Modifying %s file in place', mode);
+            for iCh = 1:nChunks
+                if iCh == nChunks
+                    idx = (iCh-1)*(chunkSize)+1 : size(mm.Data.x, 2);
+                else
+                    idx = (iCh-1)*(chunkSize) + (1:chunkSize);
+                end
+
+                data = mm.Data.x(chIdx, idx);
+                
+                % ch_connected_mask indicates which channels are
+                % connected, which are the ones where scaling makes
+                % sense. chIdx is all channels being modified by procFnList
+                ch_conn_mask = ismember(chIdx, imec.connectedChannels);
+
+                % do additional processing here
+                if applyScaling
+                    % convert to uV and to single
+                    switch mode
+                        case 'ap'
+                            data = single(data);
+                            data(ch_conn_mask, :) = data(ch_conn_mask, :) * single(imec.apScaleToUv);
+                        case 'lf'
+                            data = single(data);
+                            data(ch_conn_mask, :) = data(ch_conn_mask, :) * single(imec.lfScaleToUv);
+                    end
+                end
+
+                if useGpuArray
+                    data = gpuArray(data);
+                end
+
+                % apply each procFn sequentially
+                for iFn = 1:numel(procFnList)
+                    fn = procFnList{iFn};
+                    data = fn(imec, data, chIdx, idx);
+                end
+
+                if useGpuArray
+                    data = gather(data);
+                end
+
+                if applyScaling
+                    data(ch_conn_mask, :) = data(ch_conn_mask, :) ./ imec.scaleToUv;
+                end
+
+                data = int16(data);
+
+                if ~debug
+                    mm.Data.x(chIdx, idx) = data;
+                end
+                prog.increment();
+            end
+            prog.finish();
+        end
+    end
 
     methods(Static)
+        function [parent, leaf, ext] = filepartsMultiExt(file)
+            % like fileparts, but a multiple extension file like file.test.meta
+            % will end up with leaf = file and ext = .test.meta
+
+            [parent, leaf, ext] = fileparts(file);
+            if ~isempty(ext)
+                [leaf, ext] = strtok([leaf, ext], '.');
+            end
+        end
+
+        function tf = folderContainsDataset(fileOrFileStem)
+            file = Neuropixel.ImecDataset.findImecFileInDir(fileOrFileStem, 'ap');
+            if isempty(file)
+                tf = false;
+                return;
+            end
+            
+            [pathRoot, fileStem, fileTypeAP] = Neuropixel.ImecDataset.parseImecFileName(file);
+            pathAP = fullfile(pathRoot, [fileStem '.imec.' fileTypeAP '.bin']);
+            pathAPMeta = fullfile(pathRoot, [fileStem '.imec.ap.meta']);
+            
+            tf = exist(pathAP, 'file') && exist(pathAPMeta, 'file');
+        end
+        
+        function file = findImecFileInDir(fileOrFileStem, type)
+            if nargin < 2
+                type = 'ap';
+            end
+            
+            if exist(fileOrFileStem, 'file') == 2
+                file = fileOrFileStem;
+                [~, ~, type] = Neuropixel.ImecDataset.parseImecFileName(file);
+                switch type
+                    case 'ap'
+                        assert(ismember(type, {'ap', 'ap_CAR'}), 'Specify ap.bin or ap_CAR.bin file rather than %s file', type);
+                    case 'lf'
+                        assert(ismember(type, {'lf'}), 'Specify lf.bin file rather than %s file', type);
+                end
+                
+            elseif exist(fileOrFileStem, 'dir')
+                % it's a directory, assume only one imec file in directory
+                path = fileOrFileStem;
+                [~, leaf] = fileparts(path);
+                
+                switch type
+                    case 'ap'
+                        apFiles = Neuropixel.ImecDataset.listAPFilesInDir(path);
+                        if ~isempty(apFiles)
+                            if numel(apFiles) > 1
+                                [tf, idx] = ismember([leaf '.imec.ap.bin'], apFiles);
+                                if tf
+                                    file = apFiles{idx};
+                                    return
+                                end
+                                [tf, idx] = ismember([leaf '.imec.ap_CAR.bin'], apFiles);
+                                if tf
+                                    file = apFiles{idx};
+                                    return
+                                end
+                                file = apFiles{1};
+                                warning('Multiple AP files found in dir, choosing %s', file);
+                            else
+                                file = apFiles{1};
+                            end
+                        else
+                            file = [];
+                            return;
+                        end
+
+                    case 'lf'
+                        lfFiles = Neuropixel.ImecDataset.listLFFilesInDir(path);
+                        if ~isempty(lfFiles)
+                            if numel(lfFiles) > 1
+                                [tf, idx] = ismember([leaf '.imec.lf.bin'], lfFiles);
+                                if tf
+                                    file = lfFiles{idx};
+                                    return
+                                end
+                                file = lfFiles{1};
+                                warning('Multiple LF files found in dir, choosing %s', file);
+                            else
+                                file = lfFiles{1};
+                            end
+                        else
+                            file = [];
+                            return;
+                        end
+                    otherwise
+                        error('Unknown type %s');
+                end
+                
+                file = fullfile(path, file);
+            else
+                error('Folder or file %s does not exist', fileOrFileStem);
+            end
+        end
+        
         function [pathRoot, fileStem, type] = parseImecFileName(file)
             if iscell(file)
-                [pathRoot, fileStem, type] = cellfun(@Neuropixel.ImecDataFile.parseImecFileName, file, 'UniformOutput', false);
+                [pathRoot, fileStem, type] = cellfun(@Neuropixel.ImecDataset.parseImecFileName, file, 'UniformOutput', false);
                 return;
             end
 
             [pathRoot, f, e] = fileparts(file);
+            if isempty(e)
+                error('No file extension specified on Imec file name');
+            end
             file = [f, e];
 
 
-            match = regexp(file, '(?<stem>\w+).imec.ap.bin', 'names', 'once');
+            match = regexp(file, '(?<stem>\w+).imec.(?<type>\w+).bin', 'names', 'once');
             if ~isempty(match)
-                type = 'ap';
-                fileStem = match.stem;
-                return;
-            end
-
-            match = regexp(file, '(?<stem>\w+).imec.lf.bin', 'names', 'once');
-            if ~isempty(match)
-                type = 'lf';
+                type = match.type;
                 fileStem = match.stem;
                 return;
             end
 
             fileStem = file;
-            type = 'stem';
+            type = '';
         end
 
         function apFiles = listAPFilesInDir(path)
-            info = dir(fullfile(path, '*.imec.ap.bin'));
+            info = cat(1, dir(fullfile(path, '*.imec.ap.bin')), dir(fullfile(path, '*.imec.ap_CAR.bin')));
             apFiles = {info.name}';
         end
 
@@ -685,11 +946,18 @@ classdef ImecDataFile < handle
                 s = [f, e];
             end
 
+            
+            [parent, leaf, ext] = Neuropixel.ImecDataset.filepartsMultiExt(outPath);
+            if ~isempty(ext) && endsWith(ext, 'bin')
+                % specified full file
+                outPath = parent;
+            else
+                outPath = fullfile(parent, [leaf, ext]);
+            end
             if ~exist(outPath, 'dir')
                 mkdirRecursive(outPath);
             end
-            [~, leaf] = fileparts(outPath);
-
+                
             % determine the gains that we will use
             function [multipliers, gain] = determineCommonGain(gains)
                 uGains = unique(gains);
@@ -757,6 +1025,14 @@ classdef ImecDataFile < handle
                 meta.imroTbl = ['(' strjoin(pieces, ')('), ')'];
                 meta.fileName = [leaf '.imec.ap.bin'];
                 meta.concatenated = strjoin(stemList, ':');
+                
+                % indicate concatenation time points in meta file
+                meta.concatenatedSamples = cellfun(@(imec) imec.nSamplesAP, imecList);
+                meta.concatenatedGains = gains;
+                meta.concatenatedMultipliers = multipliers;
+                meta.concatenatedAdcBits = cellfun(@(imec) imec.adcBits, imecList);
+                meta.concatenatedAiRangeMin = cellfun(@(imec) imec.apRange(1), imecList);
+                meta.concatenatedAiRangeMax = cellfun(@(imec) imec.apRange(2), imecList);
 
                 debug('Writing AP meta file %s\n', lastFilePart(metaOutFile));
                 Neuropixel.writeINI(metaOutFile, meta);
@@ -786,6 +1062,14 @@ classdef ImecDataFile < handle
                 meta.imroTbl = ['(' strjoin(pieces, ')('), ')'];
                 meta.fileName = [leaf '.imec.lf.bin'];
                 meta.concatenated = strjoin(stemList, ':');
+                
+                % indicate concatenation time points in meta file
+                meta.concatenatedSamples = cellfun(@(imec) imec.nSamplesLF, imecList);
+                meta.concatenatedGains = gains;
+                meta.concatenatedMultipliers = multipliers;
+                meta.concatenatedAdcBits = cellfun(@(imec) imec.adcBits, imecList);
+                meta.concatenatedAiRangeMin = cellfun(@(imec) imec.lfRange(1), imecList);
+                meta.concatenatedAiRangeMax = cellfun(@(imec) imec.lfRange(2), imecList);
 
                 debug('Writing LF meta file %s\n', lastFilePart(metaOutFile));
                 Neuropixel.writeINI(metaOutFile, meta);
@@ -800,7 +1084,8 @@ classdef ImecDataFile < handle
                 writeCatFile(outFile, imec1.syncChannelIndex, 'sync', ones(nFiles, 1, 'int16'), chunkSize, p.Results.transformAP);
             end
 
-            imecOut = Neuropixel.ImecDataFile(outPath, imec1.channelMapFile);
+            outFile = fullfile(outPath, [leaf '.imec.ap.bin']);
+            imecOut = Neuropixel.ImecDataset(outFile, 'channelMap', imec1.channelMapFile);
 
             function writeCatFile(outFile, chIdx, mode, multipliers, chunkSize, procFnList)
                 if nargin < 6
@@ -838,10 +1123,15 @@ classdef ImecDataFile < handle
                         end
 
                         data = mm.Data.x(chIdx, idx);
-                        ch_mask = imecList{iF}.connectedChannels;
+                        
+                        % ch_connected_mask indicates which channels are
+                        % connected, which are the ones where scaling makes
+                        % sense. chIdx is all channels being written to
+                        % output file
+                        ch_conn_mask = ismember(chIdx, imecList{iF}.connectedChannels);
 
                         if multipliers(iF) > 1
-                            data(ch_mask, :) = data(ch_mask, :) * multipliers(iF);
+                            data(ch_conn_mask, :) = data(ch_conn_mask, :) * multipliers(iF);
                         end
 
                         % do additional processing here
@@ -851,10 +1141,10 @@ classdef ImecDataFile < handle
                                 switch mode
                                     case 'ap'
                                         data = single(data);
-                                        data(ch_mask, :) = data(ch_mask, :) * single(imecList{iF}.apScaleToUv);
+                                        data(ch_conn_mask, :) = data(ch_conn_mask, :) * single(imecList{iF}.apScaleToUv);
                                     case 'lf'
                                         data = single(data);
-                                        data(ch_mask, :) = data(ch_mask, :) * single(imecList{iF}.lfScaleToUv);
+                                        data(ch_conn_mask, :) = data(ch_conn_mask, :) * single(imecList{iF}.lfScaleToUv);
                                 end
                             end
 
@@ -865,7 +1155,7 @@ classdef ImecDataFile < handle
                             % apply each procFn sequentially
                             for iFn = 1:numel(procFnList)
                                 fn = procFnList{iFn};
-                                data = fn(imecList{iF}, data);
+                                data = fn(imecList{iF}, data, chIdx, idx);
                             end
 
                             if useGpuArray
@@ -873,7 +1163,7 @@ classdef ImecDataFile < handle
                             end
 
                             if applyScaling
-                                data(ch_mask, :) = data(ch_mask, :) ./ imecList{iF}.scaleToUv;
+                                data(ch_conn_mask, :) = data(ch_conn_mask, :) ./ imecList{iF}.scaleToUv;
                             end
 
                             data = int16(data);
@@ -888,5 +1178,7 @@ classdef ImecDataFile < handle
 
         end
 
+        
+        
     end
 end

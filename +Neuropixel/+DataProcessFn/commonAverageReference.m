@@ -1,9 +1,10 @@
-function data = commonAverageReference(imec, data)
-    chanMask = ismember(1:imec.nChannelsMapped, imec.goodChannels);
+function data = commonAverageReference(imec, data, chIdx, timeIdx) %#ok<INUSD>
+    chanMask = ismember(chIdx, imec.goodChannels);
 
-    data = bsxfun(@minus, data, median(data,2)); % make median of each channel 0
+    % subtract median of each channel over time
+    data(chanMask, :) = bsxfun(@minus, data(chanMask, :), median(data(chanMask, :), 2)); 
 
-    % subtract median of good channels
+    % subtract median across good channels
     data(chanMask, :) = bsxfun(@minus, data(chanMask, :), median(data(chanMask, :), 1));
 end
 

@@ -30,6 +30,6 @@ function valStr = convertVal(val)
                 valStr = sprintf('%g', val);
             end
     else
-        valStr = ['''' mat2str(val) ''''];
+        valStr = [mat2str(val)];
     end
 end

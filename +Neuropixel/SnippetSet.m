@@ -33,7 +33,7 @@ classdef SnippetSet < handle
                     raw_dataset = ds.raw_dataset;
                 elseif isa(ds, 'Neuropixel.KiloSortDataset')
                     raw_dataset = ds.raw_dataset;
-                elseif isa(ds, 'Neuropixel.ImecDataFile')
+                elseif isa(ds, 'Neuropixel.ImecDataset')
                     raw_dataset = ds;
                 else
                     error('Unknown arg type');
@@ -90,6 +90,10 @@ classdef SnippetSet < handle
     methods % plotting
         function plotAtProbeLocations(ss, varargin)
             p = inputParser();
+            p.addParameter('maskSnippets', ss.valid, @isvector);
+            p.addParameter('maskTime', true(ss.nTimepoints, 1), @isvector);
+            p.addparameter('maskChannels', true(ss.nChannels, 1), @isvector);
+            
             p.addParameter('xmag', 1.5, @isscalar);
             p.addParameter('ymag', 1.5, @isscalar);
             p.addParameter('showInLegendAs', 'snippets', @ischar);
@@ -110,18 +114,22 @@ classdef SnippetSet < handle
             xc = ss.channelMap.xcoords(ss.channel_idx);
             yc = ss.channelMap.ycoords(ss.channel_idx);
             
+            xc = xc(p.Results.maskChannels);
+            yc = yc(p.Results.maskChannels);
+            
             % plot relative time vector
             tvec = linspace(0, xspacing * xmag, numel(ss.window(1) : ss.window(2)));
             
             % center each channel
-            data = double(ss.data_valid);
-            data = data - mean(ss.data(:, :), 2); %#ok<*PROPLC>
+            data = double(ss.data(p.Results.maskChannels, p.Results.maskTime, p.Results.maskSnippets));
+            data = data - mean(data(:, :), 2); %#ok<*PROPLC>
             data = data - min(data(:));
             data = data ./ max(data(:)) * yspacing * ymag;
             
             holding = ishold;
-            handles = cell(ss.nChannels, 1);
-            for iC = 1:ss.nChannels
+            nChannels = size(data, 1);
+            handles = cell(nChannels, 1);
+            for iC = 1:nChannels
                 dmat = squeeze(data(iC, :, :)) + yc(iC);
                 handles{iC} = plot(tvec + xc(iC), dmat, p.Results.plotArgs{:});
                 if p.Results.alpha < 1
@@ -146,6 +154,23 @@ classdef SnippetSet < handle
             end
             axis off;
             box off;
+        end
+        
+        function plotStacked(ss, varargin)
+            p = inputParser();
+            p.addParameter('maskSnippets', ss.valid, @isvector);
+            p.addParameter('maskTime', true(ss.nTimepoints, 1), @isvector);
+            p.addParameter('maskChannels', true(ss.nChannels, 1), @isvector);
+            p.KeepUnmatched = true;
+            p.parse(varargin{:});
+            
+            channel_idx = TensorUtils.vectorMaskToIndices(p.Results.maskChannels);
+            data = double(ss.data(p.Results.maskChannels, p.Results.maskTime, p.Results.maskSnippets));
+            
+            chNames = sprintfc('ch %d', channel_idx);
+            ptstack(2, 1, ss.time_ms(p.Results.maskTime), data, ...
+                'showLabels', true, 'labelsStacked', chNames, p.Unmatched);
+            
         end
             
     end

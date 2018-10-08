@@ -1,4 +1,4 @@
-function sortNpix(imecDataset)
+function rez = sortNpix(imecDataset)
 
     ops = configImecP3(imecDataset);
     goodChannels = imecDataset.goodChannels;
@@ -12,7 +12,7 @@ function sortNpix(imecDataset)
     kcoords = map.shankInd; %#ok<NASGU>
     ops.chanMap = fullfile(ops.root,'chanMap.mat');
     ops.Nchan = nnz(connected);
-    fs = imecDataset.fs; %#ok<NASGU>
+    fs = imecDataset.fsAP; %#ok<NASGU>
     save(ops.chanMap, 'chanMap', 'xcoords', 'ycoords', 'connected', 'kcoords', 'fs');
 
     [rez, DATA, uproj] = preprocessData(ops); % preprocess data and extract spikes for initialization
@@ -46,7 +46,7 @@ function ops = configImecP3( imec )
     ops.fproc               = fullfile(fpath, 'temp_wh.dat'); % residual from RAM of preprocessed data		
     ops.root                = fpath; % 'openEphys' only: where raw files are		
 
-    ops.fs                  = imec.fs;        % sampling rate		(omit if already in chanMap file)
+    ops.fs                  = imec.fsAP;        % sampling rate		(omit if already in chanMap file)
     ops.NchanTOT            = imec.nChannels;           % total number of channels (omit if already in chanMap file)
     ops.Nchan               = imec.nChannelsConnected;           % number of active channels (omit if already in chanMap file)
     ops.Nfilt               = 960;           % number of clusters to use (2-4 times more than Nchan, should be a multiple of 32)     		

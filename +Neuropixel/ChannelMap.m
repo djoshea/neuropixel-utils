@@ -21,6 +21,11 @@ classdef ChannelMap
     
     methods
         function map = ChannelMap(fname)
+            if isa(fname, 'Neuropixel.ChannelMap')
+                map = fname;
+                return;
+            end
+            
             d = load(fname);
             map.file = fname;
             map.chanMap = d.chanMap;
