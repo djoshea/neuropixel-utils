@@ -16,20 +16,35 @@ end
 
 function valStr = convertVal(val)
     if ischar(val)
-        valStr = ['''' strtrim(val) ''''];
+        if isempty(val)
+            valStr = '';
+        else
+            valStr = ['''' strtrim(val) ''''];
+        end
+        
     elseif islogical(val)
         if val
             valStr = 'true';
         else
             valStr = 'false';
         end
+        
     elseif isscalar(val)
-            if isinteger(val)
-                valStr = sprintf('%d', val);
+            if isinteger(val) || abs(round(val) - val) < val / 10^9
+                valStr = sprintf('%d', round(val));
             else
                 valStr = sprintf('%g', val);
             end
+            
+    elseif iscell(val)
+        valStrCell = cellfun(@convertVal, val(:), 'UniformOutput', false);
+        valStr = ['{' strjoin(valStrCell, ',') '}'];
+        
+    elseif isvector(val)
+        valStrCell = arrayfun(@convertVal, val(:), 'UniformOutput', false);
+        valStr = strjoin(valStrCell, ',');
+        
     else
-        valStr = [mat2str(val)];
+        valStr = mat2str(val);
     end
 end

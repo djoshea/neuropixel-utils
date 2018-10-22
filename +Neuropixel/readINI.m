@@ -72,84 +72,73 @@ emptyValue = NaN;
 invalidValue = NaN;
 assignargs(varargin);
 
-if ischar(str)
-    single = true;
-    strCell = {str};
-elseif iscell(str)
-    single = false;
-    strCell = str;
-else
-    error('Requires char or cell array argument');
+str = strtrim(str);
+
+if isempty(str)
+    vec = emptyValue;
+    valid = true;
+    return;
 end
 
+% figure out which delimiter we're using to separate the values
+% semicolon, comma, or space
+if any(str == ';')
+    delim = ';';
+    multDelimsAsOne = false;
+    orientFn = @makecol;
+elseif any(str == ',')
+    delim = ',';
+    multDelimsAsOne = false;
+    orientFn = @makerow;
+else
+    delim = ' ';
+    multDelimsAsOne = true;
+    orientFn = @makerow;
+end
 
-for iStr = 1:length(strCell)
-    str = strCell{iStr};
+asCell = false;
+% strip surrounding [] and ''
+str = strip(str, '''');
+str = strip(str, '[');
+str = strip(str, ']');
+if ~isempty(str) && str(1) == '{'
+    asCell = true;
+    str = str(2:end);
+end
+if ~isempty(str) && str(end) == '}'
+    str = str(1:end-1);
+end
+str = strtrim(str);
 
-    if isempty(str)
-        vecCell{iStr} = emptyValue;
-        valid(iStr) = true;
-        continue;
-    end
+if isempty(str)
+    vec = emptyValue;
+    valid = true;
+    return;
+end
 
-    if ~ischar(str)
-        vecCell{iStr} = invalidValue;
-        valid(iStr) = false;
-        continue;
-    end
+results = textscan(str, '%s', 'Delimiter', delim, 'MultipleDelimsAsOne', multDelimsAsOne);
+tokens = results{1};
 
-    str = strtrim(str);
-    
-    % figure out which delimiter we're using to separate the values
-    % semicolon, comma, or space
-    if any(str == ';')
-        delim = ';';
-        multDelimsAsOne = false;
-        orientFn = @makecol;
-    elseif any(str == ',')
-        delim = ',';
-        multDelimsAsOne = false;
-        orientFn = @makerow;
-    else
-        delim = ' ';
-        multDelimsAsOne = true;
-        orientFn = @makerow;
-    end
+ignoreMask = cellfun(@(x) isempty(x) || strcmp(x, 'NaN'), tokens);
 
-    % strip surrounding [] and ''
-    if ~isempty(str) && str(1) == ''''
-        str = str(2:end);
-    end
-    if ~isempty(str) &&str(1) == '['
-        str = str(2:end);
-    end
-    if ~isempty(str) &&str(end) == ''''
-        str = str(1:end-1);
-    end
-    if ~isempty(str) && str(end) == ']'
-        str = str(1:end-1);
-    end
-    str = strtrim(str);
-    if isempty(str)
-        vecCell{iStr} = emptyValue;
-        valid(iStr) = true;
-        continue;
-    end
-
-    results = textscan(str, '%s', 'Delimiter', delim, 'MultipleDelimsAsOne', multDelimsAsOne);
-    tokens = results{1};
-
-    ignoreMask = cellfun(@(x) isempty(x) || strcmp(x, 'NaN'), tokens);
-
+if ~asCell
     vec = str2double(tokens);
-    valid(iStr) = ~any(isnan(vec) & ~ignoreMask);
-    vecCell{iStr} = orientFn(vec);
+    valid = ~any(isnan(vec) & ~ignoreMask);
+    vec = orientFn(vec);
+else
+    vec = cell(1, numel(tokens));
+    for iT = 1:numel(tokens)
+        test = str2double(tokens{iT});
+        if isnan(test) && ~strcmp(tokens{iT}, 'NaN')
+            % treat as string, strip quotes
+            vec{iT} = strip(strip(tokens{iT}, ''''), '"');
+        else
+            vec{iT} = test;
+        end
+    end
+            
+    valid = true;
 end
 
-if single
-    vec = vecCell{1};
-else
-    vec = vecCell;
-end
 
 end

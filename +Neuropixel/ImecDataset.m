@@ -25,8 +25,8 @@ classdef ImecDataset < handle
         syncChannelIndex = NaN; % if in AP file, specify this
         syncInApFile logical = true; % is the sync info in the ap file, or in a separate .sync file
 
-        % use markGoodChannels to set this, defaults to connectedChannels
-        goodChannels = [];
+        % see markBadChannels
+        badChannels
 
         syncBitNames cell;
     end
@@ -51,7 +51,10 @@ classdef ImecDataset < handle
         connectedChannels
         nChannelsConnected % excludes reference and sync channels
 
+        goodChannels % connected channels sans badChannels
         nGoodChannels
+        
+        nSyncBits
 
         fileAP % .imec.ap.bin file without folder
         pathAP % .imec.ap.bin file with folder
@@ -118,10 +121,8 @@ classdef ImecDataset < handle
                 df.syncInApFile = false;
             end
 
-            df.syncBitNames = repmat({''}, 16, 1);
             if ~isempty(p.Results.syncBitNames)
-                assert(numel(p.Results.syncBitNames) < 16, 'syncBitNames must be length 16 or less');
-                df.syncBitNames(1:numel(p.Results.syncBitNames)) = p.Resuls.syncBitNames;
+                df.setSyncBitNames(1:numel(p.Results.syncBitNames), p.Resuls.syncBitNames);
             end
         end
 
@@ -145,6 +146,14 @@ classdef ImecDataset < handle
 
             df.apRange = [meta.imAiRangeMin meta.imAiRangeMax];
             df.lfRange = [meta.imAiRangeMin meta.imAiRangeMax];
+            
+            % look at AP meta fields that might have been set by us
+            if isfield(meta, 'badChannels')
+                df.badChannels = union(df.badChannels, meta.badChannels);
+            end
+            if isfield(meta, 'syncBitNames')
+                df.setSyncBitNames(1:numel(meta.syncBitNames), meta.syncBitNames);
+            end
 
             if df.hasAP
                 fid = df.openAPFile();
@@ -167,6 +176,7 @@ classdef ImecDataset < handle
         end
 
         function setSyncBitNames(df, idx, names)
+            assert(all(idx >= 1 & idx < df.nSyncBits), 'Sync bit indices must be in [1 %d]', df.nSyncBits);
             if isscalar(idx) && ischar(names)
                 df.syncBitNames{idx} = names;
             else
@@ -369,7 +379,7 @@ classdef ImecDataset < handle
             snippet_set = Neuropixel.SnippetSet(df);
             snippet_set.data = data_ch_by_time_by_snippet;
             snippet_set.sample_idx = times;
-            snippet_set.channel_idx = makecol(channel_idx);
+            snippet_set.channel_idx = Neuropixel.Utils.makecol(channel_idx);
             snippet_set.window = window;
         end
             
@@ -404,7 +414,7 @@ classdef ImecDataset < handle
             rms = rms * df.apScaleToUv;
         end
 
-        function goodChannels = markGoodChannelsByRMS(df, varargin)
+        function goodChannels = markBadChannelsByRMS(df, varargin)
             p = inputParser();
             p.addParameter('rmsRange', [3 100], @isvector);
             p.addParameter('sampleMask', [], @(x) isempty(x) || islogical(x));
@@ -419,20 +429,16 @@ classdef ImecDataset < handle
             rmsMax = p.Results.rmsRange(2);
             channelMask(rms < rmsMin | rms > rmsMax) = false;
 
-            df.goodChannels = find(channelMask);
-            goodChannels = df.goodChannels;
-        end
-
-        function markGoodChannels(df, list)
-            % this overwrites the current good channels list, so all good
-            % channels should be specified
-            df.goodChannels = list;
+            df.markBadChannels(~channelMask);
         end
         
         function markBadChannels(df, list)
             % this adds to the set of bad channels, so multiple calls will
             % remove additional channels
-            df.goodChannels = setdiff(df.goodChannels, list);
+            if islogical(list)
+                list = find(list);
+            end
+            df.badChannels = union(df.badChannels, list);
         end
 
         function imecOut = saveTranformedDataset(df, outPath, varargin)
@@ -637,22 +643,42 @@ classdef ImecDataset < handle
                 n = nnz(df.channelMap.connected);
             end
         end
-        
+
         function ch = get.goodChannels(df)
-            if isempty(df.goodChannels)
-                ch = df.connectedChannels;
-            else
-                ch = df.goodChannels;
-            end
+            ch = setdiff(df.connectedChannels, df.badChannels);
         end
             
         function n = get.nGoodChannels(df)
             n = numel(df.goodChannels);
         end
+        
+        function n = get.nSyncBits(df)
+            n = 8*df.bytesPerSample; % should be 16?
+        end
+        
+        function names = get.syncBitNames(df)
+            if isempty(df.syncBitNames)
+                names = repmat({''}, df.nSyncBits, 1);
+            else
+                names = Neuropixel.Utils.makecol(df.syncBitNames);
+            end
+        end
 
         function meta = readAPMeta(df)
             meta = Neuropixel.readINI(df.pathAPMeta);
         end
+        
+        function meta = generateModifiedAPMeta(df)
+            meta = df.readAPMeta;
+        
+            meta.syncBitNames = df.syncBitNames;
+            meta.badChannels = df.badChannels;
+        end
+        
+        function writeModifiedAPMeta(df)
+            meta = df.generateModifiedAPMeta();
+            Neuropixel.writeINI([df.pathAPMeta], meta);
+        end             
 
         function meta = readLFMeta(df)
             meta = Neuropixel.readINI(df.pathLFMeta);
@@ -1012,7 +1038,8 @@ classdef ImecDataset < handle
                 metaOutFile = fullfile(outPath, [leaf '.imec.ap.meta']);
 
                 % generate new meta file
-                meta = imecList{1}.readAPMeta();
+                meta = imecList{1}.generateModifiedAPMeta();
+                
                 % adjust imroTabl to set gain correctly
                 m = regexp(meta.imroTbl, '\(([\d, ]*)\)', 'tokens');
                 pieces = cell(numel(m), 1);
@@ -1034,6 +1061,11 @@ classdef ImecDataset < handle
                 meta.concatenatedAiRangeMin = cellfun(@(imec) imec.apRange(1), imecList);
                 meta.concatenatedAiRangeMax = cellfun(@(imec) imec.apRange(2), imecList);
 
+                % compute union of badChannels
+                for iM = 2:numel(m)
+                    meta.badChannels = union(meta.badChannels, imecList{iM}.badChannels);
+                end
+                
                 debug('Writing AP meta file %s\n', lastFilePart(metaOutFile));
                 Neuropixel.writeINI(metaOutFile, meta);
 
