@@ -1,4 +1,6 @@
 classdef KiloSortTrialSegmentedDataset < handle & matlab.mixin.Copyable
+    
+    % Properties that are copied over but not segmented into trials
     properties
         dataset
 
@@ -19,10 +21,12 @@ classdef KiloSortTrialSegmentedDataset < handle & matlab.mixin.Copyable
         % cluster ids corresponding to each column of the {nTrials, nClusters} properties
         cluster_ids(:, 1) int32
         
+        cluster_groups(:, 1) categorical
+        
         % sync channel segmented by trials
         sync(:, 1) cell
         
-        syncBitNames(:, 1) cell
+        syncBitNames(:, 1) string
     end
 
     properties(Dependent)
@@ -33,9 +37,10 @@ classdef KiloSortTrialSegmentedDataset < handle & matlab.mixin.Copyable
         nChannelsConnected
     end
 
+    % Properties that are segmented by trial
+    % each of these is nTrials x nTemplates cell with the same inner size as in Dataset (as described)
     properties
-        % each of these is nTrials x nTemplates cell with the same inner size as in Dataset (as described)
-
+        
         %  [nSpikes, ] double vector with the amplitude scaling factor that was applied to the template when extracting that spike
         amplitudes(:,:) cell
 
@@ -60,7 +65,7 @@ classdef KiloSortTrialSegmentedDataset < handle & matlab.mixin.Copyable
     end
 
     methods
-        function seg = KiloSortTrialSegmentedDataset(dataset, tsi, trial_ids)
+        function seg = KiloSortTrialSegmentedDataset(dataset, tsi, trial_ids)    
             % trial_ids specifies the id of each trial that will appear in
             % this segmented dataset. tsi has its own trialId field, and
             % the data will be copied over where these ids match. But the
@@ -101,14 +106,15 @@ classdef KiloSortTrialSegmentedDataset < handle & matlab.mixin.Copyable
             seg.trial_has_data(trial_idx_each_trial_info) = true;
 
             % lookup from columns of all the nTrials x nUnits back into template ids
-            seg.cluster_ids = unique(dataset.spike_clusters);
+            seg.cluster_ids = dataset.cluster_ids;
+            seg.cluster_groups = dataset.cluster_groups;
 
             % figure out which trial each spike in spike_times belongs
             % to do discard data that occurs after trial stop, here we assume that each
             % trial ends at the next's start and the last trial ends at EOF
             edges = [tsi_start_idx; tsi_stop_idx(end)];
             trial_info_idx_each_spike = discretize(seg.dataset.spike_times, edges);
-            trial_info_trial_id_each_spike = TensorUtils.selectAlongDimensionWithNaNs(tsi_trial_ids, 1, trial_info_idx_each_spike);
+            trial_info_trial_id_each_spike = Neuropixel.Utils.TensorUtils.selectAlongDimensionWithNaNs(tsi_trial_ids, 1, trial_info_idx_each_spike);
 
             % convert trial info idx into trial_ids idx
             [~, trial_idx_each_spike] = ismember(trial_info_trial_id_each_spike, trial_ids);
@@ -120,7 +126,7 @@ classdef KiloSortTrialSegmentedDataset < handle & matlab.mixin.Copyable
 
             prog = ProgressBar(6, 'Segmenting trials: spike_times');
             prog.increment();
-            spike_times_grouped = TensorUtils.splitAlongDimensionBySubscripts(...
+            spike_times_grouped = Neuropixel.Utils.TensorUtils.splitAlongDimensionBySubscripts(...
                 dataset.spike_times, 1, [nTrials, nUnits], subs);
 
             seg.spike_times = spike_times_grouped;
@@ -139,24 +145,24 @@ classdef KiloSortTrialSegmentedDataset < handle & matlab.mixin.Copyable
             seg.spike_times_ms_rel_start = spike_times_grouped;
 
             prog.increment('Segmenting trials: spike_idx');
-            seg.spike_idx = TensorUtils.splitAlongDimensionBySubscripts(...
+            seg.spike_idx = Neuropixel.Utils.TensorUtils.splitAlongDimensionBySubscripts(...
                 (1:seg.dataset.nSpikes)', 1, [nTrials, nUnits], subs);
 
             % slice the other fields into trials x unit:
             prog.increment('Segmenting trials: amplitudes');
-            seg.amplitudes = TensorUtils.splitAlongDimensionBySubscripts(...
+            seg.amplitudes = Neuropixel.Utils.TensorUtils.splitAlongDimensionBySubscripts(...
                 dataset.amplitudes, 1, [nTrials, nUnits], subs);
 
             prog.increment('Segmenting trials: pc_features');
-            seg.pc_features = TensorUtils.splitAlongDimensionBySubscripts(...
+            seg.pc_features = Neuropixel.Utils.TensorUtils.splitAlongDimensionBySubscripts(...
                 dataset.amplitudes, 1, [nTrials, nUnits], subs);
 
             prog.increment('Segmenting trials: template_features');
-            seg.template_features = TensorUtils.splitAlongDimensionBySubscripts(...
+            seg.template_features = Neuropixel.Utils.TensorUtils.splitAlongDimensionBySubscripts(...
                 dataset.template_features, 1, [nTrials, nUnits], subs);
 
             prog.increment('Segmenting trials: spike_clusters');
-            seg.spike_templates = TensorUtils.splitAlongDimensionBySubscripts(...
+            seg.spike_templates = Neuropixel.Utils.TensorUtils.splitAlongDimensionBySubscripts(...
                 dataset.spike_templates, 1, [nTrials, nUnits], subs);
 
             prog.increment('Segmenting trials: sync');
@@ -165,10 +171,10 @@ classdef KiloSortTrialSegmentedDataset < handle & matlab.mixin.Copyable
             sync = dataset.sync;
             if ~isempty(sync)
                 trial_info_idx_each_sample = discretize(1:numel(sync), edges);
-                trial_info_trial_id_each_sample = TensorUtils.selectAlongDimensionWithNaNs(tsi_trial_ids, 1, trial_info_idx_each_sample);
+                trial_info_trial_id_each_sample = Neuropixel.Utils.TensorUtils.selectAlongDimensionWithNaNs(tsi_trial_ids, 1, trial_info_idx_each_sample);
                 % convert trial info idx into trial_ids idx
                 [~, trial_idx_each_sample] = ismember(trial_info_trial_id_each_sample, trial_ids);
-                seg.sync = TensorUtils.splitAlongDimensionBySubscripts(...
+                seg.sync = Neuropixel.Utils.TensorUtils.splitAlongDimensionBySubscripts(...
                     sync, 1, nTrials, trial_idx_each_sample);
             else
                 seg.sync = {};
@@ -203,27 +209,7 @@ classdef KiloSortTrialSegmentedDataset < handle & matlab.mixin.Copyable
             idx(~tf) = NaN;
         end
 
-        function td = addSpikesToTrialData(seg, td, array)
-            if nargin < 3
-                array = 'npix_';
-            end
-
-            assert(td.nTrials == seg.nTrials, 'Trial counts do not match');
-
-            chNameFn = @(iU) sprintf('%s%03d', array, seg.cluster_ids(iU));
-
-            prog = ProgressBar(seg.nClusters, 'Adding spike channels to TrialData');
-            for iU = 1:seg.nClusters
-                prog.update(iU);
-                td.warnIfNoArgOut(nargout);
-
-                td = td.addSpikeChannel(chNameFn(iU), seg.spike_times_ms_rel_start(:, iU), 'isAligned', false);
-            end
-            prog.finish();
-
-            td = td.addOrUpdateBooleanParam(sprintf('%s_has_data', array), seg.trial_has_data);
-        end
-
+        
     end
 
     % pulling things from raw data
@@ -291,7 +277,7 @@ classdef KiloSortTrialSegmentedDataset < handle & matlab.mixin.Copyable
             p.addParameter('raw_dataset', seg.raw_dataset, @(x) true); 
             p.parse(varargin{:});
             
-            trial_idx = TensorUtils.vectorMaskToIndices(p.Results.trial_idx);
+            trial_idx = Neuropixel.Utils.TensorUtils.vectorMaskToIndices(p.Results.trial_idx);
             nTrials = numel(trial_idx); %#ok<*PROPLC>
             ms_to_samples =  seg.raw_dataset.fsAP / 1000;
             
@@ -318,7 +304,7 @@ classdef KiloSortTrialSegmentedDataset < handle & matlab.mixin.Copyable
             
             % inflate back to full trials
             snippet_set = p.Results.raw_dataset.readAPSnippetSet(req_zero, window_samples, channel_idx);
-            snippet_set.data = TensorUtils.inflateMaskedTensor(...
+            snippet_set.data = Neuropixel.Utils.TensorUtils.inflateMaskedTensor(...
                 snippet_set.data, 3, mask_non_nan, 0);
             
             snippet_set.valid = mask_non_nan;
