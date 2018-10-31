@@ -1066,7 +1066,7 @@ classdef ImecDataset < handle
                 meta.concatenatedAiRangeMax = cellfun(@(imec) imec.apRange(2), imecList);
 
                 % compute union of badChannels
-                for iM = 2:numel(m)
+                for iM = 2:numel(imecList)
                     meta.badChannels = union(meta.badChannels, imecList{iM}.badChannels);
                 end
                 
