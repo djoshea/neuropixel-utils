@@ -8,6 +8,7 @@ classdef ChannelMap
         shankInd
         xcoords
         ycoords
+        zcoords
     end
     
     properties(Dependent)
@@ -17,6 +18,7 @@ classdef ChannelMap
         
         yspacing
         xspacing
+        zspacing
     end
     
     methods
@@ -34,6 +36,19 @@ classdef ChannelMap
             map.shankInd = d.shankInd;
             map.xcoords = d.xcoords;
             map.ycoords = d.ycoords;
+            if isfield(d, 'zcoords')
+                map.zcoords = d.zcoords;
+            else
+                map.zcoords = zeros(size(map.ycoords), 'like', map.ycoords);
+            end
+        end
+        
+        function zcoords = get.zcoords(map)
+            if isempty(map.zcoords)
+                zcoords = zeros(size(map.ycoords), 'like', map.ycoords);
+            else
+                zcoords = map.zcoords;
+            end
         end
         
         function nChannels = get.nChannels(map)
@@ -46,6 +61,13 @@ classdef ChannelMap
         
         function sites = get.referenceChannels(map)
             sites = map.chanMap(~map.connected);
+        end
+        
+        function zspacing = get.zspacing(map)
+            zs = sort(map.zcoords(map.connected));
+            dzs = diff(zs);
+            dzs = dzs(dzs > 0);
+            zspacing = min(dzs);
         end
         
         function yspacing = get.yspacing(map)
@@ -72,13 +94,15 @@ classdef ChannelMap
             
             x = map.xcoords(map.connected);
             y = map.ycoords(map.connected);
+            z = map.zcoords(map.connected);
             N = numel(x);
 
             X = repmat(x, 1, N);
             Y = repmat(y, 1, N);
+            Z = repmat(z, 1, N);
 
             % distance between all connected and non-connected channels
-            distSq = (X - X').^2 + (Y - Y').^2;
+            distSq = (X - X').^2 + (Y - Y').^2 + (Z - Z').^2;
             distSq(logical(eye(N))) = Inf; % don't localize each channel to itself
             
             [tf, idx] = ismember(channel_idx, map.connectedChannels);
