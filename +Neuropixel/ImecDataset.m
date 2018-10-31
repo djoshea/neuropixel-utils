@@ -271,7 +271,7 @@ classdef ImecDataset < handle
                 mm = df.memmapSync_full();
                 df.syncRaw = mm.Data.x(df.syncChannelIndex, :)';
                 
-                % this will automatically redirect to a seaprate sync file
+                % this will automatically redirect to a separate sync file
                 % or to the ap file depending on .syncInApFile
 %                 idx = df.syncChannelIndex;
 %                 df.syncRaw = df.readChannelBand('ap', idx, idx, [], [], 'Loading sync data');
@@ -698,15 +698,19 @@ classdef ImecDataset < handle
             imec.modifyInPlaceInternal('lf', varargin{:});
         end
         
-        function imecSym = symLinkAPIntoDirectory(imec, newFolder)
+        function imecSym = symLinkAPIntoDirectory(imec, newFolder, varargin)
+            p = inputParser();
+            p.addParameter('relative', false, @islogical);
+            p.parse(varargin{:});
+            
             if ~exist(newFolder, 'dir')
                 mkdirRecursive(newFolder);
             end
             newAPPath = fullfile(newFolder, imec.fileAP);
-            makeSymLink(imec.pathAP, newAPPath);
+            Neuropixel.Utils.makeSymLink(imec.pathAP, newAPPath, p.Results.relative);
             
             newAPMetaPath = fullfile(newFolder, imec.fileAPMeta);
-            makeSymLink(imec.pathAPMeta, newAPMetaPath);
+            Neuropixel.Utils.makeSymLink(imec.pathAPMeta, newAPMetaPath, p.Results.relative);
             
             imecSym = Neuropixel.ImecDataset(newAPPath, 'channelMap', imec.channelMapFile);
         end
