@@ -10,9 +10,9 @@ classdef KiloSortDataset < handle
 
         raw_dataset % Neuropixel.ImecDataset instance
         
-        loadSync logical = false; % if false, won't load sync channel on load()
-        
         channelMap % Neuropixel.ChannelMap
+        
+        fsAP % sampling rate pass thru to raw_dataset or specified during construction
     end
     
     % Computed properties
@@ -198,7 +198,7 @@ classdef KiloSortDataset < handle
         end
         
         function map = get.channelMap(ds)
-            if ~isempty(ds.raw_dataset)
+            if ~isempty(ds.raw_dataset) && ~isempty(ds.raw_dataset.channelMap)
                 % pass thru to raw dataset
                 map = ds.raw_dataset.channelMap;
             else
@@ -207,12 +207,32 @@ classdef KiloSortDataset < handle
         end
         
         function sync = get.sync(ds)
-            if isempty(ds.raw_dataset) || ~ds.isLoaded || ~ds.loadSync
+            if isempty(ds.raw_dataset) || ~ds.isLoaded
                 % don't autoload on print out make sure this only gets
                 % called by load
                 sync = zeros(0, 1, 'uint16');
             else
-                sync = ds.raw_dataset.readSyncChannel();
+                sync = ds.raw_dataset.syncRaw();
+            end
+        end
+        
+        function fsAP = get.fsAP(ds)
+            if isempty(ds.fsAP)
+                if isempty(ds.raw_dataset)
+                    fsAP = NaN;
+                else
+                    fsAP = ds.raw_dataset.fsAP;
+                end
+            else
+                fsAP = ds.fsAP;
+            end
+        end
+        
+        function sync = loadSync(ds, varargin)
+            if isempty(ds.raw_dataset)
+                sync = zeros(0, 1, 'uint16');
+            else
+                sync = ds.raw_dataset.readSyncChannel(varargin{:});
             end
         end
         
@@ -254,7 +274,7 @@ classdef KiloSortDataset < handle
             p = inputParser();
             p.addParameter('channelMap', [], @(x) true);
             p.addParameter('imecDataset', [], @(x) true);
-            p.addParameter('loadSync', false, @islogical);
+            p.addParameter('fsAP', [], @(x) isempty(x) || isscalar(x));
             p.parse(varargin{:});
             
             if isa(path, 'Neuropixel.ImecDataset')
@@ -264,8 +284,6 @@ classdef KiloSortDataset < handle
             
             assert(exist(path, 'dir') == 7, 'Path %s not found', path);
             ds.path = path;
-            
-            ds.loadSync = p.Results.loadSync; % if false, won't load sync channel on load()
             
             if isempty(ds.raw_dataset)
                 if isa(p.Results.imecDataset, 'Neuropixel.ImecDataset')
@@ -277,21 +295,25 @@ classdef KiloSortDataset < handle
                         ds.raw_dataset = Neuropixel.ImecDataset(raw_path, 'channelMap', p.Results.channelMap);
                     end
                 end
+            end
             
-            else
-                % manually specify some additional props
-                channelMap = p.Results.channelMap;
+            ds.fsAP = p.Results.fsAP;
+            
+            % manually specify some additional props
+            channelMap = p.Results.channelMap;
+            if isempty(channelMap)
+                if ~isempty(ds.raw_dataset)
+                    channelMap = ds.raw_dataset.channelMap;
+                end
                 if isempty(channelMap)
                     channelMap = Neuropixel.Utils.getDefaultChannelMapFile();
                 end
-                
-                if ischar(channnelMap)
-                    ds.channelMap = Neuropixel.ChannelMap(channnelMap);
-                else
-                    ds.channelMap = channelMap;
-                end
-                ds.channelMap = channelMap;
             end
+
+            if ischar(channelMap)
+                channelMap = Neuropixel.ChannelMap(channelMap);
+            end
+            ds.channelMap = channelMap;
         end
         
         function s = computeBasicStats(ds, varargin)
@@ -408,9 +430,6 @@ classdef KiloSortDataset < handle
                 ds.cluster_ids = unique(ds.spike_clusters);
             end
             
-            % do auto loading now
-            ds.sync;
-
             prog.finish()
 
             function out = read(file)
@@ -534,9 +553,9 @@ classdef KiloSortDataset < handle
                 return;
             end
             
-            [~, unit_idx_each_spike] = ismember(ds.spike_clusters, ds.cluster_ids);
+            [mask, unit_idx_each_spike] = ismember(ds.spike_clusters, ds.cluster_ids);
             spike_templates_by_unit = Neuropixel.Utils.TensorUtils.splitAlongDimensionBySubscripts(...
-                ds.spike_templates, 1, ds.nClusters, unit_idx_each_spike);
+                ds.spike_templates(mask), 1, ds.nClusters, unit_idx_each_spike(mask));
 
             % nChannelsSorted x nChannelsSorted, include each channel in its own
             % closest list
@@ -598,9 +617,9 @@ classdef KiloSortDataset < handle
                 weightPerSpike = ones(ds.nSpikes, 1);
             end
            
-            [~, cluster_id_each_spike] = ismember(ds.spike_clusters, ds.cluster_ids);
-            templateUseCountByCluster = accumarray([ds.spike_templates, cluster_id_each_spike], ...
-                weightPerSpike, [ds.nTemplates, ds.nClusters]);
+            [mask, cluster_ind_each_spike] = ismember(ds.spike_clusters, ds.cluster_ids);
+            templateUseCountByCluster = accumarray([ds.spike_templates(mask), cluster_ind_each_spike(mask)], ...
+                weightPerSpike(mask), [ds.nTemplates, ds.nClusters]);
         end
         
         function [templateAverageByClusterByChannel, wavgAmplitude] = computeWeightedAverageTemplate(ds)
@@ -615,8 +634,8 @@ classdef KiloSortDataset < handle
             templateAverageByClusterByChannel = Neuropixel.Utils.TensorUtils.linearCombinationAlongDimension(templates, 1, weightedTemplateUseCountByCluster');
             
             % compute weighted average of the amplitudes for each cluster
-            [~, cluster_ind_each_spike] = ismember(ds.spike_clusters, ds.cluster_ids);
-            wavgAmplitude = accumarray(cluster_ind_each_spike, ds.amplitudes, [ds.nClusters 1], @mean);
+            [mask, cluster_ind_each_spike] = ismember(ds.spike_clusters, ds.cluster_ids);
+            wavgAmplitude = accumarray(cluster_ind_each_spike(mask), ds.amplitudes(mask), [ds.nClusters 1], @mean);
         end
         
         function [templateAverageByCluster, wavgAmplitude] = computeWeightedAverageTemplateBestChannel(ds, varargin)
@@ -660,37 +679,54 @@ classdef KiloSortDataset < handle
 
              p = inputParser();
              % specify EXACTLY one of these:
-             p.addParameter('cluster_id', [], @isscalar);
+             p.addParameter('cluster_idx', [], @isvector); % manually specify all spikes from specific cluster_idx
              p.addParameter('spike_idx', [], @isvector); % manually specify which idx into spike_times
              p.addParameter('spike_times', [], @isvector); % manually specify which times directly to extract
 
-             % and ONE OR NONE of these
-             p.addParameter('channel_idx', ds.channel_map, @isvector); % specify a subset of channels to extract
+             % and ONE OR NONE of these to pick channels (or channels for each cluster)
+             p.addParameter('channel_idx_by_cluster', [], @(x) isempty(x) || ismatrix(x));
              p.addParameter('best_n_channels', NaN, @isscalar); % or take the best n channels based on this clusters template when cluster_id is scalar
 
              % other params:
-             p.addParameter('num_waveforms', 2000, @isscalar); % caution: Inf will request ALL waveforms in order (typically useful if spike_times directly specified)
+             p.addParameter('num_waveforms', Inf, @isscalar); % caution: Inf will request ALL waveforms in order (typically useful if spike_times directly specified)
              p.addParameter('window', [-40 41], @isvector); % Number of samples before and after spiketime to include in waveform
              p.addParameter('car', false, @islogical);
              p.addParameter('centerUsingFirstSamples', 20, @(x) isscalar(x) || islogical(x)); % subtract mean of each waveform's first n samples, don't do if false
 
              p.addParameter('raw_dataset', ds.raw_dataset, @(x) true);
 
+             % other metadata set in snippetSet
+             p.addParameter('trial_idx', [], @isvector);
+             
              p.parse(varargin{:});
 
              assert(ds.hasRawDataset, 'KiloSortDataset has no raw ImecDataset');
              
              ds.checkLoaded();
 
-             cluster_idx = [];
              if ~isempty(p.Results.spike_times)
                  spike_times = p.Results.spike_times; %#ok<*PROPLC>
+                 [tf, spike_idx] = ismember(spike_times, ds.spike_times);
+                 if any(~tf)
+                     error('Not all spike times were found in KiloSortDataset');
+                 end
+                 cluster_idx = ds.spike_clusters(spike_idx);
+                 unique_cluster_idx = unique(cluster_idx);
+
              elseif ~isempty(p.Results.spike_idx)
-                 spike_times = ds.spike_times(p.Results.spike_idx);
+                 spike_idx = p.Results.spike_idx;
+                 spike_times = ds.spike_times(spike_idx);
+                 cluster_idx = ds.spike_clusters(spike_idx);
+                 unique_cluster_idx = unique(cluster_idx);
+
+                 
              elseif ~isempty(p.Results.cluster_id)
                  clu = p.Results.cluster_id;
+                 unique_cluster_idx = clu;
+
                  if isscalar(clu)
-                     spike_times = ds.spike_times(ds.spike_clusters == clu);
+                     spike_idx = find(ds.spike_clusters == clu);
+                     spike_times = ds.spike_times(spike_idx); %#ok<FNDSB>
                      cluster_idx = repmat(clu, size(spike_times));
                  else
                      [mask, which] = ismember(ds.spike_cluster, clu);
@@ -700,33 +736,64 @@ classdef KiloSortDataset < handle
              else
                  error('Must specify one of spike_times, spike_idx, or cluster_id');
              end
-
+             trial_idx = p.Results.trial_idx;
+             if ~isempty(trial_idx)
+                 assert(numel(trial_idx) == numel(spike_idx));
+             end
+             
+             
              % figure out actual times requested
-             channel_idx = p.Results.channel_idx;
              if ~isnan(p.Results.best_n_channels)
+                 cluster_best_template_channels = ds.computeBestChannelsByCluster();
+                 
                  % okay to have multiple clusters, just use first cluster
                  % to pick channels
 %                  assert(isscalar(p.Results.cluster_id), 'best_n_channels_for_cluster only valid for scalar cluster_id');
-                 cluster_ind = find(ds.cluster_ids == p.Results.cluster_id(1), 1);
-                 if isempty(cluster_ind)
-                     error('Cluster %d not found in cluster_ids', p.Results.cluster_id);
+                 [~, cluster_ind] = ismember(unique_cluster_idx, ds.cluster_ids);
+                 if any(cluster_ind == 0)
+                     error('Some cluster idx not found in cluster_ids');
                  end
-                 channel_idx = ds.cluster_best_template_channels(cluster_ind, 1:p.Results.best_n_channels);
+                 channel_idx_by_cluster = cluster_best_template_channels(cluster_ind, 1:p.Results.best_n_channels)';
+             elseif ~isempty(p.Results.channel_idx_by_cluster)
+                 channel_idx_by_cluster = p.Results.channel_idx_by_cluster;
+             else
+                 channel_idx_by_cluster = ds.channel_map;
              end
 
-             if isfinite(p.Results.num_waveforms)
-                 spike_times = randsample(spike_times, p.Results.num_waveforms);
+             if isfinite(p.Results.num_waveforms)             
+                 % take num_waveforms from each cluster
+                 mask = false(numel(spike_idx), 1);
+                 nSample = p.Results.num_waveforms;
+                 [~, uclust_ind] = ismember(cluster_idx, unique_cluster_idx);
+                 nClu = numel(unique_cluster_idx);
+                 for iC = 1:nClu
+                     thisC = find(uclust_ind == iC);
+                     if numel(thisC) <= nSample
+                         mask(thisC) = true;
+                     else
+                         mask(randsample(numel(thisC), nSample, false)) = true;
+                     end
+                 end
+                 
+                 spike_idx = spike_idx(mask); %#ok<NASGU>
+                 spike_times = spike_times(mask);
+                 cluster_idx = cluster_idx(mask);
+                 if ~isempty(p.Results.trial_idx)
+                     trial_idx = trial_idx(mask);
+                 end
              end
 
              % channel_map is provided since raw data often has additional channels that we're not interested in
              window = p.Results.window;
              snippetSet = p.Results.raw_dataset.readAPSnippetSet(spike_times, ...
-                 window, channel_idx, 'car', p.Results.car);
+                 window, 'channel_idx_by_cluster', channel_idx_by_cluster, 'car', p.Results.car);
 
              if p.Results.centerUsingFirstSamples
                  snippetSet.data = snippetSet.data - mean(snippetSet.data(:, 1:p.Results.centerUsingFirstSamples, :), 2, 'native');
              end
              snippetSet.cluster_idx = cluster_idx;
+             
+             snippetSet.trial_idx = trial_idx;
         end
          
         function snippetSet = readAPSnippetSet(ds, times, window, channel_idx, varargin)
@@ -772,6 +839,15 @@ classdef KiloSortDataset < handle
             com = com(clusterInds, :);
             
             holding = ishold;
+            
+            % plot recording sites
+            cpos = ds.channel_positions;
+            plot(cpos(:, 1), cpos(:, 2), '.', 'Marker', 's', 'MarkerEdgeColor', 'none', ...
+                'MarkerFaceColor', [0.8 0.8 0.8], 'MarkerSize', 8);
+            hold on
+            
+            xlim([min(cpos(:,1)) - ds.channelMap.xspacing/2, max(cpos(:,1)) + ds.channelMap.xspacing/2]);
+            ylim([min(cpos(:,2)) - ds.channelMap.yspacing*5, max(cpos(:,2)) + ds.channelMap.yspacing*5]);
             
             for iC = 1:size(waves, 1)
                 if ischar(colormap)

@@ -23,8 +23,8 @@ classdef ImecDataset < handle
         channelMap = []; % can be stored using set channelMap
 
         syncChannelIndex = NaN; % if in AP file, specify this
-        syncInApFile logical = true; % is the sync info in the ap file, or in a separate .sync file
-
+        syncInAPFile logical = true; % is the sync info in the ap file, or in a separate .sync file
+        
         % see markBadChannels
         badChannels
 
@@ -66,8 +66,14 @@ classdef ImecDataset < handle
         fileLFMeta
         pathLFMeta
 
+        % if sync is stored in a separate file than AP
+        fileSync
         pathSync % .imec.sync.bin file
 
+        % after sync is cached to sync.mat file for faster reload
+        fileSyncCached
+        pathSyncCached % .sync.mat file (with cached sync)
+        
         creationTimeStr
 
         apScaleToUv % multiply raw int16 by this to get uV
@@ -78,7 +84,7 @@ classdef ImecDataset < handle
         function df = ImecDataset(fileOrFileStem, varargin)
             p = inputParser();
             p.addParameter('channelMap', Neuropixel.Utils.getDefaultChannelMapFile(), @(x) true);
-            p.addParameter('syncInApFile', true, @islogical);
+            p.addParameter('syncInAPFile', true, @islogical);
             p.addParameter('syncChannelIndex', NaN, @isscalar);
             p.addParameter('syncBitNames', {}, @iscell);
             p.parse(varargin{:})
@@ -104,14 +110,15 @@ classdef ImecDataset < handle
             df.channelMap = Neuropixel.ChannelMap(channelMapFile);
             assert(df.channelMap.nChannels <= df.nChannels, 'Channel count is less than number of channels in channel map');
 
-            if p.Results.syncInApFile
+            if p.Results.syncInAPFile
+                % check for cached sync file
                 if isnan(p.Results.syncChannelIndex)
                     % assume last channel in ap file
                     df.syncChannelIndex = df.nChannels;
                 else
                     df.syncChannelIndex = p.Results.syncChannelIndex;
                 end
-                df.syncInApFile = true;
+                df.syncInAPFile = true;
             else
                 if isnan(p.Results.syncChannelIndex)
                     % assume first channel in sync file
@@ -119,7 +126,7 @@ classdef ImecDataset < handle
                 else
                     df.syncChannelIndex = p.Results.syncChannelIndex;
                 end
-                df.syncInApFile = false;
+                df.syncInAPFile = false;
             end
 
             if ~isempty(p.Results.syncBitNames)
@@ -263,23 +270,41 @@ classdef ImecDataset < handle
             data_by_time = df.readLFChannelBand(ch, ch, varargin{:})';
         end
 
-        function syncRaw = readSyncChannel(df, reload)
-            if nargin < 2
-                reload = false;
-            end
-            if isempty(df.syncRaw) || reload
-                fprintf('Loading sync channel (this will take some time)...\n');
-                mm = df.memmapSync_full();
-                df.syncRaw = mm.Data.x(df.syncChannelIndex, :)';
-                
-                % this will automatically redirect to a separate sync file
-                % or to the ap file depending on .syncInApFile
-%                 idx = df.syncChannelIndex;
-%                 df.syncRaw = df.readChannelBand('ap', idx, idx, [], [], 'Loading sync data');
-%                   mm = df.memmapSync_full();
-%                   df.syncRaw = mm.Data.x(df.syncChannelIndex, :)';
+        function syncRaw = readSyncChannel(df, varargin)
+            p = inputParser();
+            p.addOptional('reload', false, @islogical);
+            p.addParameter('ignoreCached', false, @islogical);
+            p.parse(varargin{:});
+            
+            if isempty(df.syncRaw) || p.Results.reload
+                if exist(df.pathSyncCached, 'file') && ~p.Results.ignoreCached
+                    [~, f, e] = fileparts(df.pathSyncCached);
+                    fprintf('Loading sync from cached %s%s\n', f, e);
+                    ld = load(df.pathSyncCached);
+                    df.syncRaw = ld.sync;
+                else
+                    % this will automatically redirect to a separate sync file
+                    % or to the ap file depending on .syncInAPFile
+                    fprintf('Loading sync channel (this will take some time)...\n');
+                    mm = df.memmapSync_full();
+                    df.syncRaw = mm.Data.x(df.syncChannelIndex, :)';
+                    
+                    df.saveSyncCached();
+                end
             end
             syncRaw = df.syncRaw;
+        end
+        
+        function saveSyncCached(df)
+            sync = df.readSyncChannel();
+            save(df.pathSyncCached, 'sync');
+        end
+        
+        function updateSyncCached(df)
+            if exist(df.pathSyncCached, 'file')
+                sync = df.readSyncChannel();
+                save(df.pathSyncCached, 'sync');
+            end
         end
 
         function tf = getSyncBit(df, bit)
@@ -325,7 +350,7 @@ classdef ImecDataset < handle
         end
 
         function mm = memmapSync_full(df)
-            if df.syncInApFile
+            if df.syncInAPFile
                 % still has nChannels
                 mm = memmapfile(df.pathSync, 'Format', {'int16', [df.nChannels df.nSamplesAP], 'x'});
             else
@@ -336,21 +361,34 @@ classdef ImecDataset < handle
     end
 
     methods % Read data at specified times
-        function data_ch_by_time_by_snippet = readAPSnippetsRaw(df, times, window, channel_idx, varargin)
+        function [data_ch_by_time_by_snippet, cluster_idx, channel_idx_by_cluster] = readAPSnippetsRaw(df, times, window, varargin)
             % for each sample index in times, read the window times + window(1):window(2)
-            % of samples around this time from all channels
+            % of samples around this time from some channels
 
-            if nargin < 4
-                channel_idx = 1:df.nChannels;
-            end
             p = inputParser();
+            p.addParameter('channel_idx_by_cluster', [], @ismatrix);
+            p.addParameter('cluster_idx', ones(numel(times), 1), @isvector);
             p.addParameter('car', false, @islogical); % subtract median over channels
             p.parse(varargin{:});
 
-            channel_idx = TensorUtils.vectorIndicesToMask(channel_idx, df.nChannels);
-
+            channel_idx_by_cluster = p.Results.channel_idx_by_cluster;
+            if isempty(channel_idx_by_cluster)
+                channel_idx_by_cluster = df.channelMap.chanMap;
+            end
+            cluster_idx = Neuropixel.Utils.makecol(p.Results.cluster_idx);
+            if isscalar(cluster_idx)
+                cluster_idx = repmat(cluster_idx, numel(times), 1);
+            else
+                assert(numel(cluster_idx) == numel(times), 'cluster_idx must have same length as requested times');
+            end
+            nClusters = numel(unique(cluster_idx));
+            if size(channel_idx_by_cluster, 1) == 1
+                % same channels each cluster, repmat column to make matrix
+                channel_idx_by_cluster = repmat(channel_idx_by_cluster, 1, nClusters);
+            end
+            
             mm = df.memmapAP_full();
-            nC = nnz(channel_idx);
+            nC = size(channel_idx_by_cluster, 1);
             nS = numel(times);
             nT = numel(window(1):window(2));
             out = zeros(nC, nT, nS, 'int16');
@@ -361,6 +399,7 @@ classdef ImecDataset < handle
                 
                 idx_start = times(iS)+window(1);
                 idx_stop = idx_start + nT - 1;
+                channel_idx = channel_idx_by_cluster(:, cluster_idx(iS)); % which channels for this spike
                 if p.Results.car
                     extract = mm.Data.x(:, idx_start:idx_stop);
                     out(:, :, iS) = extract(channel_idx, :) - median(extract, 1);
@@ -372,15 +411,14 @@ classdef ImecDataset < handle
             prog.finish();
         end
         
-        function snippet_set = readAPSnippetSet(df, times, window, channel_idx, varargin)
-            if nargin < 4
-                channel_idx = 1:df.nChannels;
-            end
-            data_ch_by_time_by_snippet = df.readAPSnippetsRaw(times, window, channel_idx, varargin{:});
+        function snippet_set = readAPSnippetSet(df, times, window, varargin)
+            [data_ch_by_time_by_snippet, cluster_idx, channel_idx_by_cluster] = ...
+                df.readAPSnippetsRaw(times, window, varargin{:});
             snippet_set = Neuropixel.SnippetSet(df);
             snippet_set.data = data_ch_by_time_by_snippet;
             snippet_set.sample_idx = times;
-            snippet_set.channel_idx = Neuropixel.Utils.makecol(channel_idx);
+            snippet_set.channel_idx_by_cluster = channel_idx_by_cluster;
+            snippet_set.cluster_idx = cluster_idx;
             snippet_set.window = window;
         end
             
@@ -592,15 +630,27 @@ classdef ImecDataset < handle
         function tf = get.hasLF(df)
             tf = exist(df.pathLF, 'file') == 2;
         end
-
-        function pathSync = get.pathSync(df)
-            if df.syncInApFile
-                pathSync = df.pathAP;
+        
+        function fileSync = get.fileSync(df)
+            if df.syncInAPFile
+                fileSync = df.fileAP;
             else
-                pathSync = fullfile(df.pathRoot, [df.fileStem '.imec.sync.bin']);
+                fileSync = [df.fileStem, '.imec.sync.bin'];
             end
         end
-
+        
+        function pathSync = get.pathSync(df)
+            pathSync = fullfile(df.pathRoot, df.fileSync);
+        end
+        
+        function fileSyncCached = get.fileSyncCached(df)
+            fileSyncCached = [df.fileStem '.sync.mat'];
+        end
+        
+        function pathSyncCached = get.pathSyncCached(df)
+            pathSyncCached = fullfile(df.pathRoot, df.fileSyncCached);
+        end
+        
         function scale = get.apScaleToUv(df)
             scale = (df.apRange(2) - df.apRange(1)) / (2^df.adcBits) / df.apGain * 1e6;
         end
@@ -728,6 +778,16 @@ classdef ImecDataset < handle
             
             newAPMetaPath = fullfile(newFolder, imec.fileAPMeta);
             Neuropixel.Utils.makeSymLink(imec.pathAPMeta, newAPMetaPath, p.Results.relative);
+            
+            if ~imec.syncInAPFile && exist(imec.pathSync, 'file')
+                newSyncPath = fullfile(newFolder, imec.fileSync);
+                Neuropixel.Utils.makeSymLink(imec.pathSync, newSyncPath, p.Results.relative);
+            end
+            
+            if exist(imec.pathSyncCached, 'file')
+                newSyncCachedPath = fullfile(newFolder, imec.fileSyncCached);
+                Neuropixel.Utils.makeSymLink(imec.pathSyncCached, newSyncCachedPath, p.Results.relative);
+            end
             
             imecSym = Neuropixel.ImecDataset(newAPPath, 'channelMap', imec.channelMapFile);
         end
@@ -863,6 +923,9 @@ classdef ImecDataset < handle
             pathAPMeta = fullfile(pathRoot, [fileStem '.imec.ap.meta']);
             
             tf = exist(pathAP, 'file') && exist(pathAPMeta, 'file');
+            if exist(pathAP, 'file') && ~exist(pathAPMeta, 'file')
+                warning('Found data file %s but not meta file %s', pathAP, pathAPMeta);
+            end
         end
         
         function file = findImecFileInDir(fileOrFileStem, type)

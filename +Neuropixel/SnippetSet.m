@@ -5,7 +5,10 @@ classdef SnippetSet < handle
     properties
         data (:, :, :) int16 % channels x time x snippets
         cluster_idx (:, 1) uint32
-        channel_idx (:, 1) uint32 % in absolute channel inds
+        
+        % one of these will be filled, with absolute channel inds
+        channel_idx_by_cluster (:, :) uint32 % if each cluster draws from different channels
+        
         sample_idx (:, 1) uint64
         trial_idx (:, 1) uint32
         window (:, 2) int64 % in samples
@@ -54,7 +57,6 @@ classdef SnippetSet < handle
                 end
                     
                  ss.channelMap = raw_dataset.channelMap;
-                
             end 
         end
         
