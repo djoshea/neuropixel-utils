@@ -98,10 +98,11 @@ classdef ImecDataset < handle
             end
 
             channelMapFile = p.Results.channelMap;
-            if ~isempty(channelMapFile)
-                df.channelMap = Neuropixel.ChannelMap(channelMapFile);
-                assert(df.channelMap.nChannels <= df.nChannels, 'Channel count is less than number of channels in channel map');
+            if isempty(channelMapFile)
+                channelMapFile = Neuropixel.Utils.getDefaultChannelMapFile();
             end
+            df.channelMap = Neuropixel.ChannelMap(channelMapFile);
+            assert(df.channelMap.nChannels <= df.nChannels, 'Channel count is less than number of channels in channel map');
 
             if p.Results.syncInApFile
                 if isnan(p.Results.syncChannelIndex)
@@ -394,7 +395,6 @@ classdef ImecDataset < handle
             chunkSize = 1000000;
             mm = df.memmapAP_by_chunk(chunkSize);
 
-
             sumByChunk = nan(df.nChannels, useChunks);
             prog = ProgressBar(useChunks, 'Computing RMS per channel');
             for iC =  1:useChunks
@@ -414,7 +414,7 @@ classdef ImecDataset < handle
             rms = rms * df.apScaleToUv;
         end
 
-        function goodChannels = markBadChannelsByRMS(df, varargin)
+        function rmsBadChannels = markBadChannelsByRMS(df, varargin)
             p = inputParser();
             p.addParameter('rmsRange', [3 100], @isvector);
             p.addParameter('sampleMask', [], @(x) isempty(x) || islogical(x));
@@ -423,12 +423,15 @@ classdef ImecDataset < handle
             channelMask = true(df.nChannels, 1);
 
             channelMask(~df.channelMap.connected) = false;
+            
+            oldChannelMask = channelMask;
 
             rms = df.computeRMSByChannel('sampleMask', p.Results.sampleMask);
             rmsMin = p.Results.rmsRange(1);
             rmsMax = p.Results.rmsRange(2);
             channelMask(rms < rmsMin | rms > rmsMax) = false;
 
+            rmsBadChannels = find(~channelMask & oldChannelMask);
             df.markBadChannels(~channelMask);
         end
         
@@ -454,6 +457,8 @@ classdef ImecDataset < handle
             p.addParameter('writeSyncSeparate', false, @islogical); % true means ap will get only mapped channels, false will preserve channels as is
             p.addParameter('writeLF', false, @islogical);
             p.addParameter('chunkSize', 2^20, @isscalar);
+            
+            p.addParameter('extraMeta', struct(), @isstruct);
             p.parse(varargin{:});
 
             % this uses the same syntax as writeConcatenatedFileMatchGains
@@ -675,8 +680,20 @@ classdef ImecDataset < handle
             meta.badChannels = df.badChannels;
         end
         
-        function writeModifiedAPMeta(df)
+        function writeModifiedAPMeta(df, varargin)
+            p = inputParser();
+            p.addParameter('extraMeta', struct(), @isstruct);
+            p.parse(varargin{:});
+
             meta = df.generateModifiedAPMeta();
+            
+            % set extra user provided fields
+            extraMeta = p.Results.extraMeta;
+            extraMetaFields = fieldnames(extraMeta);
+            for iFld = 1:numel(extraMetaFields)
+                meta.(extraMetaFields{iFld}) = extraMeta.(extraMetaFields{iFld});
+            end
+            
             Neuropixel.writeINI([df.pathAPMeta], meta);
         end             
 
@@ -726,6 +743,7 @@ classdef ImecDataset < handle
             p.addParameter('mappedChannelsOnly', true, @islogical);
             p.addParameter('debug', false, @islogical); % for testing proc fn before modifying file
 
+            p.addParameter('extraMeta', struct(), @isstruct);
             p.parse(varargin{:});
 
             chunkSize = p.Results.chunkSize;
@@ -817,6 +835,8 @@ classdef ImecDataset < handle
                 prog.increment();
             end
             prog.finish();
+            
+            imec.writeModifiedAPMeta('extraMeta', p.Results.extraMeta);
         end
     end
 
@@ -966,6 +986,7 @@ classdef ImecDataset < handle
             p.addParameter('transformAP', {}, @(x) iscell(x) || isa(x, 'function_handle')); % list of transformation functions that accept (df, dataChunk) and return dataChunk someplace
             p.addParameter('transformLF', {}, @(x) iscell(x) || isa(x, 'function_handle')); % list of transformation functions that accept (df, dataChunk) and return dataChunk someplace
 
+            p.addParameter('extraMeta', struct(), @isstruct);
             p.parse(varargin{:});
 
             nFiles = numel(imecList);
@@ -995,7 +1016,9 @@ classdef ImecDataset < handle
                 if numel(uGains) == 1
                     gain = uGains;
                     multipliers = ones(nFiles, 1);
-                    debug('All files have common gain of %d\n', gain);
+                    if numel(gains) > 1
+                        debug('All files have common gain of %d\n', gain);
+                    end
                 else
                     % find largest gain that we can achieve by multiplying each
                     % file by an integer (GCD)
@@ -1068,6 +1091,13 @@ classdef ImecDataset < handle
                 % compute union of badChannels
                 for iM = 2:numel(imecList)
                     meta.badChannels = union(meta.badChannels, imecList{iM}.badChannels);
+                end
+                
+                % set extra user provided fields
+                extraMeta = p.Results.extraMeta;
+                extraMetaFields = fieldnames(extraMeta);
+                for iFld = 1:numel(extraMetaFields)
+                    meta.(extraMetaFields{iFld}) = extraMeta.(extraMetaFields{iFld});
                 end
                 
                 debug('Writing AP meta file %s\n', lastFilePart(metaOutFile));
