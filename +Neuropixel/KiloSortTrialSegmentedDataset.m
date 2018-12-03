@@ -276,6 +276,8 @@ classdef KiloSortTrialSegmentedDataset < handle & matlab.mixin.Copyable
             p.addParameter('centerUsingFirstSamples', 20, @(x) isscalar(x) || islogical(x)); % subtract mean of each waveform's first n samples, don't do if false
             p.addParameter('num_waveforms', Inf, @isscalar); % caution: Inf will request ALL waveforms in order (typically useful if spike_times directly specified)
              
+            p.addParameter('subtractOtherClusters', false, @islogical); % time consuming step to remove the contribution of the other clusters to a given snippet
+            
             p.addParameter('raw_dataset', seg.raw_dataset, @(x) true); 
             
             p.parse(varargin{:});
@@ -299,7 +301,7 @@ classdef KiloSortTrialSegmentedDataset < handle & matlab.mixin.Copyable
             assert(size(mask_cell, 1) == seg.nTrials, 'mask_cell must be nTrials along dim 1');
             assert(size(mask_cell, 2) == nClu, 'mask_cell must be nClusters along dim 2');
 
-            % assemble spike_times we want to collect, all at once
+%             % assemble spike_times we want to collect, all at once
             masked_spike_idx = cellfun(@(spike_idx, mask) spike_idx(mask), seg.spike_idx(:, cluster_ind), mask_cell, 'UniformOutput', false);
             [masked_spike_idx, whichCell] = Neuropixel.Utils.TensorUtils.catWhich(1, masked_spike_idx{:});
             
@@ -307,7 +309,8 @@ classdef KiloSortTrialSegmentedDataset < handle & matlab.mixin.Copyable
             trial_idx = trialIdMat(whichCell);
          
             args = rmfield(p.Results, 'mask_cell');
-            snippet_set = seg.dataset.getWaveformsFromRawData('spike_idx', masked_spike_idx, 'trial_idx', trial_idx, args);
+            snippet_set = seg.dataset.getWaveformsFromRawData('spike_idx', masked_spike_idx, ...
+                'cluster_idx', cluster_idx, 'trial_idx', trial_idx, args);
         end
         
         function snippet_set = getSnippetsFromRawData(seg, rel_start_ms_each_trial, duration_or_window_ms, varargin)
@@ -358,9 +361,8 @@ classdef KiloSortTrialSegmentedDataset < handle & matlab.mixin.Copyable
                 snippet_set.data, 3, mask_non_nan, 0);
             
             snippet_set.valid = mask_non_nan;
-            snippet_set.cluster_idx = [];
             snippet_set.trial_idx = trial_idx;
-        end 
+        end   
     end
 
 %     methods(Static)

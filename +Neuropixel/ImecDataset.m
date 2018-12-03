@@ -5,7 +5,7 @@ classdef ImecDataset < handle
         fileStem char = '';
         creationTime = NaN;
         nChannels = NaN;
-        
+
         fileTypeAP = 'ap'; % typically ap or ap_CAR
 
         nSamplesAP = 0;
@@ -24,7 +24,7 @@ classdef ImecDataset < handle
 
         syncChannelIndex = NaN; % if in AP file, specify this
         syncInAPFile logical = true; % is the sync info in the ap file, or in a separate .sync file
-        
+
         % see markBadChannels
         badChannels
 
@@ -53,7 +53,7 @@ classdef ImecDataset < handle
 
         goodChannels % connected channels sans badChannels
         nGoodChannels
-        
+
         nSyncBits
 
         fileAP % .imec.ap.bin file without folder
@@ -73,7 +73,7 @@ classdef ImecDataset < handle
         % after sync is cached to sync.mat file for faster reload
         fileSyncCached
         pathSyncCached % .sync.mat file (with cached sync)
-        
+
         creationTimeStr
 
         apScaleToUv % multiply raw int16 by this to get uV
@@ -83,12 +83,12 @@ classdef ImecDataset < handle
     methods
         function df = ImecDataset(fileOrFileStem, varargin)
             p = inputParser();
-            p.addParameter('channelMap', Neuropixel.Utils.getDefaultChannelMapFile(), @(x) true);
+            p.addParameter('channelMap', [], @(x) true);
             p.addParameter('syncInAPFile', true, @islogical);
             p.addParameter('syncChannelIndex', NaN, @isscalar);
             p.addParameter('syncBitNames', {}, @iscell);
             p.parse(varargin{:})
-            
+
             file = Neuropixel.ImecDataset.findImecFileInDir(fileOrFileStem, 'ap');
             if isempty(file)
                 error('No AP Imec file found at or in %s', fileOrFileStem);
@@ -105,7 +105,7 @@ classdef ImecDataset < handle
 
             channelMapFile = p.Results.channelMap;
             if isempty(channelMapFile)
-                channelMapFile = Neuropixel.Utils.getDefaultChannelMapFile();
+                channelMapFile = Neuropixel.Utils.getDefaultChannelMapFile(true);
             end
             df.channelMap = Neuropixel.ChannelMap(channelMapFile);
             assert(df.channelMap.nChannels <= df.nChannels, 'Channel count is less than number of channels in channel map');
@@ -145,7 +145,7 @@ classdef ImecDataset < handle
                 metaLF = df.readLFMeta();
                 df.fsLF = metaLF.imSampRate;
             end
-            
+
             % parse imroTable
             m = regexp(meta.imroTbl, '\(([\d, ]*)\)', 'tokens');
             gainVals = strsplit(m{2}{1}, ' ');
@@ -154,7 +154,7 @@ classdef ImecDataset < handle
 
             df.apRange = [meta.imAiRangeMin meta.imAiRangeMax];
             df.lfRange = [meta.imAiRangeMin meta.imAiRangeMax];
-            
+
             % look at AP meta fields that might have been set by us
             if isfield(meta, 'badChannels')
                 df.badChannels = union(df.badChannels, meta.badChannels);
@@ -275,7 +275,7 @@ classdef ImecDataset < handle
             p.addOptional('reload', false, @islogical);
             p.addParameter('ignoreCached', false, @islogical);
             p.parse(varargin{:});
-            
+
             if isempty(df.syncRaw) || p.Results.reload
                 if exist(df.pathSyncCached, 'file') && ~p.Results.ignoreCached
                     [~, f, e] = fileparts(df.pathSyncCached);
@@ -288,18 +288,18 @@ classdef ImecDataset < handle
                     fprintf('Loading sync channel (this will take some time)...\n');
                     mm = df.memmapSync_full();
                     df.syncRaw = mm.Data.x(df.syncChannelIndex, :)';
-                    
+
                     df.saveSyncCached();
                 end
             end
             syncRaw = df.syncRaw;
         end
-        
+
         function saveSyncCached(df)
             sync = df.readSyncChannel();
             save(df.pathSyncCached, 'sync');
         end
-        
+
         function updateSyncCached(df)
             if exist(df.pathSyncCached, 'file')
                 sync = df.readSyncChannel();
@@ -361,32 +361,42 @@ classdef ImecDataset < handle
     end
 
     methods % Read data at specified times
-        function [data_ch_by_time_by_snippet, cluster_idx, channel_idx_by_cluster] = readAPSnippetsRaw(df, times, window, varargin)
+        function [data_ch_by_time_by_snippet, cluster_idx, channel_idx_by_cluster, unique_cluster_idx] = readAPSnippetsRaw(df, times, window, varargin)
             % for each sample index in times, read the window times + window(1):window(2)
             % of samples around this time from some channels
 
             p = inputParser();
             p.addParameter('channel_idx_by_cluster', [], @ismatrix);
+            p.addParameter('unique_cluster_idx', [], @isvector);
             p.addParameter('cluster_idx', ones(numel(times), 1), @isvector);
             p.addParameter('car', false, @islogical); % subtract median over channels
             p.parse(varargin{:});
 
             channel_idx_by_cluster = p.Results.channel_idx_by_cluster;
-            if isempty(channel_idx_by_cluster)
-                channel_idx_by_cluster = df.channelMap.chanMap;
+            unique_cluster_idx = p.Results.unique_cluster_idx;
+            if isempty(unique_cluster_idx)
+                unique_cluster_idx = unique(p.Results.cluster_idx);
             end
+            if isempty(channel_idx_by_cluster)
+                channel_idx_by_cluster = repmat(df.channelMap.chanMap, 1, numel(unique_cluster_idx));
+            end
+            if size(channel_idx_by_cluster, 1) == 1
+                % same channels each cluster, repmat column to make matrix
+                channel_idx_by_cluster = repmat(channel_idx_by_cluster, 1, numel(unique_cluster_idx));
+            end
+            assert(numel(unique_cluster_idx) == size(channel_idx_by_cluster, 2), ...
+                'unique_cluster_idx must have same number of clusters as columns in channel_idx_by_cluster');
+
             cluster_idx = Neuropixel.Utils.makecol(p.Results.cluster_idx);
             if isscalar(cluster_idx)
                 cluster_idx = repmat(cluster_idx, numel(times), 1);
             else
                 assert(numel(cluster_idx) == numel(times), 'cluster_idx must have same length as requested times');
             end
-            nClusters = numel(unique(cluster_idx));
-            if size(channel_idx_by_cluster, 1) == 1
-                % same channels each cluster, repmat column to make matrix
-                channel_idx_by_cluster = repmat(channel_idx_by_cluster, 1, nClusters);
-            end
-            
+
+            [tf, cluster_ind] = ismember(cluster_idx, unique_cluster_idx);
+            assert(all(tf), 'Some cluster_idx were not found in unique_cluster_idx');
+
             mm = df.memmapAP_full();
             nC = size(channel_idx_by_cluster, 1);
             nS = numel(times);
@@ -396,10 +406,11 @@ classdef ImecDataset < handle
             prog = ProgressBar(numel(times), 'Extracting AP snippets');
             for iS = 1:numel(times)
                 prog.update(iS);
-                
+
                 idx_start = times(iS)+window(1);
                 idx_stop = idx_start + nT - 1;
-                channel_idx = channel_idx_by_cluster(:, cluster_idx(iS)); % which channels for this spike
+
+                channel_idx = channel_idx_by_cluster(:, cluster_ind(iS)); % which channels for this spike
                 if p.Results.car
                     extract = mm.Data.x(:, idx_start:idx_stop);
                     out(:, :, iS) = extract(channel_idx, :) - median(extract, 1);
@@ -410,18 +421,19 @@ classdef ImecDataset < handle
             data_ch_by_time_by_snippet = out;
             prog.finish();
         end
-        
+
         function snippet_set = readAPSnippetSet(df, times, window, varargin)
-            [data_ch_by_time_by_snippet, cluster_idx, channel_idx_by_cluster] = ...
+            [data_ch_by_time_by_snippet, cluster_idx, channel_idx_by_cluster, unique_cluster_idx] = ...
                 df.readAPSnippetsRaw(times, window, varargin{:});
             snippet_set = Neuropixel.SnippetSet(df);
             snippet_set.data = data_ch_by_time_by_snippet;
             snippet_set.sample_idx = times;
             snippet_set.channel_idx_by_cluster = channel_idx_by_cluster;
             snippet_set.cluster_idx = cluster_idx;
+            snippet_set.unique_cluster_idx = unique_cluster_idx;
             snippet_set.window = window;
         end
-            
+
         function rms = computeRMSByChannel(df, varargin)
             p = inputParser();
             p.addParameter('sampleMask', [], @(x) isempty(x) || islogical(x));
@@ -461,7 +473,7 @@ classdef ImecDataset < handle
             channelMask = true(df.nChannels, 1);
 
             channelMask(~df.channelMap.connected) = false;
-            
+
             oldChannelMask = channelMask;
 
             rms = df.computeRMSByChannel('sampleMask', p.Results.sampleMask);
@@ -472,7 +484,7 @@ classdef ImecDataset < handle
             rmsBadChannels = find(~channelMask & oldChannelMask);
             df.markBadChannels(~channelMask);
         end
-        
+
         function markBadChannels(df, list)
             % this adds to the set of bad channels, so multiple calls will
             % remove additional channels
@@ -495,7 +507,7 @@ classdef ImecDataset < handle
             p.addParameter('writeSyncSeparate', false, @islogical); % true means ap will get only mapped channels, false will preserve channels as is
             p.addParameter('writeLF', false, @islogical);
             p.addParameter('chunkSize', 2^20, @isscalar);
-            
+
             p.addParameter('extraMeta', struct(), @isstruct);
             p.parse(varargin{:});
 
@@ -594,7 +606,7 @@ classdef ImecDataset < handle
         function pathAP = get.pathAP(df)
             pathAP = fullfile(df.pathRoot, df.fileAP);
         end
-        
+
         function fileAP = get.fileAP(df)
             fileAP = [df.fileStem '.imec.' df.fileTypeAP '.bin'];
         end
@@ -602,7 +614,7 @@ classdef ImecDataset < handle
         function tf = get.hasAP(df)
             tf = exist(df.pathAP, 'file') == 2;
         end
-        
+
         function fileAPMeta = get.fileAPMeta(df)
             fileAPMeta = [df.fileStem '.imec.ap.meta'];
         end
@@ -614,11 +626,11 @@ classdef ImecDataset < handle
         function pathLF = get.pathLF(df)
             pathLF = fullfile(df.pathRoot, df.fileLF);
         end
-        
+
         function fileAP = get.fileLF(df)
             fileAP = [df.fileStem '.imec.lf.bin'];
         end
-        
+
         function fileLFMeta = get.fileLFMeta(df)
             fileLFMeta = [df.fileStem '.imec.lf.meta'];
         end
@@ -630,7 +642,7 @@ classdef ImecDataset < handle
         function tf = get.hasLF(df)
             tf = exist(df.pathLF, 'file') == 2;
         end
-        
+
         function fileSync = get.fileSync(df)
             if df.syncInAPFile
                 fileSync = df.fileAP;
@@ -638,19 +650,19 @@ classdef ImecDataset < handle
                 fileSync = [df.fileStem, '.imec.sync.bin'];
             end
         end
-        
+
         function pathSync = get.pathSync(df)
             pathSync = fullfile(df.pathRoot, df.fileSync);
         end
-        
+
         function fileSyncCached = get.fileSyncCached(df)
             fileSyncCached = [df.fileStem '.sync.mat'];
         end
-        
+
         function pathSyncCached = get.pathSyncCached(df)
             pathSyncCached = fullfile(df.pathRoot, df.fileSyncCached);
         end
-        
+
         function scale = get.apScaleToUv(df)
             scale = (df.apRange(2) - df.apRange(1)) / (2^df.adcBits) / df.apGain * 1e6;
         end
@@ -702,15 +714,15 @@ classdef ImecDataset < handle
         function ch = get.goodChannels(df)
             ch = setdiff(df.connectedChannels, df.badChannels);
         end
-            
+
         function n = get.nGoodChannels(df)
             n = numel(df.goodChannels);
         end
-        
+
         function n = get.nSyncBits(df)
             n = 8*df.bytesPerSample; % should be 16?
         end
-        
+
         function names = get.syncBitNames(df)
             if isempty(df.syncBitNames)
                 names = repmat({''}, df.nSyncBits, 1);
@@ -722,30 +734,30 @@ classdef ImecDataset < handle
         function meta = readAPMeta(df)
             meta = Neuropixel.readINI(df.pathAPMeta);
         end
-        
+
         function meta = generateModifiedAPMeta(df)
             meta = df.readAPMeta;
-        
+
             meta.syncBitNames = df.syncBitNames;
             meta.badChannels = df.badChannels;
         end
-        
+
         function writeModifiedAPMeta(df, varargin)
             p = inputParser();
             p.addParameter('extraMeta', struct(), @isstruct);
             p.parse(varargin{:});
 
             meta = df.generateModifiedAPMeta();
-            
+
             % set extra user provided fields
             extraMeta = p.Results.extraMeta;
             extraMetaFields = fieldnames(extraMeta);
             for iFld = 1:numel(extraMetaFields)
                 meta.(extraMetaFields{iFld}) = extraMeta.(extraMetaFields{iFld});
             end
-            
+
             Neuropixel.writeINI([df.pathAPMeta], meta);
-        end             
+        end
 
         function meta = readLFMeta(df)
             meta = Neuropixel.readINI(df.pathLFMeta);
@@ -755,45 +767,45 @@ classdef ImecDataset < handle
             str = datestr(df.creationTime);
         end
     end
-    
+
     methods % Modify bin data files in place
         function modifyAPInPlace(imec, varargin)
             imec.modifyInPlaceInternal('ap', varargin{:});
         end
-        
+
         function modifyLFInPlace(imec, varargin)
             imec.modifyInPlaceInternal('lf', varargin{:});
         end
-        
+
         function imecSym = symLinkAPIntoDirectory(imec, newFolder, varargin)
             p = inputParser();
             p.addParameter('relative', false, @islogical);
             p.parse(varargin{:});
-            
+
             if ~exist(newFolder, 'dir')
                 mkdirRecursive(newFolder);
             end
             newAPPath = fullfile(newFolder, imec.fileAP);
             Neuropixel.Utils.makeSymLink(imec.pathAP, newAPPath, p.Results.relative);
-            
+
             newAPMetaPath = fullfile(newFolder, imec.fileAPMeta);
             Neuropixel.Utils.makeSymLink(imec.pathAPMeta, newAPMetaPath, p.Results.relative);
-            
+
             if ~imec.syncInAPFile && exist(imec.pathSync, 'file')
                 newSyncPath = fullfile(newFolder, imec.fileSync);
                 Neuropixel.Utils.makeSymLink(imec.pathSync, newSyncPath, p.Results.relative);
             end
-            
+
             if exist(imec.pathSyncCached, 'file')
                 newSyncCachedPath = fullfile(newFolder, imec.fileSyncCached);
                 Neuropixel.Utils.makeSymLink(imec.pathSyncCached, newSyncCachedPath, p.Results.relative);
             end
-            
+
             imecSym = Neuropixel.ImecDataset(newAPPath, 'channelMap', imec.channelMapFile);
         end
     end
-    
-    methods(Hidden)    
+
+    methods(Hidden)
         function modifyInPlaceInternal(imec, mode, procFnList, varargin)
             p = inputParser();
             p.addParameter('chunkSize', 2^20, @isscalar);
@@ -810,7 +822,7 @@ classdef ImecDataset < handle
             useGpuArray = p.Results.gpuArray;
             applyScaling = p.Results.applyScaling;
             debug = p.Results.debug;
-            
+
             if ~iscell(procFnList)
                 procFnList = {procFnList};
             end
@@ -827,7 +839,7 @@ classdef ImecDataset < handle
                 otherwise
                     error('Unknown mode %s', mode);
             end
-            
+
             % figure out which channels to keep
             if p.Results.goodChannelsOnly
                 chIdx = imec.goodChannels;
@@ -850,7 +862,7 @@ classdef ImecDataset < handle
                 end
 
                 data = mm.Data.x(chIdx, idx);
-                
+
                 % ch_connected_mask indicates which channels are
                 % connected, which are the ones where scaling makes
                 % sense. chIdx is all channels being modified by procFnList
@@ -895,7 +907,7 @@ classdef ImecDataset < handle
                 prog.increment();
             end
             prog.finish();
-            
+
             imec.writeModifiedAPMeta('extraMeta', p.Results.extraMeta);
         end
     end
@@ -917,22 +929,22 @@ classdef ImecDataset < handle
                 tf = false;
                 return;
             end
-            
+
             [pathRoot, fileStem, fileTypeAP] = Neuropixel.ImecDataset.parseImecFileName(file);
             pathAP = fullfile(pathRoot, [fileStem '.imec.' fileTypeAP '.bin']);
             pathAPMeta = fullfile(pathRoot, [fileStem '.imec.ap.meta']);
-            
+
             tf = exist(pathAP, 'file') && exist(pathAPMeta, 'file');
             if exist(pathAP, 'file') && ~exist(pathAPMeta, 'file')
                 warning('Found data file %s but not meta file %s', pathAP, pathAPMeta);
             end
         end
-        
+
         function file = findImecFileInDir(fileOrFileStem, type)
             if nargin < 2
                 type = 'ap';
             end
-            
+
             if exist(fileOrFileStem, 'file') == 2
                 file = fileOrFileStem;
                 [~, ~, type] = Neuropixel.ImecDataset.parseImecFileName(file);
@@ -942,12 +954,12 @@ classdef ImecDataset < handle
                     case 'lf'
                         assert(ismember(type, {'lf'}), 'Specify lf.bin file rather than %s file', type);
                 end
-                
+
             elseif exist(fileOrFileStem, 'dir')
                 % it's a directory, assume only one imec file in directory
                 path = fileOrFileStem;
                 [~, leaf] = fileparts(path);
-                
+
                 switch type
                     case 'ap'
                         apFiles = Neuropixel.ImecDataset.listAPFilesInDir(path);
@@ -994,13 +1006,13 @@ classdef ImecDataset < handle
                     otherwise
                         error('Unknown type %s');
                 end
-                
+
                 file = fullfile(path, file);
             else
                 error('Folder or file %s does not exist', fileOrFileStem);
             end
         end
-        
+
         function [pathRoot, fileStem, type] = parseImecFileName(file)
             if iscell(file)
                 [pathRoot, fileStem, type] = cellfun(@Neuropixel.ImecDataset.parseImecFileName, file, 'UniformOutput', false);
@@ -1060,7 +1072,7 @@ classdef ImecDataset < handle
                 s = [f, e];
             end
 
-            
+
             [parent, leaf, ext] = Neuropixel.ImecDataset.filepartsMultiExt(outPath);
             if ~isempty(ext) && endsWith(ext, 'bin')
                 % specified full file
@@ -1071,7 +1083,7 @@ classdef ImecDataset < handle
             if ~exist(outPath, 'dir')
                 mkdirRecursive(outPath);
             end
-                
+
             % determine the gains that we will use
             function [multipliers, gain] = determineCommonGain(gains)
                 uGains = unique(gains);
@@ -1129,7 +1141,7 @@ classdef ImecDataset < handle
 
                 % generate new meta file
                 meta = imecList{1}.generateModifiedAPMeta();
-                
+
                 % adjust imroTabl to set gain correctly
                 m = regexp(meta.imroTbl, '\(([\d, ]*)\)', 'tokens');
                 pieces = cell(numel(m), 1);
@@ -1142,7 +1154,7 @@ classdef ImecDataset < handle
                 meta.imroTbl = ['(' strjoin(pieces, ')('), ')'];
                 meta.fileName = [leaf '.imec.ap.bin'];
                 meta.concatenated = strjoin(stemList, ':');
-                
+
                 % indicate concatenation time points in meta file
                 meta.concatenatedSamples = cellfun(@(imec) imec.nSamplesAP, imecList);
                 meta.concatenatedGains = gains;
@@ -1155,14 +1167,14 @@ classdef ImecDataset < handle
                 for iM = 2:numel(imecList)
                     meta.badChannels = union(meta.badChannels, imecList{iM}.badChannels);
                 end
-                
+
                 % set extra user provided fields
                 extraMeta = p.Results.extraMeta;
                 extraMetaFields = fieldnames(extraMeta);
                 for iFld = 1:numel(extraMetaFields)
                     meta.(extraMetaFields{iFld}) = extraMeta.(extraMetaFields{iFld});
                 end
-                
+
                 debug('Writing AP meta file %s\n', lastFilePart(metaOutFile));
                 Neuropixel.writeINI(metaOutFile, meta);
 
@@ -1191,7 +1203,7 @@ classdef ImecDataset < handle
                 meta.imroTbl = ['(' strjoin(pieces, ')('), ')'];
                 meta.fileName = [leaf '.imec.lf.bin'];
                 meta.concatenated = strjoin(stemList, ':');
-                
+
                 % indicate concatenation time points in meta file
                 meta.concatenatedSamples = cellfun(@(imec) imec.nSamplesLF, imecList);
                 meta.concatenatedGains = gains;
@@ -1252,7 +1264,7 @@ classdef ImecDataset < handle
                         end
 
                         data = mm.Data.x(chIdx, idx);
-                        
+
                         % ch_connected_mask indicates which channels are
                         % connected, which are the ones where scaling makes
                         % sense. chIdx is all channels being written to
@@ -1307,7 +1319,7 @@ classdef ImecDataset < handle
 
         end
 
-        
-        
+
+
     end
 end

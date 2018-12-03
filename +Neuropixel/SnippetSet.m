@@ -1,19 +1,20 @@
-classdef SnippetSet < handle
+classdef SnippetSet < handle & matlab.mixin.Copyable
     % A collection of snippets of data collected from an IMEC data file
     % which includes the subset of channels which were sampled
     
     properties
         data (:, :, :) int16 % channels x time x snippets
-        cluster_idx (:, 1) uint32
+        cluster_idx (:, 1) int32
         
         % one of these will be filled, with absolute channel inds
         channel_idx_by_cluster (:, :) uint32 % if each cluster draws from different channels
+        unique_cluster_idx (:, 1) int32 % specifies the cluster_idx associated with each column here
         
         sample_idx (:, 1) uint64
         trial_idx (:, 1) uint32
         window (:, 2) int64 % in samples
         
-        valid
+        valid (:, 1) logical
         
         channelMap % ChannelMap for coordinates
         scaleToUv (1, 1) double
@@ -24,6 +25,7 @@ classdef SnippetSet < handle
         nChannels
         nTimepoints
         nSnippets
+        nClusters
         
         data_valid
         time_ms (:, 1) double
@@ -72,6 +74,10 @@ classdef SnippetSet < handle
             n = size(ss.data, 3);
         end
         
+        function n = get.nClusters(ss)
+            n = numel(ss.unique_cluster_idx);
+        end
+        
         function v = get.valid(ss)
             if isempty(ss.valid)
                 v = true(size(ss.data, 3), 1);
@@ -87,25 +93,60 @@ classdef SnippetSet < handle
         function v = get.time_ms(ss)
             v = double(ss.window(1) : ss.window(2)) / ss.fs * 1000;
         end
-    end
-    
-    methods % plotting
-        function plotAtProbeLocations(ss, varargin)
+        
+        function ss = selectClusters(ss, cluster_idx)
+            mask = ismember(ss.cluster_idx, cluster_idx);
+            ss = ss.selectData('maskSnippets', mask);
+        end 
+        
+        function ss = selectData(ss, varargin)
             p = inputParser();
             p.addParameter('maskSnippets', ss.valid, @isvector);
             p.addParameter('maskTime', true(ss.nTimepoints, 1), @isvector);
-            p.addparameter('maskChannels', true(ss.nChannels, 1), @isvector);
+            p.addParameter('maskChannels', true(ss.nChannels, 1), @isvector);
+            p.parse(varargin{:});
+            
+            mask = p.Results.maskSnippets;
+            
+            ss = copy(ss);
+            ss.valid = ss.valid(mask); % first time auto generates based on data, so has to come first
+            ss.data = ss.data(p.Results.maskChannels, p.Results.maskTime, mask);
+            
+            ss.cluster_idx = ss.cluster_idx(mask);
+        
+            ss.sample_idx = ss.sample_idx(mask);
+            if ~isempty(ss.trial_idx)
+                ss.trial_idx = ss.trial_idx(mask);
+            end
+        end
+    end
+    
+    methods % plotting
+        function hdata = plotAtProbeLocations(ss, varargin)
+            p = inputParser();
+            % specify one of these 
+            p.addParameter('cluster_idx', [], @(x) isempty(x) || isvector(x));
+            p.addParameter('maskSnippets', ss.valid, @isvector);
+            
+            % and optionally these
+            p.addParameter('maskTime', true(ss.nTimepoints, 1), @isvector);
+            p.addParameter('maskChannels', true(ss.nChannels, 1), @isvector);
+            
+            p.addParameter('maxPerCluster', Inf, @isscalar);
             
             p.addParameter('xmag', 1.5, @isscalar);
             p.addParameter('ymag', 1.5, @isscalar);
-            p.addParameter('showInLegendAs', 'snippets', @ischar);
+           
+            p.addParameter('showIndividual', true, @islogical); 
             p.addParameter('showMean', false, @islogical);
-            p.addParameter('meanPlotArgs', {'Color', 'r', 'LineWidth', 2}, @iscell);
-            p.addParameter('plotArgs', {'Color', [0.3 0.3 0.3]}, @iscell);
+            p.addParameter('meanPlotArgs', {'LineWidth', 3}, @iscell);
+            p.addParameter('plotArgs', {'LineWidth', 0.5}, @iscell);
             
-            p.addParameter('showLabels', true, @islogical);
+            p.addParameter('showChannelLabels', true, @islogical);
             p.addParameter('labelArgs', {}, @iscell);
-            p.addParameter('alpha', 0.5, @isscalar);
+            p.addParameter('alpha', 0.4, @isscalar);
+            
+            p.addParameter('colormap', get(groot, 'DefaultAxesColorOrder'), @(x) true);
             p.KeepUnmatched = false;
             p.parse(varargin{:});
             
@@ -113,49 +154,106 @@ classdef SnippetSet < handle
             xspacing = ss.channelMap.xspacing;
             xmag = p.Results.xmag;
             ymag = p.Results.ymag;
-            xc = ss.channelMap.xcoords(ss.channel_idx);
-            yc = ss.channelMap.ycoords(ss.channel_idx);
-            
-            xc = xc(p.Results.maskChannels);
-            yc = yc(p.Results.maskChannels);
             
             % plot relative time vector
             tvec = linspace(0, xspacing * xmag, numel(ss.window(1) : ss.window(2)));
             
-            % center each channel
-            data = double(ss.data(p.Results.maskChannels, p.Results.maskTime, p.Results.maskSnippets));
+            if ~isempty(p.Results.cluster_idx)
+                maskSnippets = ismember(ss.cluster_idx, p.Results.cluster_idx) & ss.valid;
+            else
+                maskSnippets = p.Results.maskSnippets;
+            end
+           
+            % center and scale each channel
+            if ~any(maskSnippets)
+                warning('No snippets for these clusters');
+                return;
+            end
+            
+            data = double(ss.data(p.Results.maskChannels, p.Results.maskTime, maskSnippets));
             data = data - mean(data(:, :), 2); %#ok<*PROPLC>
-            data = data - min(data(:));
-            data = data ./ max(data(:)) * yspacing * ymag;
+            data = data ./ (max(data(:)) - min(data(:))) * yspacing * ymag;
+            
+            cluster_idx = ss.cluster_idx(maskSnippets);
+            unique_cluster_idx = unique(cluster_idx);
+            nUniqueClusters = numel(unique_cluster_idx);
             
             holding = ishold;
             nChannels = size(data, 1);
-            handles = cell(nChannels, 1);
-            for iC = 1:nChannels
-                dmat = squeeze(data(iC, :, :)) + yc(iC);
-                handles{iC} = plot(tvec + xc(iC), dmat, p.Results.plotArgs{:});
-                if p.Results.alpha < 1
-                    Neuropixel.Utils.setLineOpacity(handles{iC}, p.Results.alpha);
-                end
-                hold on;
-                if p.Results.showMean
-                    handles{iC}(end+1) = plot(tvec + xc(iC), mean(dmat, 2), p.Results.plotArgs{:}, p.Results.meanPlotArgs{:});
-                end
-                if p.Results.showLabels
-                    text(xc(iC), yc(iC) + yspacing*0.5, sprintf('ch %d', ss.channel_idx(iC)), ...
-                        'HorizontalAlignment', 'left', 'VerticalAlignment', 'bottom', ...
-                        p.Results.labelArgs{:});
-                end
+            handlesIndiv = cell(nChannels, nUniqueClusters);
+            handlesMean = gobjects(nChannels, nUniqueClusters);
+            channels_plotted = false(ss.channelMap.nChannels, 1);
+            
+            cmap = p.Results.colormap;
+            if isa(cmap, 'function_handle')
+                cmap = cmap(nUniqueClusters);
             end
             
-            handles = cat(1, handles{:});
-            Neuropixel.Utils.showFirstInLegend(handles, p.Results.showInLegendAs);
+            for iClu = 1:nUniqueClusters
+                this_cluster_idx = unique_cluster_idx(iClu);
+                this_snippet_mask = cluster_idx == this_cluster_idx;
+                [~, this_cluster_ind] = ismember(this_cluster_idx, ss.unique_cluster_idx);
+                
+                if isfinite(p.Results.maxPerCluster)
+                    idxKeep = find(this_snippet_mask, p.Results.maxPerCluster, 'first');
+                    this_snippet_mask(idxKeep(end)+1:end) = false;
+                end
+                
+                this_channel_idx = ss.channel_idx_by_cluster(:, this_cluster_ind);
+                this_channel_idx = this_channel_idx(p.Results.maskChannels);
+                xc = ss.channelMap.xcoords(this_channel_idx);
+                yc = ss.channelMap.ycoords(this_channel_idx);
+                
+                channels_plotted(this_channel_idx) = true;
+
+                cmapIdx = mod(iClu-1, size(cmap, 1))+1;
+                
+                for iC = 1:nChannels
+                    dmat = Neuropixel.Utils.TensorUtils.squeezeDims(data(iC, :, this_snippet_mask), 1) + yc(iC);
+                        
+                    if p.Results.showIndividual
+                        handlesIndiv{iC, iClu} = plot(tvec + xc(iC), dmat, 'Color', [cmap(cmapIdx, :), p.Results.alpha], ...
+                            p.Results.plotArgs{:});
+                        Neuropixel.Utils.hideInLegend(handlesIndiv{iC, iClu});
+                        hold on;
+                    end
+                    if p.Results.showMean
+                        handlesMean(iC, iClu) = plot(tvec + xc(iC), mean(dmat, 2), 'Color', cmap(cmapIdx, :), ...
+                            p.Results.meanPlotArgs{:});
+                        hold on;
+                    end
+                    if iC == 1 
+                        Neuropixel.Utils.showFirstInLegend(handlesMean(iC, iClu), sprintf('cluster %d', this_cluster_idx));
+                    else
+                        Neuropixel.Utils.hideInLegend(handlesMean(iC, iClu));
+                    end
+                end
+                
+                %drawnow;
+            end
+            
+            if p.Results.showChannelLabels
+                xc = ss.channelMap.xcoords;
+                yc = ss.channelMap.ycoords;
+                
+                for iC = 1:ss.channelMap.nChannels
+                    if channels_plotted(iC)
+                        text(xc(iC), yc(iC), sprintf('ch %d', ss.channelMap.chanMap(iC)), ...
+                            'HorizontalAlignment', 'right', 'VerticalAlignment', 'middle', ...
+                            p.Results.labelArgs{:});
+                    end
+                end
+            end
             
             if ~holding
                 hold off;
             end
             axis off;
+            axis tight;
             box off;
+            
+            hdata.waveforms = handlesIndiv;
+            hdata.waveformMeans = handlesMean;
         end
         
         function plotStacked(ss, varargin)

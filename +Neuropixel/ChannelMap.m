@@ -84,17 +84,20 @@ classdef ChannelMap
             xspacing = min(dxs);
         end
         
-        function closest_idx = getClosestConnectedChannels(map, nClosest, channel_idx)
+        function closest_idx = getClosestChannels(map, nClosest, channel_idx, eligibleChannels)
             % channel_idx is is in 1:nChannels raw data indices
             % closest is numel(channel_idx) x nClosest
             
             if nargin < 3
                 channel_idx = map.connectedChannels;
             end
-            
-            x = map.xcoords(map.connected);
-            y = map.ycoords(map.connected);
-            z = map.zcoords(map.connected);
+            if nargin < 4
+                eligibleChannels = map.connectedChannels;
+            end
+                
+            x = map.xcoords(eligibleChannels);
+            y = map.ycoords(eligibleChannels);
+            z = map.zcoords(eligibleChannels);
             N = numel(x);
 
             X = repmat(x, 1, N);
@@ -112,7 +115,7 @@ classdef ChannelMap
             for iC = 1:numel(idx)
                 [~, idxSort] = sort(distSq(iC, :), 'ascend');
                 % idxSort will be in indices into connected
-                closest_idx(iC, :) = indicesIntoMaskToOriginalIndices(idxSort(1:nClosest), map.connected);
+                closest_idx(iC, :) = eligibleChannels(idxSort(1:nClosest));
             end
             
             function idxFull = indicesIntoMaskToOriginalIndices(idxIntoMasked, mask)

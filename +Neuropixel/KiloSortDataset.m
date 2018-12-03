@@ -306,7 +306,7 @@ classdef KiloSortDataset < handle
                     channelMap = ds.raw_dataset.channelMap;
                 end
                 if isempty(channelMap)
-                    channelMap = Neuropixel.Utils.getDefaultChannelMapFile();
+                    channelMap = Neuropixel.Utils.getDefaultChannelMapFile(true);
                 end
             end
 
@@ -515,6 +515,7 @@ classdef KiloSortDataset < handle
         function channel_inds = channelNumsToChannelInds(ds, channels)
             [~, channel_inds] = ismember(channels, ds.channel_map);
         end
+        
         function templates_whitened = computeUnwhitenedTemplatesAllChannels(ds, template_idx)
             % computes the unwhitened templates values, specified on the full set of channels
             % templates is [nTemplates, nTimePoints, nTemplateChannels]
@@ -524,7 +525,7 @@ classdef KiloSortDataset < handle
             end
             
             templates = ds.templates(template_idx, :, :);
-            templates_whitened = nan(size(templates, 1), size(templates, 2), ds.nChannels);
+            templates_whitened = zeros(size(templates, 1), size(templates, 2), ds.nChannels, 'like', templates);
             for iT = 1:size(templates, 1)
                 whichChannels = ds.templates_ind(iT, :);
                 templates_whitened(iT, :, whichChannels) = templates(iT, :, :);
@@ -559,9 +560,10 @@ classdef KiloSortDataset < handle
 
             % nChannelsSorted x nChannelsSorted, include each channel in its own
             % closest list
-            closest_lookup = [ds.channel_map, ds.channelMap.getClosestConnectedChannels(ds.nChannelsSorted-1, ds.channel_map)];
+            closest_lookup = [ds.channel_map, ds.channelMap.getClosestChannels(ds.nChannelsSorted-1, ds.channel_map, ds.channel_map)];
 
             templates = ds.computeUnwhitenedTemplatesAllChannels();
+            
             best_template_channels = nan(ds.nClusters, ds.nChannelsSorted);
             for iU = 1:ds.nClusters
                 template_id = mode(spike_templates_by_unit{iU});
@@ -658,7 +660,7 @@ classdef KiloSortDataset < handle
             end
         end
             
-        function snippetSet = getWaveformsFromRawData(ds, varargin)
+        function [snippetSet, reconstructionFromOtherClusters] = getWaveformsFromRawData(ds, varargin)
              % Extracts individual spike waveforms from the raw datafile, for multiple
              % clusters. Returns the waveforms and their means within clusters.
              %
@@ -678,10 +680,10 @@ classdef KiloSortDataset < handle
              % Load .dat and KiloSort/Phy output
 
              p = inputParser();
-             % specify EXACTLY one of these:
-             p.addParameter('cluster_idx', [], @isvector); % manually specify all spikes from specific cluster_idx
+             % specify one of spike_idx or spike_times and/or cluster_idx. spike_* take precedence
              p.addParameter('spike_idx', [], @isvector); % manually specify which idx into spike_times
              p.addParameter('spike_times', [], @isvector); % manually specify which times directly to extract
+             p.addParameter('cluster_idx', [], @isvector); % manually specify all spikes from specific cluster_idx
 
              % and ONE OR NONE of these to pick channels (or channels for each cluster)
              p.addParameter('channel_idx_by_cluster', [], @(x) isempty(x) || ismatrix(x));
@@ -693,6 +695,8 @@ classdef KiloSortDataset < handle
              p.addParameter('car', false, @islogical);
              p.addParameter('centerUsingFirstSamples', 20, @(x) isscalar(x) || islogical(x)); % subtract mean of each waveform's first n samples, don't do if false
 
+             p.addParameter('subtractOtherClusters', false, @islogical); % time consuming step to remove the contribution of the other clusters to a given snippet
+             
              p.addParameter('raw_dataset', ds.raw_dataset, @(x) true);
 
              % other metadata set in snippetSet
@@ -703,6 +707,8 @@ classdef KiloSortDataset < handle
              assert(ds.hasRawDataset, 'KiloSortDataset has no raw ImecDataset');
              
              ds.checkLoaded();
+             
+             unique_cluster_idx = p.Results.cluster_idx; % allow caller to specify directly
 
              if ~isempty(p.Results.spike_times)
                  spike_times = p.Results.spike_times; %#ok<*PROPLC>
@@ -711,22 +717,25 @@ classdef KiloSortDataset < handle
                      error('Not all spike times were found in KiloSortDataset');
                  end
                  cluster_idx = ds.spike_clusters(spike_idx);
-                 unique_cluster_idx = unique(cluster_idx);
+                 if isempty(unique_cluster_idx)
+                     unique_cluster_idx = unique(cluster_idx);
+                 end
 
              elseif ~isempty(p.Results.spike_idx)
                  spike_idx = p.Results.spike_idx;
                  spike_times = ds.spike_times(spike_idx);
                  cluster_idx = ds.spike_clusters(spike_idx);
-                 unique_cluster_idx = unique(cluster_idx);
-
+                 if isempty(unique_cluster_idx)
+                     unique_cluster_idx = unique(cluster_idx);
+                 end
                  
-             elseif ~isempty(p.Results.cluster_id)
-                 clu = p.Results.cluster_id;
+             elseif ~isempty(p.Results.cluster_idx)
+                 clu = p.Results.cluster_idx;
                  unique_cluster_idx = clu;
 
                  if isscalar(clu)
                      spike_idx = find(ds.spike_clusters == clu);
-                     spike_times = ds.spike_times(spike_idx); %#ok<FNDSB>
+                     spike_times = ds.spike_times(spike_idx);
                      cluster_idx = repmat(clu, size(spike_times));
                  else
                      [mask, which] = ismember(ds.spike_cluster, clu);
@@ -740,7 +749,6 @@ classdef KiloSortDataset < handle
              if ~isempty(trial_idx)
                  assert(numel(trial_idx) == numel(spike_idx));
              end
-             
              
              % figure out actual times requested
              if ~isnan(p.Results.best_n_channels)
@@ -771,7 +779,7 @@ classdef KiloSortDataset < handle
                      if numel(thisC) <= nSample
                          mask(thisC) = true;
                      else
-                         mask(randsample(numel(thisC), nSample, false)) = true;
+                         mask(thisC(randsample(numel(thisC), nSample, false))) = true;
                      end
                  end
                  
@@ -786,23 +794,156 @@ classdef KiloSortDataset < handle
              % channel_map is provided since raw data often has additional channels that we're not interested in
              window = p.Results.window;
              snippetSet = p.Results.raw_dataset.readAPSnippetSet(spike_times, ...
-                 window, 'channel_idx_by_cluster', channel_idx_by_cluster, 'car', p.Results.car);
+                 window, 'channel_idx_by_cluster', channel_idx_by_cluster, 'unique_cluster_idx', unique_cluster_idx, ...
+                 'cluster_idx', cluster_idx, ...
+                 'car', p.Results.car);
+             snippetSet.cluster_idx = cluster_idx;
+             snippetSet.unique_cluster_idx = unique_cluster_idx;
+             snippetSet.trial_idx = trial_idx;
+             
+             if p.Results.subtractOtherClusters
+                 reconstructionFromOtherClusters = ds.reconstructSnippetSetFromTemplates(snippetSet, ...
+                     'excludeClusterFromOwnReconstruction', true);
+                 snippetSet.data = snippetSet.data - reconstructionFromOtherClusters.data;
+             end
 
              if p.Results.centerUsingFirstSamples
                  snippetSet.data = snippetSet.data - mean(snippetSet.data(:, 1:p.Results.centerUsingFirstSamples, :), 2, 'native');
              end
-             snippetSet.cluster_idx = cluster_idx;
              
-             snippetSet.trial_idx = trial_idx;
         end
          
-        function snippetSet = readAPSnippetSet(ds, times, window, channel_idx, varargin)
-            if nargin < 4
-                channel_idx = 1:ds.nChannels;
-            end
+        function snippetSet = readAPSnippetSet(ds, times, window, varargin)
             snippetSet = ds.raw_dataset.readAPSnippetSet(times, window, channel_idx, varargin{:});
         end
+        
+        function reconstruction = reconstructRawSnippetsFromTemplates(ds, times, window, varargin)
+            % generate the best reconstruction of each snippet using the amplitude-scaled templates 
+            p = inputParser();
+            % these define the lookup table of channels for each cluster
+            p.addParameter('channel_idx_by_cluster', ds.channel_map, @(x) isempty(x) || ismatrix(x));
+            p.addParameter('unique_cluster_idx', 1, @isvector);
+            % and this defines the cluster corresponding to each spike
+            p.addParameter('cluster_idx', ones(numel(times), 1), @isvector);
+            p.addParameter('exclude_cluster_idx_each_snippet', [], @(x) isempty(x) || isvector(x) || iscell(x));
             
+            p.addParameter('showPlots', false, @islogical);
+            p.addParameter('rawData', [], @isnumeric); % for plotting only
+            p.parse(varargin{:});
+            
+            % check sizes of everything
+            nTimes = numel(times);
+            channel_idx_by_cluster = p.Results.channel_idx_by_cluster;
+            assert(~isempty(channel_idx_by_cluster));
+            nChannels = size(channel_idx_by_cluster, 1);
+            unique_cluster_idx = p.Results.unique_cluster_idx;
+            assert(numel(unique_cluster_idx) == size(channel_idx_by_cluster, 2));
+            cluster_idx = p.Results.cluster_idx;
+            assert(numel(cluster_idx) == nTimes);
+            
+            exclude_cluster_idx_each_snippet = p.Results.exclude_cluster_idx_each_snippet;
+            
+            % templates post-whitening is nTemplates x nTimepoints x nChannelsFull
+            templates = ds.computeUnwhitenedTemplatesAllChannels();
+              
+            nTimeTemplates = size(templates, 2);
+              
+            relTvec_template = int64(-floor(nTimeTemplates/2)+1:-floor(nTimeTemplates/2)+nTimeTemplates); % assumes template occurs at left edge
+            relTvec_snippet = int64(window(1):window(2));
+            reconstruction = zeros(nChannels, numel(relTvec_snippet), nTimes, 'single');
+            
+            prog = ProgressBar(nTimes, 'Reconstructing templates around snippet times');
+            
+            for iT = 1:nTimes
+                prog.update(iT);
+                
+                % find spikes that would lie within this window (with padding), 
+                % excluding those from clusters we wish to exclude
+                t = int64(times(iT));
+                minT = t + window(1) - int64(relTvec_template(end));
+                maxT = t + window(2) - int64(relTvec_template(1));
+                if iscell(exclude_cluster_idx_each_snippet)
+                    exclude_this = exclude_cluster_idx_each_snippet{iT};
+                elseif ~isempty(exclude_cluster_idx_each_snippet)
+                    exclude_this = exclude_cluster_idx_each_snippet(iT);
+                else
+                    exclude_this = [];
+                end
+                nearby_spike_inds = find(ds.spike_times >= minT & ds.spike_times <= maxT);      
+                %nearby_spike_inds = find(ds.spike_times == t);
+                
+                nearby_spike_inds(ismember(ds.spike_clusters(nearby_spike_inds), exclude_this)) = [];
+
+                % figure out what channels we need to reconstruct onto
+                cluster_idx_this = cluster_idx(iT);
+                [~, cluster_ind_this] = ismember(cluster_idx_this, unique_cluster_idx);
+                assert(cluster_ind_this > 0, 'Cluster for times(%d) not found in unique_cluster_idx', iT);
+                channels_idx_this = channel_idx_by_cluster(:, cluster_ind_this);
+                [~, channel_ind_this] = ismember(channels_idx_this, ds.channel_map);
+                assert(all(channel_ind_this) > 0, 'Some channels in channel_idx_by_cluster not found in channel_map');
+                
+                if p.Results.showPlots
+                    clf;
+                    plot(relTvec_snippet, p.Results.rawData(1, :, iT), 'k-', 'LineWidth', 2);
+                    hold on;
+                end
+                
+                % loop over the enarby sp
+                for iS = 1:numel(nearby_spike_inds)
+                    ind = nearby_spike_inds(iS);
+                    amp = ds.amplitudes(ind);
+                    
+                    % figure out time overlap and add to reconstruction
+                    tprime = int64(ds.spike_times(ind));
+                    indFromTemplate = relTvec_template + tprime >= t + relTvec_snippet(1) & relTvec_template + tprime <= t + relTvec_snippet(end);
+                    indInsert = relTvec_snippet + t >= relTvec_template(1) + tprime & relTvec_snippet + t <= relTvec_template(end) + tprime;
+                    insert = amp .* permute(templates(ds.spike_templates(ind), indFromTemplate, channel_ind_this), [3 2 1]);
+                    reconstruction(:, indInsert, iT) = reconstruction(:, indInsert, iT) + insert;
+                    
+                    if p.Results.showPlots
+                        if tprime == t
+                            args = {'LineWidth', 1, 'Color', 'g'};
+                        else
+                            args = {};
+                        end
+                        plot(relTvec_template + tprime-t, amp .* templates(ds.spike_templates(ind), :, channel_ind_this(1)), 'Color', [0.7 0.7 0.7], args{:});
+                    end
+                end
+                
+                if p.Results.showPlots
+                    plot(relTvec_snippet, reconstruction(1, :, iT), 'r--', 'LineWidth', 2);
+                    plot(relTvec_snippet, p.Results.rawData(1, :, iT) - int16(reconstruction(1, :, iT)), 'b--');
+                    pause;
+                end
+            end
+            prog.finish();
+        end
+            
+        function ssReconstruct = reconstructSnippetSetFromTemplates(ds, ss, varargin)
+            p = inputParser();
+            p.addParameter('excludeClusterFromOwnReconstruction', false, @islogical);
+            p.addParameter('showPlots', false, @islogical);
+            p.parse(varargin{:});
+            
+            if p.Results.excludeClusterFromOwnReconstruction
+                exclude_cluster_idx_each_snippet = ss.cluster_idx;
+            else
+                exclude_cluster_idx_each_snippet = [];
+            end
+            
+            reconstruction = ds.reconstructRawSnippetsFromTemplates(ss.sample_idx, ss.window, ...
+                'channel_idx_by_cluster', ss.channel_idx_by_cluster, 'unique_cluster_idx', ss.unique_cluster_idx, ...
+                'cluster_idx', ss.cluster_idx, 'exclude_cluster_idx_each_snippet', exclude_cluster_idx_each_snippet, ...
+                'showPlots', p.Results.showPlots, 'rawData', ss.data);
+            
+            ssReconstruct = Neuropixel.SnippetSet(ds);
+            ssReconstruct.data = int16(reconstruction);
+            ssReconstruct.sample_idx = ss.sample_idx;
+            ssReconstruct.channel_idx_by_cluster = ss.channel_idx_by_cluster;
+            ssReconstruct.cluster_idx = ss.cluster_idx;
+            ssReconstruct.unique_cluster_idx = ss.unique_cluster_idx;
+            ssReconstruct.window = ss.window;
+        end
     end
     
     methods % Simple plotting methods for demonstration
