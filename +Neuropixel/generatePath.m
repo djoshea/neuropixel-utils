@@ -1,4 +1,15 @@
-function path = generatePath(subject, type, date, fileStem)
+function path = generatePath(subject, type, date, fileStem, varargin)
+
+p = inputParser();
+p.addParameter('dataRoot', '', @ischar);
+p.parse(varargin{:});
+dataRoot = p.Results.dataRoot;
+if isempty(dataRoot)
+    dataRoot = getenv('NEUROPIXEL_DATAROOT');
+    if isempty(dataRoot)
+        error('Must specify either dataRoot or setenv NEUROPIXEL_DATAROOT');
+    end
+end
 
 if nargin < 2
     type = '';
@@ -16,6 +27,6 @@ else
     dateStr = datestr(date, 'YYYY-mm-dd');
 end
 
-path = fullfile(getenv('NEUROPIXEL_DATAROOT'), subject, type, dateStr, fileStem);
+path = fullfile(dataRoot, subject, type, dateStr, fileStem);
 
 end
