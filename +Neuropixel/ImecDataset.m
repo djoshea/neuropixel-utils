@@ -1008,8 +1008,37 @@ classdef ImecDataset < handle
                 end
 
                 file = fullfile(path, file);
+                
             else
-                error('Folder or file %s does not exist', fileOrFileStem);
+                % not a folder or a file, but possibly pointing to the
+                % stem of a file, e.g. '/path/data' pointing to
+                % '/path/data.ap.imec.bin'
+                [parent, leaf, ext] = fileparts(fileOrFileStem);
+                if ~exist(parent, 'dir')
+                    error('Folder %s does not exist', parent);
+                end
+                stem = [leaf, ext];
+                
+                % find possible matches
+                switch type
+                    case 'ap'
+                        candidates = Neuropixel.ImecDataset.listAPFilesInDir(parent);
+                        
+                    case 'lf'
+                        candidates = Neuropixel.ImecDataset.listLFFilesInDir(parent);
+                        
+                    otherwise
+                        error('Unknown type %s');
+                end
+                mask = startsWith(candidates, stem);
+                
+                if ~any(mask)
+                    error('No %s matches for %s* exist', type, fileOrFileStem);
+                elseif nnz(mask) > 1
+                    error('Multiple %s matches for %s* exist. Narrow down the prefix.', type, fileOrFileStem);
+                end
+                
+                file = fullfile(parent, candidates{mask});
             end
         end
 
