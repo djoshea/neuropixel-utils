@@ -230,6 +230,22 @@ classdef ImecDataset < handle
             end
 
         end
+        
+        function sampleIdx = closestSampleAPForTime(df, timeSeconds)
+            sampleIdx = round(timeSeconds * df.fsAP);
+            sampleIdx(sampleIdx == 0) = 1;
+            if any(sampleIdx < 0 | sampleIdx > df.nSamplesAP)
+                error('Time seconds out of range');
+            end 
+        end
+        
+        function sampleIdx = closestSampleLFForTime(df, timeSeconds)
+            sampleIdx = round(timeSeconds * df.fsLF);
+            sampleIdx(sampleIdx == 0) = 1;
+            if any(sampleIdx < 0 | sampleIdx > df.nSamplesLF)
+                error('Time seconds out of range');
+            end 
+        end
     end
 
     % these functions read a contiguous block of samples over a contiguous band of channels
@@ -1345,10 +1361,128 @@ classdef ImecDataset < handle
                     prog.finish();
                 end
             end
-
         end
+    end
+    
+    methods
+        function [chunkedOutputs, chunkSampleStartIdx] = testTransformInternal(imec, procFnList, mode, varargin)     
+            p = inputParser();
+            p.addParameter('timeIdxToInclude', [], @(x) isvector(x) || isempty(x));
+            p.addParameter('goodChannelsOnly', false, @islogical);
+            p.addParameter('writeSyncSeparate', false, @islogical); % true means ap will get only mapped channels, false will preserve channels as is
+            p.addParameter('chunkSize', 2^20, @isscalar);
+            p.addParameter('gpuArray', false, @islogical);
+            p.addParameter('applyScaling', false, @islogical); % convert to uV before processing
+            p.parse(varargin{:});
 
+            if ~iscell(procFnList)
+                procFnList = {procFnList};
+            end
+            chunkSize = p.Results.chunkSize;
+            useGpuArray = p.Results.gpuArray;
+            applyScaling = p.Results.applyScaling;
 
+            % determine channels to pass along
+            if p.Results.goodChannelsOnly
+                goodMat = false(imec.nChannels, 1);
+                goodMat(imec.goodChannels) = true;
+                chIdx = find(all(goodMat, 2));
+                assert(~isempty(chIdx), 'No goodChannels specified across all datasets')
 
+            elseif p.Results.writeSyncSeparate
+                chIdx = imec.mappedChannels; % excludes sync channel
+                assert(~isempty(chIdx), 'No mapped channels found in first dataset');
+
+            else
+                chIdx = 1:imec.nChannels;
+            end
+
+            switch mode
+                case 'ap'
+                    mm = imec.memmapAP_full();
+                case 'lf'
+                    mm = imec.memmapLF_full();
+                case 'sync'
+                    mm = imec.memmapSync_full();
+            end
+
+            nChunks = ceil(size(mm.Data.x, 2) / chunkSize);
+
+            chunkSampleStartIdx = 1 + chunkSize*(0:nChunks-1);
+            chunkSampleEndIdx = min(chunkSampleStartIdx + chunkSize - 1, imec.nSamplesAP);
+
+            timeIdxToInclude = p.Results.timeIdxToInclude;
+            if isempty(timeIdxToInclude)
+                maskRun = true(nChunks, 1);
+            else
+                maskRun = false(nChunks, 1);
+                for iT = 1:numel(timeIdxToInclude)
+                    maskRun(chunkSampleStartIdx <= timeIdxToInclude(iT) & timeIdxToInclude(iT) <= chunkSampleEndIdx) = true;
+                end
+            end
+            
+            if ~any(maskRun)
+                error('timeIdxToInclude is out of range');
+            end
+            
+            chunkedOutputs = cell(nChunks, 1);
+
+            prog = ProgressBar(nChunks, 'Testing transform pipeline on %d / %d chunks', nnz(maskRun), nChunks);
+            for iCh = 1:nChunks
+                prog.update(iCh);
+                if ~maskRun(iCh), continue, end
+                
+                if iCh == nChunks
+                    idx = (iCh-1)*(chunkSize)+1 : size(mm.Data.x, 2);
+                else
+                    idx = (iCh-1)*(chunkSize) + (1:chunkSize);
+                end
+
+                data = mm.Data.x(chIdx, idx);
+
+                % ch_connected_mask indicates which channels are
+                % connected, which are the ones where scaling makes
+                % sense. chIdx is all channels being written to
+                % output file
+                ch_conn_mask = ismember(chIdx, imec.connectedChannels);
+
+                if applyScaling
+                    % convert to uV and to single
+                    switch mode
+                        case 'ap'
+                            data = single(data);
+                            data(ch_conn_mask, :) = data(ch_conn_mask, :) * single(imec.apScaleToUv);
+                        case 'lf'
+                            data = single(data);
+                            data(ch_conn_mask, :) = data(ch_conn_mask, :) * single(imec.lfScaleToUv);
+                    end
+                end
+
+                if useGpuArray
+                    data = gpuArray(data);
+                end
+
+                % apply each procFn sequentially
+                for iFn = 1:numel(procFnList)
+                    fn = procFnList{iFn};
+                    data = fn(imec, data, chIdx, idx);
+                end
+
+                if useGpuArray
+                    data = gather(data);
+                end
+
+                if applyScaling
+                    data(ch_conn_mask, :) = data(ch_conn_mask, :) ./ imec.scaleToUv;
+                end
+
+                chunkedOutputs{iCh} = int16(data);
+                
+            end
+            prog.finish();
+            
+            chunkedOutputs = chunkedOutputs(maskRun);
+            chunkSampleStartIdx = chunkSampleStartIdx(maskRun); 
+        end
     end
 end
