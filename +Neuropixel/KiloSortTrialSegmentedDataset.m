@@ -19,7 +19,7 @@ classdef KiloSortTrialSegmentedDataset < handle & matlab.mixin.Copyable
         spike_idx(:, :) cell
 
         % cluster ids corresponding to each column of the {nTrials, nClusters} properties
-        cluster_ids(:, 1) int32
+        cluster_ids(:, 1) uint32
         
         cluster_groups(:, 1) categorical
         
@@ -32,9 +32,13 @@ classdef KiloSortTrialSegmentedDataset < handle & matlab.mixin.Copyable
     properties(Dependent)
         raw_dataset
         nTrials
+        nTrialsHaveData
         nClusters
         nChannels
         nChannelsConnected
+        
+        % nTrials x 1
+        trial_duration_ms
         
         fsAP % sampling rate pass thru
     end
@@ -42,7 +46,6 @@ classdef KiloSortTrialSegmentedDataset < handle & matlab.mixin.Copyable
     % Properties that are segmented by trial
     % each of these is nTrials x nTemplates cell with the same inner size as in Dataset (as described)
     properties
-        
         %  [nSpikes, ] double vector with the amplitude scaling factor that was applied to the template when extracting that spike
         amplitudes(:,:) cell
 
@@ -203,6 +206,10 @@ classdef KiloSortTrialSegmentedDataset < handle & matlab.mixin.Copyable
         function n = get.nTrials(seg)
             n = numel(seg.trial_ids);
         end
+        
+        function tf = get.nTrialsHaveData(seg)
+            tf = nnz(seg.trial_has_data);
+        end
 
         function n = get.nClusters(seg)
             n = numel(seg.cluster_ids);
@@ -214,6 +221,11 @@ classdef KiloSortTrialSegmentedDataset < handle & matlab.mixin.Copyable
         
         function rd = get.raw_dataset(seg)
             rd = seg.dataset.raw_dataset;
+        end
+        
+        function d = get.trial_duration_ms(seg)
+            % trial_start/stop are in samples at fsAP/1000 samples per second
+            d = double(seg.trial_stop - seg.trial_start) / double(seg.fsAP) * 1000;
         end
         
         function fsAP = get.fsAP(ds)
@@ -253,6 +265,11 @@ classdef KiloSortTrialSegmentedDataset < handle & matlab.mixin.Copyable
             else
                 syncBitNames = string(ds.dataset.syncBitNames);
             end
+        end
+        
+        function clusterInds = lookupClusterInds(ds, cluster_ids)
+            [tf, clusterInds] = ismember(cluster_ids, ds.cluster_ids);
+            assert(all(tf), 'Some cluster ids were not found in ds.clusterids');
         end
     end
 
@@ -362,7 +379,67 @@ classdef KiloSortTrialSegmentedDataset < handle & matlab.mixin.Copyable
             
             snippet_set.valid = mask_non_nan;
             snippet_set.trial_idx = trial_idx;
-        end   
+        end 
+    end
+    
+    methods
+        function tRelStart = convertIdxEachTrialToMsRelStart(seg, idxEachTrial)
+            tRelStart = double(idxEachTrial - seg.trial_start) / double(seg.fsAP) * 1000;
+        end
+        
+        function idx = convertMsRelStartToIdx(seg, tRelStart)
+            idx = uint64(round(tRelStart / 1000 * seg.fsAP)) + seg.trial_start;
+        end
+        
+        function [rates, duration, tStart, tStop] = computeFiringRateEachTrial(seg, varargin)
+            p = inputParser();
+            p.addParameter('tStart', zeros(seg.nTrials, 1), @isvector);
+            p.addParameter('tStop', inf(seg.nTrials, 1), @isvector);
+            p.parse(varargin{:});
+            
+            % keep times within trial boundaries
+            tStart = p.Results.tStart;
+            tStop = p.Results.tStop;
+            mask = ~isnan(tStart) & ~isnan(tStop);
+            
+            tStart = max(0, tStart);
+            tStop = min(seg.trial_duration_ms, p.Results.tStop);
+            duration = tStop - tStart;
+            
+            rates = nan(seg.nTrials, seg.nClusters);
+            for iT = 1:seg.nTrials
+                if ~mask(iT), continue, end
+                for iC = 1:seg.nClusters
+                    spikes = seg.spike_times_ms_rel_start{iT, iC};
+                    count = nnz(spikes >= tStart(iT) & spikes <= tStop(iT));
+                    rates(iT, iC) = count / duration(iT) * 1000;
+                end
+            end
+        end
+        
+        function css = buildClusterStabilitySummary(seg, varargin)
+            p = inputParser();
+            p.addParameter('tStart', zeros(seg.nTrials, 1), @isvector);
+            p.addParameter('tBinWidth', 500, @isscalar);
+            p.addParameter('condition_ids', zeros(seg.nTrials, 1), @isvector);
+            p.parse(varargin{:});
+           
+            tBinWidth = p.Results.tBinWidth;
+            tStart = p.Results.tStart;
+            tStop = tStart + tBinWidth;
+            [rates, ~, tStart] = seg.computeFiringRateEachTrial('tStart', tStart, 'tStop', tStop);
+            
+            css = Neuropixel.ClusterStabilitySummary();
+            css.trial_ids = seg.trial_ids;
+            css.trial_has_data = seg.trial_has_data & ~isnan(tStart) & ~isnan(tStop);
+            css.condition_ids = p.Results.condition_ids;
+            css.tBinWidth = tBinWidth;
+            css.cluster_ids = seg.cluster_ids;
+            css.rates = rates;
+            css.idxStart = seg.convertMsRelStartToIdx(tStart);
+            css.fs = seg.fsAP;
+        end
+            
     end
 
 %     methods(Static)

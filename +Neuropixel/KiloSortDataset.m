@@ -3,7 +3,7 @@ classdef KiloSortDataset < handle
     % todo - load cluster ratings from cluster_groups.tsv
     % Note 1: in the context of this file, time refers to samples, 1-indexed
     % Note 2: this file will differ from raw_dataset in nChannels. Here, nChannels means the number of channels
-    %   in .channel_map (which will match the other properties)
+    %   in .channel_ids (which will match the other properties)
 
     properties
         path(1, :) char
@@ -13,23 +13,23 @@ classdef KiloSortDataset < handle
         channelMap % Neuropixel.ChannelMap
         
         fsAP % sampling rate pass thru to raw_dataset or specified during construction
+        
+        apScaleToUv % multiply raw samples by this to get uV
+        
+        meta % ap metadata loaded
     end
     
     % Computed properties
-    properties(SetAccess=protected)
-        cluster_best_template_channels % nClusters x nClosest, indexed as in data file! use channelNumsToChannelInds() to decode as indices according to channel_map
-        
-        template_centerOfMass % nTemplates x D spatial dimensions
-        cluster_centerOfMass % nClusters x D spatial dimensions
+    properties(Hidden)
+        metrics
     end
-        
 
     properties(Dependent)
         pathLeaf
         isLoaded
         hasRawDataset
         nSpikes
-        nChannelsSorted % number of channels in channel_map
+        nChannelsSorted % number of channels in channel_ids
         nClusters
         nTemplates
         nPCFeatures
@@ -67,7 +67,7 @@ classdef KiloSortDataset < handle
         amplitudes(:,1) double;
 
         % channel_map.npy - [nChannels, ] uint32 vector with the channel map, i.e. which row of the data file to look in for the channel in question
-        channel_map(:, 1) uint32
+        channel_ids(:, 1) uint32
 
         % channel_positions.npy - [nChannels, 2] double matrix with each row giving the x and y coordinates of that channel. Together with the channel map, this determines how waveforms will be plotted in WaveformView (see below).
         channel_positions(:, 2) double
@@ -77,7 +77,8 @@ classdef KiloSortDataset < handle
         % is the projection of the 123rd spike onto the 1st PC on the channel given by pc_feature_ind[5].
         pc_features(:, :, :) single
 
-        % pc_feature_ind.npy - [nTemplates, nPCFeatures] uint32 matrix specifying which pcFeatures are included in the pc_features matrix.
+        % pc_feature_ind.npy - [nTemplates, nPCFeatures] uint32 matrix specifying which channels contribute to each entry in dim 3 of the pc_features matrix
+        % e.g. if pc_feature(iT
         pc_feature_ind(:, :) uint32
 
         % similar_templates.npy - [nTemplates, nTemplates] single matrix giving the similarity score (larger is more similar) between each pair of templates
@@ -109,16 +110,16 @@ classdef KiloSortDataset < handle
         % whitening_mat_inv.npy - [nChannels, nChannels] double, the inverse of the whitening matrix.
         whitening_mat_inv(:, :) double
 
-        % spike_clusters.npy - [nSpikes, ] int32 vector giving the cluster identity of each spike. This file is optional and
+        % spike_clusters.npy - [nSpikes, ] uint32 vector giving the cluster identity of each spike. This file is optional and
         % if not provided will be automatically created the first time you run the template gui, taking the same values as
         % spike_templates.npy until you do any merging or splitting.
-        spike_clusters(:, 1) int32
+        spike_clusters(:, 1) uint32
 
         % cluster_groups - comma-separated value text file giving the "cluster group" of each cluster (noise, mua, good, unsorted)
         cluster_groups(:, 1) categorical
         
         % unique clusters in spike_clusters [nClusters]
-        cluster_ids (:, 1) int32
+        cluster_ids (:, 1) uint32
     end
     
     properties(Dependent)
@@ -150,10 +151,10 @@ classdef KiloSortDataset < handle
         end
 
         function n = get.nChannelsSorted(ds)
-            if isempty(ds.channel_map)
+            if isempty(ds.channel_ids)
                 n = NaN;
             else
-                n = size(ds.channel_map, 1);
+                n = size(ds.channel_ids, 1);
             end
         end
 
@@ -190,10 +191,10 @@ classdef KiloSortDataset < handle
         end
         
         function n = get.nChannels(ds)
-            if isempty(ds.channel_map)
+            if isempty(ds.channel_ids)
                 n = NaN;
             else
-                n = numel(ds.channel_map);
+                n = numel(ds.channel_ids);
             end
         end
         
@@ -225,6 +226,18 @@ classdef KiloSortDataset < handle
                 end
             else
                 fsAP = ds.fsAP;
+            end
+        end
+        
+        function apScaleToUv = get.apScaleToUv(ds)
+            if isempty(ds.apScaleToUv)
+                if isempty(ds.raw_dataset)
+                    apScaleToUv = NaN;
+                else
+                    apScaleToUv = ds.raw_dataset.apScaleToUv;
+                end
+            else
+                apScaleToUv = ds.apScaleToUv;
             end
         end
         
@@ -275,6 +288,7 @@ classdef KiloSortDataset < handle
             p.addParameter('channelMap', [], @(x) true);
             p.addParameter('imecDataset', [], @(x) true);
             p.addParameter('fsAP', [], @(x) isempty(x) || isscalar(x));
+            p.addParameter('apScaleToUv', [], @(x) isempty(x) || isscalar(x));
             p.parse(varargin{:});
             
             if isa(path, 'Neuropixel.ImecDataset')
@@ -297,7 +311,9 @@ classdef KiloSortDataset < handle
                 end
             end
             
+            % these will pass thru to raw_dataset if provided
             ds.fsAP = p.Results.fsAP;
+            ds.apScaleToUv = p.Results.apScaleToUv;
             
             % manually specify some additional props
             channelMap = p.Results.channelMap;
@@ -314,6 +330,8 @@ classdef KiloSortDataset < handle
                 channelMap = Neuropixel.ChannelMap(channelMap);
             end
             ds.channelMap = channelMap;
+            
+            ds.meta = ds.raw_dataset.readAPMeta();
         end
         
         function s = computeBasicStats(ds, varargin)
@@ -395,26 +413,29 @@ classdef KiloSortDataset < handle
             prog = ProgressBar(15, 'Loading KiloSort dataset: ');
 
             ds.amplitudes = read('amplitudes');
-            ds.channel_map = read('channel_map');
-            ds.channel_map = ds.channel_map + ones(1, 'like', ds.channel_map); % make channel map 1 indexed
+            ds.channel_ids = read('channel_map');
+            ds.channel_ids = ds.channel_ids + ones(1, 'like', ds.channel_ids); % make channel map 1 indexed
             ds.channel_positions = read('channel_positions');
             ds.pc_features = read('pc_features');
             ds.pc_feature_ind = read('pc_feature_ind');
+            ds.pc_feature_ind = ds.pc_feature_ind + ones(1, 'like', ds.pc_feature_ind); % convert plus zero indexed to 1 indexed channels
             ds.similar_templates = read('similar_templates');
             ds.spike_templates = read('spike_templates');
             ds.spike_templates = ds.spike_templates + ones(1, 'like', ds.spike_templates);
             ds.spike_times = read('spike_times');
             ds.template_features = read('template_features');
             ds.template_feature_ind = read('template_feature_ind');
+            ds.template_feature_ind = ds.template_feature_ind + ones(1, 'like', ds.template_feature_ind); % 0 indexed templates to 1 indexed templates
             ds.templates = read('templates');
 
             ds.templates_ind = read('templates_ind');
-            ds.templates_ind = ds.templates_ind + ones(1, 'like', ds.templates_ind); % convert plus zero indexed to 1 indexed
+            ds.templates_ind = ds.templates_ind + ones(1, 'like', ds.templates_ind); % convert plus zero indexed to 1 indexed channels
 
             ds.whitening_mat = read('whitening_mat');
             ds.whitening_mat_inv = read('whitening_mat_inv');
             ds.spike_clusters = read('spike_clusters');
             
+            % load cluster groups (mapping from cluster_ids to {good, mua, noise, unsorted})
             fnameSearch = {'cluster_groups.csv', 'cluster_group.tsv'};
             found = false;
             for iF = 1:numel(fnameSearch)
@@ -426,10 +447,19 @@ classdef KiloSortDataset < handle
                 end
             end
             if ~found
+                % default to everything unsorted
                 warning('Could not find cluster group file');
                 ds.cluster_ids = unique(ds.spike_clusters);
+                ds.cluster_groups = repmat(categorical("unsorted"), numel(ds.cluster_ids), 1);
+            else
+                % not every cluster need be listed in the cluster_groups file 
+                % find the missing ones and include them as unsorted
+                missing = setdiff(unique(ds.spike_clusters), ds.cluster_ids);
+                [ds.cluster_ids, sortIdx] = sort(cat(1, ds.cluster_ids, missing));
+                ds.cluster_groups = cat(1, ds.cluster_groups, repmat(categorical("unsorted"), numel(missing), 1));
+                ds.cluster_groups = ds.cluster_groups(sortIdx);
             end
-            
+                
             prog.finish()
 
             function out = read(file)
@@ -509,156 +539,31 @@ classdef KiloSortDataset < handle
 
             seg = Neuropixel.KiloSortTrialSegmentedDataset(ds, tsi, trial_ids);
         end
+        
+        function channel_inds = channelNumsToChannelInds(ds, channels)
+            [~, channel_inds] = ismember(channels, ds.channel_ids);
+        end
+        
+        function m = getMetrics(ds, recompute)
+            if isempty(ds.metrics) || (nargin >= 2 && recompute)
+                ds.metrics = Neuropixel.KilosortMetrics(ds);
+            end
+            m = ds.metrics;
+        end
+        
+        function clusterInds = lookupClusterInds(ds, cluster_ids)
+            [tf, clusterInds] = ismember(cluster_ids, ds.cluster_ids);
+            assert(all(tf), 'Some cluster ids were not found in ds.clusterids');
+        end
+        
+        function clusterInds = lookupChannelInds(ds, channel_ids)
+            [tf, clusterInds] = ismember(channel_ids, ds.channel_ids);
+            assert(all(tf(:)), 'Some cluster ids were not found in ds.clusterids');
+        end
     end
     
     methods % Computed data
-        function channel_inds = channelNumsToChannelInds(ds, channels)
-            [~, channel_inds] = ismember(channels, ds.channel_map);
-        end
         
-        function templates_whitened = computeUnwhitenedTemplatesAllChannels(ds, template_idx)
-            % computes the unwhitened templates values, specified on the full set of channels
-            % templates is [nTemplates, nTimePoints, nTemplateChannels]
-            
-            if nargin < 2
-                template_idx = 1:ds.nTemplates;
-            end
-            
-            templates = ds.templates(template_idx, :, :);
-            templates_whitened = zeros(size(templates, 1), size(templates, 2), ds.nChannels, 'like', templates);
-            for iT = 1:size(templates, 1)
-                whichChannels = ds.templates_ind(iT, :);
-                templates_whitened(iT, :, whichChannels) = templates(iT, :, :);
-            end
-            
-            wmi = ds.whitening_mat_inv;
-            assert(size(wmi, 1) == size(templates_whitened, 3), 'dim 3 of templates must match whitening matrix inverse');
-            templates_whitened = Neuropixel.Utils.TensorUtils.linearCombinationAlongDimension(templates_whitened, 3, wmi');
-        end
-
-            % ds.templates is potentially only specified on a subset of channels which may differ across templates.
-            % this computes an unwhitened 
-        
-        function cluster_best_template_channels = computeBestChannelsByCluster(ds, varargin)
-            p = inputParser();
-            p.addParameter('recompute', false, @islogical);
-            p.parse(varargin{:});
-            
-            % set nClosest to nChannelsSorted so that we have all the
-            % distances sorted ahead of time
-
-            % split spike_templates by cluster idspike_templates_by_unit
-            ds.checkLoaded();
-            if ~isempty(ds.cluster_best_template_channels) && ~p.Results.recompute
-                cluster_best_template_channels = ds.cluster_best_template_channels;
-                return;
-            end
-            
-            [mask, unit_idx_each_spike] = ismember(ds.spike_clusters, ds.cluster_ids);
-            spike_templates_by_unit = Neuropixel.Utils.TensorUtils.splitAlongDimensionBySubscripts(...
-                ds.spike_templates(mask), 1, ds.nClusters, unit_idx_each_spike(mask));
-
-            % nChannelsSorted x nChannelsSorted, include each channel in its own
-            % closest list
-            closest_lookup = [ds.channel_map, ds.channelMap.getClosestChannels(ds.nChannelsSorted-1, ds.channel_map, ds.channel_map)];
-
-            templates = ds.computeUnwhitenedTemplatesAllChannels();
-            
-            best_template_channels = nan(ds.nClusters, ds.nChannelsSorted);
-            for iU = 1:ds.nClusters
-                template_id = mode(spike_templates_by_unit{iU});
-                [~, bestChannelSortedInd] = max(range(templates(template_id, :, :), 2));
-                best_template_channels(iU, :) = closest_lookup(bestChannelSortedInd, :);
-            end
-            ds.cluster_best_template_channels = best_template_channels;
-            cluster_best_template_channels = ds.cluster_best_template_channels;
-        end
-        
-        function cluster_centerOfMass = computeCenterOfMassLocationByCluster(ds, varargin)
-            p = inputParser();
-            p.addParameter('recompute', false, @islogical);
-            p.parse(varargin{:});
-            
-            ds.checkLoaded();
-            
-            if ~isempty(ds.cluster_centerOfMass) && ~p.Results.recompute
-                cluster_centerOfMass = ds.cluster_centerOfMass;
-                return;
-            end
-            
-            % part 1: compute the center of mass for each template 
-            % nTemplates x nTimepoints x nTemplateChannels
-            templates = ds.computeUnwhitenedTemplatesAllChannels();
-            templateMass = Neuropixel.Utils.TensorUtils.squeezeDims(var(templates, [], 2), 2);
-            
-            % ds.channel_positions is nTemplates x spatialD (2 or 3)
-            % template_inds is nTemplates x 
-            % want channel position for each entry in templates
-            % nTemplates x nTemplateChannels
-            templateChannelPos = reshape(ds.channel_positions(ds.templates_ind(:), :), [size(ds.templates_ind), size(ds.channel_positions, 2)]);
-            
-            % nTemplates x spatialD
-            ds.template_centerOfMass = Neuropixel.Utils.TensorUtils.squeezeDims(sum(templateMass .* templateChannelPos, 2) ./ sum(templateMass, 2), 2);
-
-            % part 2: compute the number of times each cluster uses each template, weighted by the spike amplitude
-            % nTemplates x nClusters
-            weightedTemplateUseCountByCluster = ds.computeTemplateUseCountByCluster(ds.amplitudes);
-            weightedTemplateUseCountByCluster = weightedTemplateUseCountByCluster ./ sum(weightedTemplateUseCountByCluster, 1);
-            
-            % compute the center of mass per cluster by weighing averaging of the template centers of mass
-            ds.cluster_centerOfMass = Neuropixel.Utils.TensorUtils.linearCombinationAlongDimension(ds.template_centerOfMass, 1, weightedTemplateUseCountByCluster');
-            
-            cluster_centerOfMass = ds.cluster_centerOfMass;
-        end
-        
-        function templateUseCountByCluster = computeTemplateUseCountByCluster(ds, weightPerSpike)
-            % for each cluster in ds.cluster_ids, compute the number of times each template was used
-            % templateUseCountByCluster is nTemplates x nClusters
-            
-            if nargin < 2
-                weightPerSpike = ones(ds.nSpikes, 1);
-            end
-           
-            [mask, cluster_ind_each_spike] = ismember(ds.spike_clusters, ds.cluster_ids);
-            templateUseCountByCluster = accumarray([ds.spike_templates(mask), cluster_ind_each_spike(mask)], ...
-                weightPerSpike(mask), [ds.nTemplates, ds.nClusters]);
-        end
-        
-        function [templateAverageByClusterByChannel, wavgAmplitude] = computeWeightedAverageTemplate(ds)
-            % templateAverageByClusterByChannel is nClusters x nTimepoints x nClosest
-
-            % nTemplates x nClusters
-            weightedTemplateUseCountByCluster = ds.computeTemplateUseCountByCluster(ds.amplitudes);
-            weightedTemplateUseCountByCluster = weightedTemplateUseCountByCluster ./ sum(weightedTemplateUseCountByCluster, 1);
-            
-            % nTemplates x nTimepoints x nChannels --> nClusters x nTemplates x nChannels
-            templates = ds.computeUnwhitenedTemplatesAllChannels();
-            templateAverageByClusterByChannel = Neuropixel.Utils.TensorUtils.linearCombinationAlongDimension(templates, 1, weightedTemplateUseCountByCluster');
-            
-            % compute weighted average of the amplitudes for each cluster
-            [mask, cluster_ind_each_spike] = ismember(ds.spike_clusters, ds.cluster_ids);
-            wavgAmplitude = accumarray(cluster_ind_each_spike(mask), ds.amplitudes(mask), [ds.nClusters 1], @mean);
-        end
-        
-        function [templateAverageByCluster, wavgAmplitude] = computeWeightedAverageTemplateBestChannel(ds, varargin)
-            % templateAverageByCluster is nClusters x nTimepoints x nClosest
-            % wavgAmplitude is the weighted average of the amplitude values
-            p = inputParser();
-            p.addParameter('nClosest', 1, @isscalar);
-            p.parse(varargin{:});
-            nClosest = p.Results.nClosest;
-             
-            [templateAverageByClusterByChannel, wavgAmplitude] = ds.computeWeightedAverageTemplate();
-            cluster_best_template_channels = ds.computeBestChannelsByCluster();
-            
-            % nClusters x 1
-            bestChannelInds = ds.channelNumsToChannelInds(cluster_best_template_channels(:, 1:nClosest));
-            
-            templateAverageByCluster = nan(ds.nClusters, size(templateAverageByClusterByChannel, 2), nClosest);
-            for iC = 1:ds.nClusters
-                templateAverageByCluster(iC, :) = templateAverageByClusterByChannel(iC, :, bestChannelInds(iC, :));
-            end
-        end
             
         function [snippetSet, reconstructionFromOtherClusters] = getWaveformsFromRawData(ds, varargin)
              % Extracts individual spike waveforms from the raw datafile, for multiple
@@ -765,7 +670,7 @@ classdef KiloSortDataset < handle
              elseif ~isempty(p.Results.channel_idx_by_cluster)
                  channel_idx_by_cluster = p.Results.channel_idx_by_cluster;
              else
-                 channel_idx_by_cluster = ds.channel_map;
+                 channel_idx_by_cluster = ds.channel_ids;
              end
 
              if isfinite(p.Results.num_waveforms)             
@@ -791,7 +696,7 @@ classdef KiloSortDataset < handle
                  end
              end
 
-             % channel_map is provided since raw data often has additional channels that we're not interested in
+             % channel_ids is provided since raw data often has additional channels that we're not interested in
              window = p.Results.window;
              snippetSet = p.Results.raw_dataset.readAPSnippetSet(spike_times, ...
                  window, 'channel_idx_by_cluster', channel_idx_by_cluster, 'unique_cluster_idx', unique_cluster_idx, ...
@@ -821,7 +726,7 @@ classdef KiloSortDataset < handle
             % generate the best reconstruction of each snippet using the amplitude-scaled templates 
             p = inputParser();
             % these define the lookup table of channels for each cluster
-            p.addParameter('channel_idx_by_cluster', ds.channel_map, @(x) isempty(x) || ismatrix(x));
+            p.addParameter('channel_idx_by_cluster', ds.channel_ids, @(x) isempty(x) || ismatrix(x));
             p.addParameter('unique_cluster_idx', 1, @isvector);
             % and this defines the cluster corresponding to each spike
             p.addParameter('cluster_idx', ones(numel(times), 1), @isvector);
@@ -879,8 +784,8 @@ classdef KiloSortDataset < handle
                 [~, cluster_ind_this] = ismember(cluster_idx_this, unique_cluster_idx);
                 assert(cluster_ind_this > 0, 'Cluster for times(%d) not found in unique_cluster_idx', iT);
                 channels_idx_this = channel_idx_by_cluster(:, cluster_ind_this);
-                [~, channel_ind_this] = ismember(channels_idx_this, ds.channel_map);
-                assert(all(channel_ind_this) > 0, 'Some channels in channel_idx_by_cluster not found in channel_map');
+                [~, channel_ind_this] = ismember(channels_idx_this, ds.channel_ids);
+                assert(all(channel_ind_this) > 0, 'Some channels in channel_idx_by_cluster not found in channel_ids');
                 
                 if p.Results.showPlots
                     clf;
@@ -943,65 +848,6 @@ classdef KiloSortDataset < handle
             ssReconstruct.cluster_idx = ss.cluster_idx;
             ssReconstruct.unique_cluster_idx = ss.unique_cluster_idx;
             ssReconstruct.window = ss.window;
-        end
-    end
-    
-    methods % Simple plotting methods for demonstration
-        function plotClusterWaveformsAtCenterOfMass(ds, varargin)
-            p = inputParser();
-            p.addParameter('scaleByAmplitude', true, @islogical);
-            p.addParameter('waveformScale', 10, @isscalar);
-            p.addParameter('waveformWidth', ds.channelMap.xspacing/20, @isscalar);
-            p.addParameter('waveformHeight', ds.channelMap.yspacing*3, @isscalar);
-            p.addParameter('cluster_ids', ds.cluster_ids, @isvector);
-            p.addParameter('colormap', @parula, @(x) isa(x, 'function_handle') || ismatrix(x) || ischar(x));
-            p.parse(varargin{:});
-            
-            [tf, clusterInds] = ismember(p.Results.cluster_ids, ds.cluster_ids);
-            assert(all(tf), 'Some cluster ids were not found in ds.clusterids');
-            
-            % nClusters x nTimepoints
-            [waves, amps] = ds.computeWeightedAverageTemplateBestChannel('nClosest', 1);
-            if p.Results.scaleByAmplitude
-                waves = waves .* amps;
-            end
-            waves = waves(clusterInds, :);
-              
-            xvec = linspace(-p.Results.waveformWidth/2, p.Results.waveformWidth/2, size(waves, 2)) * p.Results.waveformScale;
-            waves = waves ./ (max(waves(:)) - min(waves(:))) * p.Results.waveformHeight * p.Results.waveformScale;
-            
-            colormap = p.Results.colormap;
-            if isa(colormap, 'function_handle')
-                colormap = colormap(size(waves, 1));
-            end
-            
-            % nClusters x 2 or 3
-            com = ds.computeCenterOfMassLocationByCluster();
-            com = com(clusterInds, :);
-            
-            holding = ishold;
-            
-            % plot recording sites
-            cpos = ds.channel_positions;
-            plot(cpos(:, 1), cpos(:, 2), '.', 'Marker', 's', 'MarkerEdgeColor', 'none', ...
-                'MarkerFaceColor', [0.8 0.8 0.8], 'MarkerSize', 8);
-            hold on
-            
-            xlim([min(cpos(:,1)) - ds.channelMap.xspacing/2, max(cpos(:,1)) + ds.channelMap.xspacing/2]);
-            ylim([min(cpos(:,2)) - ds.channelMap.yspacing*5, max(cpos(:,2)) + ds.channelMap.yspacing*5]);
-            
-            for iC = 1:size(waves, 1)
-                if ischar(colormap)
-                    color = colormap;
-                else
-                    color = colormap(mod(iC-1, size(colormap, 1))+1, :);
-                end
-                
-                plot(xvec + com(iC, 1), waves(iC, :) + com(iC, 2), '-', 'Color', color);
-                hold on;    
-            end
-            
-            if ~holding, hold off; end
         end
     end
 end
