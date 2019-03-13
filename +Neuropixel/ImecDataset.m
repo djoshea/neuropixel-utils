@@ -28,7 +28,7 @@ classdef ImecDataset < handle
         % see markBadChannels
         badChannels
 
-        syncBitNames cell;
+        syncBitNames string;
     end
 
     properties
@@ -53,8 +53,13 @@ classdef ImecDataset < handle
 
         goodChannels % connected channels sans badChannels
         nGoodChannels
+        
+        channelIdx % 1 index channel list from channelMapFile
+        channelNames % full list of channel names
+        channelNamesPadded
 
         nSyncBits
+        syncBitsNamed
 
         fileAP % .imec.ap.bin file without folder
         pathAP % .imec.ap.bin file with folder
@@ -86,7 +91,7 @@ classdef ImecDataset < handle
             p.addParameter('channelMap', [], @(x) true);
             p.addParameter('syncInAPFile', true, @islogical);
             p.addParameter('syncChannelIndex', NaN, @isscalar);
-            p.addParameter('syncBitNames', {}, @iscell);
+            p.addParameter('syncBitNames', [], @(x) isempty(x) || isstring(x) || iscellstr(x));
             p.parse(varargin{:})
 
             file = Neuropixel.ImecDataset.findImecFileInDir(fileOrFileStem, 'ap');
@@ -184,23 +189,30 @@ classdef ImecDataset < handle
         end
 
         function setSyncBitNames(df, idx, names)
-            assert(all(idx >= 1 & idx < df.nSyncBits), 'Sync bit indices must be in [1 %d]', df.nSyncBits);
+            assert(all(idx >= 1 & idx <= df.nSyncBits), 'Sync bit indices must be in [1 %d]', df.nSyncBits);
             if isscalar(idx) && ischar(names)
                 df.syncBitNames{idx} = names;
             else
-                assert(iscellstr(names)) %#ok<ISCLSTR>
+                names = string(names);
                 df.syncBitNames(idx) = names;
             end
         end
 
-        function idx = lookupSyncBitByName(df, names)
-            if ischar(names)
-                names = {names};
+        function idx = lookupSyncBitByName(df, names, ignoreNotFound)
+            if nargin < 3
+                ignoreNotFound = false;
             end
-            assert(iscellstr(names));
-
-            [tf, idx] = ismember(names, df.syncBitNames);
-            idx(~tf) = NaN;
+            if isnumeric(names)
+                idx = names;
+            else
+                names = string(names);
+                [tf, idx] = ismember(names, df.syncBitNames);
+                if ignoreNotFound
+                    idx(~tf) = NaN;
+                elseif any(~tf)
+                    error('Sync bit(s) %s not found', strjoin(names, ', '));
+                end
+            end
         end
 
         function newImec = copyToNewLocation(df, newRoot, newStem)
@@ -230,62 +242,47 @@ classdef ImecDataset < handle
             end
 
         end
-        
-        function sampleIdx = closestSampleAPForTime(df, timeSeconds)
-            sampleIdx = round(timeSeconds * df.fsAP);
-            sampleIdx(sampleIdx == 0) = 1;
-            if any(sampleIdx < 0 | sampleIdx > df.nSamplesAP)
-                error('Time seconds out of range');
-            end 
-        end
-        
-        function sampleIdx = closestSampleLFForTime(df, timeSeconds)
-            sampleIdx = round(timeSeconds * df.fsLF);
-            sampleIdx(sampleIdx == 0) = 1;
-            if any(sampleIdx < 0 | sampleIdx > df.nSamplesLF)
-                error('Time seconds out of range');
-            end 
-        end
     end
 
-    % these functions read a contiguous block of samples over a contiguous band of channels
-    methods
-        function data_ch_by_time = readAPChannelBand(df, chFirst, chLast, sampleFirst, sampleLast, msg)
-            if nargin < 4 || isempty(sampleFirst)
-                sampleFirst = 1;
-            end
-            if nargin < 5 || isempty(sampleLast)
-                sampleLast = df.nSamplesAP;
-            end
-            if nargin < 6 || isempty(msg)
-                msg = 'Reading channels from neuropixel AP file';
-            end
-
-            data_ch_by_time = df.readChannelBand('ap', chFirst, chLast, sampleFirst, sampleLast, msg);
-        end
-
-        function data_ch_by_time = readLFChannelBand(df, chFirst, chLast, sampleFirst, sampleLast, msg)
-            if nargin < 4 || isempty(sampleFirst)
-                sampleFirst = 1;
-            end
-            if nargin < 5 || isempty(sampleLast)
-                sampleLast = df.nSamplesLF;
-            end
-            if nargin < 6 || isempty(msg)
-                msg = 'Reading channels from neuropixel LF file';
-            end
-
-            data_ch_by_time = df.readChannelBand('lf', chFirst, chLast, sampleFirst, sampleLast, msg);
-        end
-
-        function data_by_time = readAPSingleChannel(df, ch, varargin)
-            data_by_time = df.readAPChannelBand(ch, ch, varargin{:})';
-        end
-
-        function data_by_time = readLFSingleChannel(df, ch, varargin)
-            data_by_time = df.readLFChannelBand(ch, ch, varargin{:})';
-        end
-
+    methods  % these functions read a contiguous block of samples over a contiguous band of channels
+%         function data_ch_by_time = readAPChannelBand(df, chFirst, chLast, sampleFirst, sampleLast, msg)
+%             if nargin < 4 || isempty(sampleFirst)
+%                 sampleFirst = 1;
+%             end
+%             if nargin < 5 || isempty(sampleLast)
+%                 sampleLast = df.nSamplesAP;
+%             end
+%             if nargin < 6 || isempty(msg)
+%                 msg = 'Reading channels from neuropixel AP file';
+%             end
+% 
+%             data_ch_by_time = df.readChannelBand('ap', chFirst, chLast, sampleFirst, sampleLast, msg);
+%         end
+% 
+%         function data_ch_by_time = readLFChannelBand(df, chFirst, chLast, sampleFirst, sampleLast, msg)
+%             if nargin < 4 || isempty(sampleFirst)
+%                 sampleFirst = 1;
+%             end
+%             if nargin < 5 || isempty(sampleLast)
+%                 sampleLast = df.nSamplesLF;
+%             end
+%             if nargin < 6 || isempty(msg)
+%                 msg = 'Reading channels from neuropixel LF file';
+%             end
+% 
+%             data_ch_by_time = df.readChannelBand('lf', chFirst, chLast, sampleFirst, sampleLast, msg);
+%         end
+% 
+%         function data_by_time = readAPSingleChannel(df, ch, varargin)
+%             data_by_time = df.readAPChannelBand(ch, ch, varargin{:})';
+%         end
+% 
+%         function data_by_time = readLFSingleChannel(df, ch, varargin)
+%             data_by_time = df.readLFChannelBand(ch, ch, varargin{:})';
+%         end
+    end
+    
+    methods % Sync channel read / cache
         function syncRaw = readSyncChannel(df, varargin)
             p = inputParser();
             p.addOptional('reload', false, @islogical);
@@ -326,9 +323,110 @@ classdef ImecDataset < handle
         function tf = getSyncBit(df, bit)
             tf = logical(bitget(df.readSyncChannel(), bit));
         end
+        
+        function vec = readSync_idx(df, idx)
+            if ~isempty(df.syncRaw)
+                vec = df.syncRaw(idx);
+            else
+                mm = df.memmapSync_full();
+                vec = mm.Data.x(df.syncChannelIndex, idx)';
+            end
+        end
+        
+        function mat = readSyncBits_idx(df, bits, idx)
+            if isstring(bits)
+                bits = df.lookupSyncBitByName(bits);
+            end
+            vec = df.readSync_idx(idx);
+            mat = false(numel(bits), numel(vec));
+            for iB = 1:numel(bits)
+                mat(iB, :) = logical(bitget(vec, bits(iB)));
+            end
+        end
+    end
+    
+    methods
+        function sampleIdx = closestSampleAPForTime(df, timeSeconds)
+            sampleIdx = round(timeSeconds * df.fsAP);
+            sampleIdx(sampleIdx == 0) = 1;
+            if any(sampleIdx < 0 | sampleIdx > df.nSamplesAP)
+                error('Time seconds out of range');
+            end 
+        end
+        
+        function sampleIdx = closestSampleLFForTime(df, timeSeconds)
+            sampleIdx = round(timeSeconds * df.fsLF);
+            sampleIdx(sampleIdx == 0) = 1;
+            if any(sampleIdx < 0 | sampleIdx > df.nSamplesLF)
+                error('Time seconds out of range');
+            end 
+        end
+        
+        function mat = readAP_idx(df, sampleIdx)
+            mm = df.memmapAP_full();
+            mat = mm.Data.x(:, sampleIdx);
+        end
+       
+        function [mat, sampleIdx] = readAP_timeWindow(df, timeWindowSec)
+            idxWindow = df.closestSampleAPForTime(timeWindowSec);
+            sampleIdx = idxWindow(1):idxWindow(2);
+            mat = df.readAP_idx(sampleIdx);
+        end
+        
+        function mat = readSyncBits_timeWindow(df, bits, timeWindowSec)
+            idxWindow = df.closestSampleAPForTime(timeWindowSec);
+            sampleIdx = idxWindow(1):idxWindow(2);
+            mat = readSyncBits_idx(bits, sampleIdx);
+        end
+    end
+    
+    methods % Quick inspection
+        function inspectAP_timeWindow(df, timeWindowSec, varargin)
+            idxWindow = df.closestSampleAPForTime(timeWindowSec);
+            df.inspectAP_idxWindow(idxWindow, varargin{:});
+        end
+        
+        function inspectAP_idxWindow(df, idxWindow, varargin)
+            p = inputParser();
+            p.addParameter('channelMask', df.goodChannels, @isvector);
+            p.addParameter('invertChannels', true, @islogical);
+            p.addParameter('syncBits', df.syncBitsNamed, @isvector);
+            p.addParameter('showLabels', true, @islogical);
+            p.parse(varargin{:});
+            
+            sampleIdx = idxWindow(1):idxWindow(2);
+            mat = df.readAP_idx(sampleIdx);
+            labels = df.channelNamesPadded;
+            
+            mat = mat(p.Results.channelMask, :);
+            labels = labels(p.Results.channelMask);
+            if p.Results.invertChannels
+                mat = flipud(mat);
+                labels = flipud(labels);
+            end
+            % normalize to [0, 1]
+            mat = double(mat);
+            mat = mat - min(mat, [], 2);
+            mat = mat ./ max(mat(:));
+            colors = zeros(size(mat, 1), 3);
+            
+            % append sync bit info to plot in red
+            syncBits = p.Results.syncBits;
+            if ~isempty(syncBits)
+                syncBitMat = df.readSyncBits_idx(syncBits, sampleIdx);
+                mat = cat(1, mat, syncBitMat);
+                colors = cat(1, colors, repmat([1 0 0], size(syncBitMat, 1), 1));
+                labels = cat(1, labels, df.syncBitNames(syncBits));
+            end
+
+            if ~p.Results.showLabels
+                labels = [];
+            end
+            Neuropixel.Utils.plotStackedTraces(sampleIdx, mat', 'colors', colors, 'labels', labels);
+        end
     end
 
-    methods
+    methods % Memory mapped read/write access to data
         function mm = memmapAP_by_sample(df)
             mm = memmapfile(df.pathAP, 'Format', {'int16', [df.nChannels 1], 'x'}, ...
                'Repeat', df.nSamplesAP);
@@ -510,79 +608,60 @@ classdef ImecDataset < handle
             df.badChannels = union(df.badChannels, list);
         end
 
-        function imecOut = saveTranformedDataset(df, outPath, varargin)
-            p = inputParser();
-            p.addParameter('transformAP', {}, @(x) iscell(x) || isa(x, 'function_handle')); % list of transformation functions that accept (df, dataChunk) and return dataChunk someplace
-            p.addParameter('transformLF', {}, @(x) iscell(x) || isa(x, 'function_handle')); % list of transformation functions that accept (df, dataChunk) and return dataChunk someplace
-
-            p.addParameter('gpuArray', false, @islogical);
-            p.addParameter('applyScaling', false, @islogical); % convert to uV before processing
-
-            p.addParameter('writeAP', true, @islogical);
-            p.addParameter('goodChannelsOnly', false, @islogical);
-            p.addParameter('writeSyncSeparate', false, @islogical); % true means ap will get only mapped channels, false will preserve channels as is
-            p.addParameter('writeLF', false, @islogical);
-            p.addParameter('chunkSize', 2^20, @isscalar);
-
-            p.addParameter('extraMeta', struct(), @isstruct);
-            p.parse(varargin{:});
-
-            % this uses the same syntax as writeConcatenatedFileMatchGains
-            imecOut = Neuropixel.ImecDataset.writeConcatenatedFileMatchGains({df}, outPath, p.Results);
-        end
+       
     end
 
     methods(Hidden)
-        function data_ch_by_time = readChannelBand(df, type, chFirst, chLast, sampleFirst, sampleLast, msg)
-            if nargin < 5 || isempty(sampleFirst)
-                sampleFirst = 1;
-            end
-            if nargin < 7 || isempty(msg)
-                msg = 'Loading data from IMEC data file';
-            end
-
-            switch type
-                case {'ap', 'ap_CAR'}
-                    fid = df.openAPFile();
-                    nSamplesFull = df.nSamplesAP;
-                case 'lf'
-                    fid = df.openLFFile();
-                    nSamplesFull = df.nSamplesLF;
-                otherwise
-                    error('Unknown type %s', type);
-            end
-            if nargin < 6 || isempty(sampleLast)
-                sampleLast = nSamplesFull;
-            end
-
-            % skip to the sampleFirst channel
-            bytesOffsetSample = (sampleFirst-1)*df.nChannels*df.bytesPerSample;
-
-            % skip to the chFirst channel
-            bytesOffsetChannel = (chFirst-1)*df.bytesPerSample;
-
-            fseek(fid, bytesOffsetSample + bytesOffsetChannel,'bof');
-
-            % read this channel only
-            nChRead = chLast - chFirst + 1;
-            skipBytes = (df.nChannels-nChRead)*df.bytesPerSample;
-            readStr = sprintf('%d*int16', nChRead);
-            nSamplesRead = sampleLast - sampleFirst + 1;
-
-            % split into large reads
-            samplesPerSplit = 2^18;
-            nReadSplits = ceil(nSamplesRead / samplesPerSplit);
-            prog = ProgressBar(nReadSplits, msg);
-            data_ch_by_time = zeros(nChRead, nSamplesRead, 'int16');
-            sampleOffset = 0;
-            for iS = 1:nReadSplits
-                prog.update(iS);
-                nSamplesReadThis = min(samplesPerSplit, nSamplesRead - sampleOffset);
-                data_ch_by_time(:, sampleOffset + (1:nSamplesReadThis)) = fread(fid, [nChRead, nSamplesReadThis], readStr, skipBytes);
-                sampleOffset = sampleOffset + nSamplesReadThis;
-            end
-            fclose(fid);
-        end
+%         function data_ch_by_time = readChannelBand(df, type, chFirst, chLast, sampleFirst, sampleLast, msg)
+%             if nargin < 5 || isempty(sampleFirst)
+%                 sampleFirst = 1;
+%             end
+%             if nargin < 7 || isempty(msg)
+%                 msg = 'Loading data from IMEC data file';
+%             end
+% 
+%             switch type
+%                 case {'ap', 'ap_CAR'}
+%                     fid = df.openAPFile();
+%                     nSamplesFull = df.nSamplesAP;
+%                 case 'lf'
+%                     fid = df.openLFFile();
+%                     nSamplesFull = df.nSamplesLF;
+%                 otherwise
+%                     error('Unknown type %s', type);
+%             end
+%             if nargin < 6 || isempty(sampleLast)
+%                 sampleLast = nSamplesFull;
+%             end
+% 
+%             % skip to the sampleFirst channel
+%             bytesOffsetSample = (sampleFirst-1)*df.nChannels*df.bytesPerSample;
+% 
+%             % skip to the chFirst channel
+%             bytesOffsetChannel = (chFirst-1)*df.bytesPerSample;
+% 
+%             fseek(fid, bytesOffsetSample + bytesOffsetChannel,'bof');
+% 
+%             % read this channel only
+%             nChRead = chLast - chFirst + 1;
+%             skipBytes = (df.nChannels-nChRead)*df.bytesPerSample;
+%             readStr = sprintf('%d*int16', nChRead);
+%             nSamplesRead = sampleLast - sampleFirst + 1;
+% 
+%             % split into large reads
+%             samplesPerSplit = 2^18;
+%             nReadSplits = ceil(nSamplesRead / samplesPerSplit);
+%             prog = ProgressBar(nReadSplits, msg);
+%             data_ch_by_time = zeros(nChRead, nSamplesRead, 'int16');
+%             sampleOffset = 0;
+%             for iS = 1:nReadSplits
+%                 prog.update(iS);
+%                 nSamplesReadThis = min(samplesPerSplit, nSamplesRead - sampleOffset);
+%                 data_ch_by_time(:, sampleOffset + (1:nSamplesReadThis)) = fread(fid, [nChRead, nSamplesReadThis], readStr, skipBytes);
+%                 sampleOffset = sampleOffset + nSamplesReadThis;
+%             end
+%             fclose(fid);
+%         end
 
         function fid = openAPFile(df)
             if ~exist(df.pathAP, 'file')
@@ -734,16 +813,34 @@ classdef ImecDataset < handle
         function n = get.nGoodChannels(df)
             n = numel(df.goodChannels);
         end
+        
+        function idx = get.channelIdx(df)
+            idx = df.channelMap.chanMap;
+        end
+        
+        function names = get.channelNames(df)
+            names = string(sprintfc("ch %d", df.channelMap.chanMap));
+        end
 
+        function names = get.channelNamesPadded(df)
+            names = string(sprintfc("ch %03d", df.channelMap.chanMap));
+        end
+
+        
         function n = get.nSyncBits(df)
             n = 8*df.bytesPerSample; % should be 16?
+        end
+        
+        function bits = get.syncBitsNamed(df)
+            names = df.syncBitNames;
+            bits = find(names ~= "");
         end
 
         function names = get.syncBitNames(df)
             if isempty(df.syncBitNames)
-                names = repmat({''}, df.nSyncBits, 1);
+                names = strings(df.nSyncBits, 1);
             else
-                names = Neuropixel.Utils.makecol(df.syncBitNames);
+                names = string(df.syncBitNames);
             end
         end
 
@@ -818,6 +915,27 @@ classdef ImecDataset < handle
             end
 
             imecSym = Neuropixel.ImecDataset(newAPPath, 'channelMap', imec.channelMapFile);
+        end
+        
+         function imecOut = saveTranformedDataset(df, outPath, varargin)
+            p = inputParser();
+            p.addParameter('transformAP', {}, @(x) iscell(x) || isa(x, 'function_handle')); % list of transformation functions that accept (df, dataChunk) and return dataChunk someplace
+            p.addParameter('transformLF', {}, @(x) iscell(x) || isa(x, 'function_handle')); % list of transformation functions that accept (df, dataChunk) and return dataChunk someplace
+
+            p.addParameter('gpuArray', false, @islogical);
+            p.addParameter('applyScaling', false, @islogical); % convert to uV before processing
+
+            p.addParameter('writeAP', true, @islogical);
+            p.addParameter('goodChannelsOnly', false, @islogical);
+            p.addParameter('writeSyncSeparate', false, @islogical); % true means ap will get only mapped channels, false will preserve channels as is
+            p.addParameter('writeLF', false, @islogical);
+            p.addParameter('chunkSize', 2^20, @isscalar);
+
+            p.addParameter('extraMeta', struct(), @isstruct);
+            p.parse(varargin{:});
+
+            % this uses the same syntax as writeConcatenatedFileMatchGains
+            imecOut = Neuropixel.ImecDataset.writeConcatenatedFileMatchGains({df}, outPath, p.Results);
         end
     end
 

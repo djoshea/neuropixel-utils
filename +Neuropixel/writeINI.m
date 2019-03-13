@@ -22,6 +22,15 @@ function valStr = convertVal(val)
             valStr = ['''' strtrim(val) ''''];
         end
         
+    elseif isstring(val)
+        valStrCell = cellstr(val);
+        valStr = ['{' strjoin(valStrCell, ',') '}'];
+        
+    elseif iscell(val)
+        valStrCell = cellfun(@convertVal, val(:), 'UniformOutput', false);
+        valStr = ['{' strjoin(valStrCell, ',') '}'];
+        
+        
     elseif islogical(val)
         if val
             valStr = 'true';
@@ -36,10 +45,7 @@ function valStr = convertVal(val)
                 valStr = sprintf('%g', val);
             end
             
-    elseif iscell(val)
-        valStrCell = cellfun(@convertVal, val(:), 'UniformOutput', false);
-        valStr = ['{' strjoin(valStrCell, ',') '}'];
-        
+    
     elseif isvector(val)
         valStrCell = arrayfun(@convertVal, val(:), 'UniformOutput', false);
         valStr = strjoin(valStrCell, ',');
