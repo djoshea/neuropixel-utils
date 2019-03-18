@@ -381,6 +381,14 @@ classdef ImecDataset < handle
     end
     
     methods % Quick inspection
+        function [channelInds, channelIds] = lookup_channel_ids(df, channelIds)
+             if islogical(channelIds)
+                channelIds = df.channelIdx(channelIds);
+             end
+            [tf, channelInds] = ismember(channelIds, df.channelIdx);
+            assert(all(tf), 'Some channel ids not found');
+        end
+        
         function inspectAP_timeWindow(df, timeWindowSec, varargin)
             idxWindow = df.closestSampleAPForTime(timeWindowSec);
             df.inspectAP_idxWindow(idxWindow, varargin{:});
@@ -388,27 +396,45 @@ classdef ImecDataset < handle
         
         function inspectAP_idxWindow(df, idxWindow, varargin)
             p = inputParser();
-            p.addParameter('channelMask', df.goodChannels, @isvector);
+            p.addParameter('channels', df.mappedChannels, @isvector);
             p.addParameter('invertChannels', true, @islogical);
             p.addParameter('syncBits', df.syncBitsNamed, @isvector);
             p.addParameter('showLabels', true, @islogical);
+            p.addParameter('gain', 0.95, @isscalar);
+            p.addParameter('car', false, @islogical);
+            p.addParameter('downsample',1, @isscalar); 
             p.parse(varargin{:});
             
             sampleIdx = idxWindow(1):idxWindow(2);
             mat = df.readAP_idx(sampleIdx);
             labels = df.channelNamesPadded;
             
-            mat = mat(p.Results.channelMask, :);
-            labels = labels(p.Results.channelMask);
+            [channelInds, channelIds] = df.lookup_channel_ids(p.Results.channels);
+            mat = mat(channelInds, :);
+            labels = labels(channelInds);
+            connected = ismember(channelIds, df.connectedChannels);
+            bad = ismember(channelIds, df.badChannels);
+            
+            if p.Results.downsample > 1
+                mat = mat(:, 1:p.Results.downsample:end);
+                sampleIdx = sampleIdx(1:p.Results.downsample:end);
+            end
+            mat = double(mat);
+            if p.Results.car
+                mat = mat - median(mat, 1);
+            end
+            
+            colors = zeros(size(mat, 1), 3);
+            colors(~connected, 3) = 1; % not connected --> blue
+            colors(bad & connected, 1) = 1; % bad --> red
+            colors(bad & connected, 3) = 0; % bad --> red
+            normalizeMask = true(size(mat, 1), 1);
+            
             if p.Results.invertChannels
                 mat = flipud(mat);
                 labels = flipud(labels);
+                colors = flipud(colors);
             end
-            % normalize to [0, 1]
-            mat = double(mat);
-            mat = mat - min(mat, [], 2);
-            mat = mat ./ max(mat(:));
-            colors = zeros(size(mat, 1), 3);
             
             % append sync bit info to plot in red
             syncBits = p.Results.syncBits;
@@ -417,12 +443,14 @@ classdef ImecDataset < handle
                 mat = cat(1, mat, syncBitMat);
                 colors = cat(1, colors, repmat([1 0 0], size(syncBitMat, 1), 1));
                 labels = cat(1, labels, df.syncBitNames(syncBits));
+                normalizeMask = cat(1, normalizeMask, false(size(syncBitMat, 1), 1));
             end
 
             if ~p.Results.showLabels
                 labels = [];
             end
-            Neuropixel.Utils.plotStackedTraces(sampleIdx, mat', 'colors', colors, 'labels', labels);
+            Neuropixel.Utils.plotStackedTraces(sampleIdx, mat', 'colors', colors, 'labels', labels, ...
+                'gain', p.Results.gain, 'normalizeMask', normalizeMask, 'normalizeEach', false);
         end
     end
 
@@ -571,7 +599,7 @@ classdef ImecDataset < handle
                     data = data(:, mask);
                 end
 
-                sumByChunk(:, iC) = sum(single(data - median(data, 2)).^2, 2);
+                sumByChunk(:, iC) = sum(single(data - mean(data, 2)).^2, 2);
             end
             prog.finish();
             rms = sqrt(sum(sumByChunk, 2) ./ (useChunks * chunkSize));
@@ -819,13 +847,20 @@ classdef ImecDataset < handle
         end
         
         function names = get.channelNames(df)
-            names = string(sprintfc("ch %d", df.channelMap.chanMap));
+            names = strings(df.nChannels, 1);
+            names(df.channelMap.chanMap) = string(sprintfc("ch %d", df.channelMap.chanMap));
+            if ~isnan(df.syncChannelIndex)
+                names(df.syncChannelIndex) = "sync";
+            end
         end
 
         function names = get.channelNamesPadded(df)
-            names = string(sprintfc("ch %03d", df.channelMap.chanMap));
+            names = strings(df.nChannels, 1);
+            names(df.channelMap.chanMap) = string(sprintfc("ch %03d", df.channelMap.chanMap));
+            if ~isnan(df.syncChannelIndex)
+                names(df.syncChannelIndex) = "sync";
+            end
         end
-
         
         function n = get.nSyncBits(df)
             n = 8*df.bytesPerSample; % should be 16?
@@ -1181,6 +1216,7 @@ classdef ImecDataset < handle
                 [pathRoot, fileStem, type] = cellfun(@Neuropixel.ImecDataset.parseImecFileName, file, 'UniformOutput', false);
                 return;
             end
+            file = char(file);
 
             [pathRoot, f, e] = fileparts(file);
             if isempty(e)
