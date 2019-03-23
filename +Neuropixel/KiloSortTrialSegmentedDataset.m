@@ -187,9 +187,10 @@ classdef KiloSortTrialSegmentedDataset < handle & matlab.mixin.Copyable
 
             seg.syncBitNames = dataset.syncBitNames;
             
-            sync = dataset.sync;
-            if ~isempty(sync) && p.Results.loadSync
+            
+            if p.Results.loadSync
                 prog.increment('Segmenting trials: sync');
+                sync = dataset.readSync();
                 trial_info_idx_each_sample = discretize(1:numel(sync), edges);
                 trial_info_trial_id_each_sample = Neuropixel.Utils.TensorUtils.selectAlongDimensionWithNaNs(tsi_trial_ids, 1, trial_info_idx_each_sample);
                 % convert trial info idx into trial_ids idx
@@ -249,7 +250,7 @@ classdef KiloSortTrialSegmentedDataset < handle & matlab.mixin.Copyable
                 if isscalar(idx) && ischar(names)
                     ds.syncBitNames{idx} = names;
                 else
-                    assert(iscellstr(names) || isstring(names)) %#ok<ISCLSTR>
+                    assert(iscellstr(names) || isstring(names))
                     ds.syncBitNames(idx) = names;
                 end
             end

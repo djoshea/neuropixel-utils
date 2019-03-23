@@ -52,7 +52,7 @@ classdef TrialSegmentationInfo < handle & matlab.mixin.Copyable
                 last = longPauses(iR) + 1;
             end
 
-            idxStart(end) = tsi.idxStart(last);
+            idxStart(end) = tsi.idxStart(last)-uint64(1);
             idxStop(end) = tsi.idxStop(end);
             trialStartStop(end, :) = [tsi.trialId(last), tsi.trialId(end)]; 
         end
@@ -73,12 +73,18 @@ classdef TrialSegmentationInfo < handle & matlab.mixin.Copyable
         
         function h = markTrialTicks(tsi, varargin)
             p = inputParser();
+            p.addParameter('time_shifts', [], @(x) isempty(x) || isa(x, 'Neuropixel.TimeShiftSpec'));
             p.addParameter('side', 'bottom', @ischar);
             p.addParameter('Color', [0 0 1], @isvector);
             p.parse(varargin{:});
             
-            ticks = double(tsi.idxStart) / tsi.fs;
-            h = Neuropixel.Utils.rugplot(ticks, p.Results);
+            timeShifts = p.Results.time_shifts;
+            ticks =  tsi.idxStart;
+            if ~isempty(timeShifts)
+                ticks = timeShifts.shiftTimes(ticks);
+            end
+            ticks = double(ticks) / tsi.fs;
+            h = Neuropixel.Utils.rugplot(ticks, 'side', p.Results.side, 'Color', p.Results.Color);
             set(h, 'XLimInclude', 'off');
         end
         
@@ -86,13 +92,18 @@ classdef TrialSegmentationInfo < handle & matlab.mixin.Copyable
             % marks regions that are densely covered with trials (ignoring gaps between trials
             p = inputParser();
             p.addParameter('maxPauseSec', 20, @isscalar); % in samples
-            
+            p.addParameter('time_shifts', [], @(x) isempty(x) || isa(x, 'Neuropixel.TimeShiftSpec'));
             p.addParameter('Color', [0 0 1], @isvector);
             p.addParameter('LineSpecStart', '-', @ischar);
             p.addParameter('LineSpecStop', '--', @ischar);
             p.parse(varargin{:});
             
             [idxStart, idxStop, trialStartStop] = tsi.computeActiveRegions('maxPauseSec', p.Results.maxPauseSec); %#ok<*PROPLC>
+            timeShiftSpec = p.Results.time_shifts;
+            if ~isempty(timeShiftSpec)
+                idxStart = timeShiftSpec.shiftTimes(idxStart);
+                idxStop = timeShiftSpec.shiftTimes(idxStop);
+            end
             hold on;
             for iT = 1:numel(idxStart)
                 str = sprintf('Trial %d-%d', trialStartStop(iT, 1), trialStartStop(iT, 2));
@@ -101,6 +112,12 @@ classdef TrialSegmentationInfo < handle & matlab.mixin.Copyable
             end
         end
         
+        function spec = computeShiftsExciseRegionsOutsideTrials(tsi)
+            % shifts is an nRegions x 3 matrix of uint64 sample idxs
+            % start of original window, stop of original window, updated start for this window
+            [idxStart, idxStop, ~] = tsi.computeActiveRegions(); %#ok<*PROP>
+            spec = Neuropixel.TimeShiftSpec.buildToExciseGaps(idxStart, idxStop);
+        end
     end
 
 end

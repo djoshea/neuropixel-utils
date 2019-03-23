@@ -391,15 +391,15 @@ classdef KilosortMetrics < handle
             
             p.addParameter('tsi', [], @(x) isempty(x) || isa(x, 'Neuropixel.TrialSegmentationInfo')); % to mark trial boundaries
             p.addParameter('maskRegionsOutsideTrials', true, @islogical);
-            
+            p.addParameter('exciseRegionsOutsideTrials', false, @islogical);
             p.parse(varargin{:});
             
             mask = p.Results.spike_mask;
             tsi = p.Results.tsi;
-            if ~isempty(tsi) && p.Results.maskRegionsOutsideTrials
+            if ~isempty(tsi) && (p.Results.maskRegionsOutsideTrials || p.Results.exciseRegionsOutsideTrials)
                 mask = m.computeSpikeMaskWithinTrials(tsi);
             else
-                mask = true(numel(spike_times_samples), 1);
+                mask = true(numel(m.spike_times), 1);
             end
             if p.Results.localizedOnly
                 mask = mask & m.spike_is_localized;
@@ -419,7 +419,12 @@ classdef KilosortMetrics < handle
                 alpha = 0.3;
             end
             
-            spikeTimes = double(m.spike_times(mask)) / m.ks.fsAP; % convert to seconds
+            spikeTimes = m.spike_times(mask);
+            if p.Results.exciseRegionsOutsideTrials
+                timeShifts = tsi.computeShiftsExciseRegionsOutsideTrials();
+                spikeTimes = Neuropixel.TrialSegmentationInfo.shiftTimes(timeShifts, spikeTimes);
+            end
+            spikeTimes = double(spikeTimes) / m.ks.fsAP; % convert to seconds
             spikeAmps = m.spike_amplitude(mask);
             spikeYpos = m.spike_depth(mask);
             spikeClu = m.spike_clusters(mask); %#ok<*PROPLC>
@@ -521,6 +526,7 @@ classdef KilosortMetrics < handle
             p.addParameter('minSpikesDrift', 50, @isscalar);
             p.addParameter('tsi', [], @(x) isempty(x) || isa(x, 'Neuropixel.TrialSegmentationInfo')); % to mark trial boundaries
             p.addParameter('maskRegionsOutsideTrials', true, @islogical);
+            p.addParameter('exciseRegionsOutsideTrials', false, @islogical);
             p.parse(varargin{:});
             opt = p.Results.mode;
             segDepth = p.Results.segmentDepth;
@@ -533,7 +539,7 @@ classdef KilosortMetrics < handle
             
             % mask
             spike_times_samples = m.spike_times;
-            if ~isempty(tsi) && p.Results.maskRegionsOutsideTrials
+            if ~isempty(tsi) && (p.Results.maskRegionsOutsideTrials || p.Results.exciseRegionsOutsideTrials)
                 mask = m.computeSpikeMaskWithinTrials(tsi);
             else
                 mask = true(numel(spike_times_samples), 1);
@@ -542,13 +548,20 @@ classdef KilosortMetrics < handle
                 mask = mask & m.spike_is_localized;
             end
             
-            spikeTimes = double(m.spike_times(mask)) / m.fs; % convert to seconds
+            spikeTimes = m.spike_times(mask);
+            if p.Results.exciseRegionsOutsideTrials
+                timeShifts = tsi.computeShiftsExciseRegionsOutsideTrials();
+                spikeTimes = timeShifts.shiftTimes(spikeTimes);
+            else
+                timeShifts = [];
+            end
+            spikeTimes = double(spikeTimes) / m.ks.fsAP; % convert to seconds
             spikeAmps = m.spike_amplitude(mask);
             spikeYpos = m.spike_depth(mask);
             
             clf;
             if ~strcmpi(opt, 'show')
-                m.plotSpikesByAmplitude('spike_mask', mask, 'nAmpBins', p.Results.nAmpBins, 'localizedOnly', p.Results.localizedOnly);
+                m.plotSpikesByAmplitude('spike_mask', mask, 'time_shifts', timeShifts, 'nAmpBins', p.Results.nAmpBins, 'localizedOnly', p.Results.localizedOnly);
             
                 nD = floor(max(spikeYpos) / segDepth);
                 driftEventsAll = cell(nD, 1);
@@ -580,10 +593,13 @@ classdef KilosortMetrics < handle
             
             if ~isempty(tsi)
                 hold on;
-                tsi.markTrialTicks('side', 'bottom', 'Color', [0.2 0.2 1]);
+                tsi.markTrialTicks('time_shifts', timeShifts, 'side', 'bottom', 'Color', [0.2 0.2 1]);
             end
             
-            m.markConcatenatedFileBoundaries();
+            if p.Results.exciseRegionsOutsideTrials
+                m.markExcisionBoundaries(timeShifts);
+            end
+            m.markConcatenatedFileBoundaries('time_shifts', timeShifts);
             
             hold off;
             
@@ -615,8 +631,8 @@ classdef KilosortMetrics < handle
                     xlabel('time')
                 end
                 
-                for p = 1:numel(locs)
-                    if h(locs(p)) < 0.3*spikeTimes(end)
+                for iP = 1:numel(locs)
+                    if h(locs(iP)) < 0.3*spikeTimes(end)
                         continue
                         % we want the peaks to correspond to some minimal firing rate (otherwise peaks by very few spikes will be considered as well...)
                     end
@@ -624,21 +640,21 @@ classdef KilosortMetrics < handle
                         subplot(1, 5, 1); hold on;
                     end
                     
-                    posBegin = find(h(1:locs(p)) < 0.05*h(locs(p)), 1, 'last');
+                    posBegin = find(h(1:locs(iP)) < 0.05*h(locs(iP)), 1, 'last');
                     if isempty(posBegin)
                         posBegin = 1;
                     end
-                    posEnd   = find(h(locs(p):end) < 0.05*h(locs(p)), 1, 'first') + locs(p) - 1;
+                    posEnd   = find(h(locs(iP):end) < 0.05*h(locs(iP)), 1, 'first') + locs(iP) - 1;
                     if isempty(posEnd)
                         posEnd = numel(bins);
                     end
-                    if (p > 1 && posBegin < locs(p-1)) || (p < numel(locs) && posEnd > locs(p+1))
+                    if (iP > 1 && posBegin < locs(iP-1)) || (iP < numel(locs) && posEnd > locs(iP+1))
                         if doPlot
-                            plot(h(locs(p)), bins(locs(p)), 'bo')
+                            plot(h(locs(iP)), bins(locs(iP)), 'bo')
                         end
                         continue % no clean enough separation from neighbour peak(s
                     elseif doPlot
-                        plot(h(locs(p)), bins(locs(p)), 'ro')
+                        plot(h(locs(iP)), bins(locs(iP)), 'ro')
                         plot(xlim, bins(posBegin)*[1 1], '--', 'Color', 0.5*[1 1 1])
                         plot(xlim, bins(posEnd)*[1 1], '--', 'Color', 0.5*[1 1 1])
                     end
@@ -649,9 +665,9 @@ classdef KilosortMetrics < handle
                     currentspikeTimes  = spikeTimes(I);
                     for t = 0:tWindow:spikeTimes(end)-tWindow
                         I = currentspikeTimes >= t & currentspikeTimes <= t+tWindow;
-                        driftSize = bins(locs(p)) - median(currentspikeDepths(I));
+                        driftSize = bins(locs(iP)) - median(currentspikeDepths(I));
                         if abs(driftSize) > driftThreshold && sum(I) > minSpikesDrift % 6 um is the hardcoded threshold for drift, and we want at least 10 spikes for the median calculation
-                            driftEvents(end+1,:) = [t+5, bins(locs(p)), driftSize];
+                            driftEvents(end+1,:) = [t+5, bins(locs(iP)), driftSize];
                         end
                     end
                     if doPlot && ~isempty(driftEvents)
@@ -669,6 +685,8 @@ classdef KilosortMetrics < handle
             p.addParameter('spike_mask', [], @(x) isempty(x) || isvector(x));
             p.addParameter('localizedOnly', true, @islogical);
             p.addParameter('nAmpBins', 20, @isscalar);
+            
+            p.addParameter('time_shifts', [], @(x) isempty(x) || isa(x, 'Neuropixel.TimeShiftSpec'));
             p.parse(varargin{:});
             
             mask = p.Results.spike_mask;
@@ -678,7 +696,13 @@ classdef KilosortMetrics < handle
             if p.Results.localizedOnly
                 mask = mask & m.spike_is_localized;
             end
-            spikeTimes = double(m.spike_times(mask)) / m.ks.fsAP; % convert to seconds
+
+            timeShifts =p.Results.time_shifts;
+            spikeTimes = m.spike_times(mask)
+            if ~isempty(timeShifts)
+                spikeTimes = timeShifts.shiftTimes(spikeTimes);
+            end
+            spikeTimes = double(spikeTimes) / m.ks.fsAP; % convert to seconds
             spikeAmps = m.spike_amplitude(mask);
             spikeYpos = m.spike_depth(mask);
             
@@ -697,14 +721,33 @@ classdef KilosortMetrics < handle
             ylabel('y position (um)')
         end
         
-        function h = markConcatenatedFileBoundaries(m)
-            starts = double(m.concatenatedStarts) / m.fs;
+        function h = markExcisionBoundaries(m, shifts)
+            starts = double(shifts.idxShiftStart(2:end)) / m.fs;
+            for iF = 1:numel(starts)
+                h = xline(starts(iF), '-', sprintf('Exc %d', iF), 'Color', [0.9 0.3 0.9], 'LineWidth', 1, 'Interpreter', 'none');
+%                 h.NodeChildren(1).NodeChildren(1).ColorData = uint8(255*[0.3 0.3 0.3 1]');
+                h.NodeChildren(1).NodeChildren(1).BackgroundColor = uint8(255*[1 1 1 0.5]');
+                hold on;
+                
+            end
+        end
+        
+        function h = markConcatenatedFileBoundaries(m, varargin)
+            p = inputParser();
+            p.addParameter('time_shifts', [], @(x) isempty(x) || isa(x, 'Neuropixel.TimeShiftSpec'));
+            p.parse(varargin{:});
+            
+            timeShifts = p.Results.time_shifts;
+            catStarts = m.concatenatedStarts;
+            if ~isempty(timeShifts)
+                catStarts = timeShifts.shiftTimes(catStarts);
+            end
+            starts = double(catStarts) / m.fs;
             for iF = 1:numel(starts)
                 h = xline(starts(iF), '-', m.concatenatedNames{iF}, 'Color', [0.3 0.3 0.9], 'LineWidth', 1, 'Interpreter', 'none');
 %                 h.NodeChildren(1).NodeChildren(1).ColorData = uint8(255*[0.3 0.3 0.3 1]');
                 h.NodeChildren(1).NodeChildren(1).BackgroundColor = uint8(255*[1 1 1 0.5]');
                 hold on;
-                
             end
         end
     end
@@ -721,7 +764,7 @@ classdef KilosortMetrics < handle
             assert(all(tf(:)), 'Some cluster ids were not found in ds.clusterids');
         end
         
-        function plotClusterImage(m, cluster_ids, varargin);
+        function plotClusterImage(m, cluster_ids, varargin)
             clusterInds = m.lookupClusterInds(cluster_ids);
             templateLists = m.cluster_template_list(clusterInds);
             templateInds = cat(1, templateLists{:});

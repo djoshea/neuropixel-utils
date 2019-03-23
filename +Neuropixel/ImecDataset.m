@@ -283,7 +283,7 @@ classdef ImecDataset < handle
     end
     
     methods % Sync channel read / cache
-        function syncRaw = readSyncChannel(df, varargin)
+        function syncRaw = readSync(df, varargin)
             p = inputParser();
             p.addOptional('reload', false, @islogical);
             p.addParameter('ignoreCached', false, @islogical);
@@ -309,19 +309,19 @@ classdef ImecDataset < handle
         end
 
         function saveSyncCached(df)
-            sync = df.readSyncChannel();
+            sync = df.readSync();
             save(df.pathSyncCached, 'sync');
         end
 
         function updateSyncCached(df)
             if exist(df.pathSyncCached, 'file')
-                sync = df.readSyncChannel();
+                sync = df.readSync();
                 save(df.pathSyncCached, 'sync');
             end
         end
 
         function tf = getSyncBit(df, bit)
-            tf = logical(bitget(df.readSyncChannel(), bit));
+            tf = logical(bitget(df.readSync(), bit));
         end
         
         function vec = readSync_idx(df, idx)
@@ -362,15 +362,25 @@ classdef ImecDataset < handle
             end 
         end
         
-        function mat = readAP_idx(df, sampleIdx)
+        function data = readAP_idx(df, sampleIdx, varargin)
+            p = inputParser();
+            p.addParameter('applyScaling', true, @islogical); % convert to uV before processing
+            p.parse(varargin{:});
+            
             mm = df.memmapAP_full();
-            mat = mm.Data.x(:, sampleIdx);
+            data = mm.Data.x(:, sampleIdx);
+
+            if p.Results.applyScaling
+                data = single(data);
+                ch_conn_mask = df.lookup_channel_ids(df.connectedChannels);
+                data(ch_conn_mask, :) = data(ch_conn_mask, :) * single(df.apScaleToUv);
+            end
         end
        
-        function [mat, sampleIdx] = readAP_timeWindow(df, timeWindowSec)
+        function [mat, sampleIdx] = readAP_timeWindow(df, timeWindowSec, varargin)
             idxWindow = df.closestSampleAPForTime(timeWindowSec);
             sampleIdx = idxWindow(1):idxWindow(2);
-            mat = df.readAP_idx(sampleIdx);
+            mat = df.readAP_idx(sampleIdx, varargin{:});
         end
         
         function mat = readSyncBits_timeWindow(df, bits, timeWindowSec)
@@ -599,7 +609,7 @@ classdef ImecDataset < handle
                     data = data(:, mask);
                 end
 
-                sumByChunk(:, iC) = sum(single(data - mean(data, 2)).^2, 2);
+                sumByChunk(:, iC) = sum((single(data) - mean(single(data), 2)).^2, 2);
             end
             prog.finish();
             rms = sqrt(sum(sumByChunk, 2) ./ (useChunks * chunkSize));
@@ -1245,6 +1255,18 @@ classdef ImecDataset < handle
             info = dir(fullfile(path, '*.imec.lf.bin'));
             lfFiles = {info.name}';
         end
+        
+        function clearDestinationStem(outPathStem)
+            assert(~isempty(outPathStem));
+            files = dir([outPathStem '*']);
+            
+            for iF = 1:numel(files)
+                if ~files(iF).isdir
+                    f = fullfile(files(iF).folder, files(iF).name);
+                    delete(f);
+                end
+            end
+        end
 
         function imecOut = writeConcatenatedFileMatchGains(imecList, outPath, varargin)
             p = inputParser();
@@ -1260,6 +1282,8 @@ classdef ImecDataset < handle
             p.addParameter('transformAP', {}, @(x) iscell(x) || isa(x, 'function_handle')); % list of transformation functions that accept (df, dataChunk) and return dataChunk someplace
             p.addParameter('transformLF', {}, @(x) iscell(x) || isa(x, 'function_handle')); % list of transformation functions that accept (df, dataChunk) and return dataChunk someplace
 
+            p.addParameter('timeShifts', {}, @(x) isempty(x) || isa(x, 'Neuropixel.TimeShiftSpec')); % cell array of time shifts for each file, a time shift is a n x 3 matrix of idxStart, idxStop, newIdxStart. These are used to excise specific time windows from the file
+            
             p.addParameter('extraMeta', struct(), @isstruct);
             p.parse(varargin{:});
 
@@ -1270,7 +1294,6 @@ classdef ImecDataset < handle
                 [~, f, e] = fileparts(f);
                 s = [f, e];
             end
-
 
             [parent, leaf, ext] = Neuropixel.ImecDataset.filepartsMultiExt(outPath);
             if ~isempty(ext) && endsWith(ext, 'bin')
@@ -1330,6 +1353,9 @@ classdef ImecDataset < handle
 
             useGpuArray = p.Results.gpuArray;
             applyScaling = p.Results.applyScaling;
+            timeShifts = p.Results.timeShifts;
+            
+            Neuropixel.ImecDataset.clearDestinationStem(fullfile(outPath, leaf));
 
             if p.Results.writeAP
                 gains = cellfun(@(imec) imec.apGain, imecList);
@@ -1361,6 +1387,11 @@ classdef ImecDataset < handle
                 meta.concatenatedAdcBits = cellfun(@(imec) imec.adcBits, imecList);
                 meta.concatenatedAiRangeMin = cellfun(@(imec) imec.apRange(1), imecList);
                 meta.concatenatedAiRangeMax = cellfun(@(imec) imec.apRange(2), imecList);
+                
+                if ~isempty(timeShifts)
+                    % log time shifts by file in meta
+                    meta.concatenatedTimeShifts = strjoin(arrayfun(@(shift) shift.as_string(), timeShifts, 'UniformOutput', false), '; ');
+                end
 
                 % compute union of badChannels
                 for iM = 2:numel(imecList)
@@ -1378,7 +1409,7 @@ classdef ImecDataset < handle
                 Neuropixel.writeINI(metaOutFile, meta);
 
                 debug('Writing AP bin file %s\n', lastFilePart(outFile));
-                writeCatFile(outFile, chIdx, 'ap', multipliers, chunkSize, p.Results.transformAP);
+                writeCatFile(outFile, chIdx, 'ap', multipliers, chunkSize, p.Results.transformAP, timeShifts);
             end
 
             if p.Results.writeLF
@@ -1421,15 +1452,18 @@ classdef ImecDataset < handle
             if p.Results.writeSyncSeparate
                 outFile = fullfile(outPath, [leaf '.imec.sync.bin']);
                 debug('Writing separate sync bin file %s', lastFilePart(outFile));
-                writeCatFile(outFile, imec1.syncChannelIndex, 'sync', ones(nFiles, 1, 'int16'), chunkSize, p.Results.transformAP);
+                writeCatFile(outFile, imec1.syncChannelIndex, 'sync', ones(nFiles, 1, 'int16'), chunkSize, p.Results.transformAP, timeShifts);
             end
 
             outFile = fullfile(outPath, [leaf '.imec.ap.bin']);
             imecOut = Neuropixel.ImecDataset(outFile, 'channelMap', imec1.channelMapFile);
 
-            function writeCatFile(outFile, chIdx, mode, multipliers, chunkSize, procFnList)
+            function writeCatFile(outFile, chIdx, mode, multipliers, chunkSize, procFnList, timeShifts)
                 if nargin < 6
                     procFnList = {};
+                end
+                if nargin < 7
+                    timeShifts = {};
                 end
                 if ~iscell(procFnList)
                     procFnList = {procFnList};
@@ -1453,16 +1487,27 @@ classdef ImecDataset < handle
                             mm = imecList{iF}.memmapSync_full();
                     end
 
-                    nChunks = ceil(size(mm.Data.x, 2) / chunkSize);
+                    % build idx vector
+                    if isempty(timeShifts)
+                        outSize = size(mm.Data.x, 2);
+                        sourceIdxList = uint64(1):uint64(outSize);
+                    else
+                        sourceIdxList = timeShifts(iF).computeSourceIndices();
+                        outSize = numel(sourceIdxList);
+                    end
+                    
+                    nChunks = ceil(outSize / chunkSize);
                     prog = ProgressBar(nChunks, 'Copying %s file %d / %d: %s', mode, iF, nFiles, imecList{iF}.fileStem);
+                    
                     for iCh = 1:nChunks
                         if iCh == nChunks
-                            idx = (iCh-1)*(chunkSize)+1 : size(mm.Data.x, 2);
+                            idx = (iCh-1)*(chunkSize)+1 : outSize;
                         else
                             idx = (iCh-1)*(chunkSize) + (1:chunkSize);
                         end
 
-                        data = mm.Data.x(chIdx, idx);
+                        source_idx = sourceIdxList(idx);
+                        data = mm.Data.x(chIdx, source_idx);
 
                         % ch_connected_mask indicates which channels are
                         % connected, which are the ones where scaling makes
@@ -1495,7 +1540,7 @@ classdef ImecDataset < handle
                             % apply each procFn sequentially
                             for iFn = 1:numel(procFnList)
                                 fn = procFnList{iFn};
-                                data = fn(imecList{iF}, data, chIdx, idx);
+                                data = fn(imecList{iF}, data, chIdx, source_idx);
                             end
 
                             if useGpuArray

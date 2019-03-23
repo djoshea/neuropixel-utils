@@ -35,9 +35,6 @@ classdef KiloSortDataset < handle
         nPCFeatures
         nFeaturesPerChannel
         nChannels
-        
-        % pass through to sync information in raw_dataset if present
-        sync(:, 1) uint16 % nSamples sync channel contents
     end
     
     properties(SetAccess=protected)
@@ -207,13 +204,11 @@ classdef KiloSortDataset < handle
             end
         end
         
-        function sync = get.sync(ds)
-            if isempty(ds.raw_dataset) || ~ds.isLoaded
-                % don't autoload on print out make sure this only gets
-                % called by load
+        function sync = readSync(ds)
+            if isempty(ds.raw_dataset)
                 sync = zeros(0, 1, 'uint16');
             else
-                sync = ds.raw_dataset.syncRaw();
+                sync = ds.raw_dataset.readSync();
             end
         end
         
@@ -245,7 +240,7 @@ classdef KiloSortDataset < handle
             if isempty(ds.raw_dataset)
                 sync = zeros(0, 1, 'uint16');
             else
-                sync = ds.raw_dataset.readSyncChannel(varargin{:});
+                sync = ds.raw_dataset.readSync(varargin{:});
             end
         end
         
@@ -545,7 +540,7 @@ classdef KiloSortDataset < handle
         end
         
         function m = getMetrics(ds, recompute)
-            if isempty(ds.metrics) || (nargin >= 2 && recompute)
+            if isempty(ds.metrics) || ~isvalid(ds.metrics) || (nargin >= 2 && recompute)
                 ds.metrics = Neuropixel.KilosortMetrics(ds);
             end
             m = ds.metrics;
@@ -562,9 +557,7 @@ classdef KiloSortDataset < handle
         end
     end
     
-    methods % Computed data
-        
-            
+    methods % Computed data  
         function [snippetSet, reconstructionFromOtherClusters] = getWaveformsFromRawData(ds, varargin)
              % Extracts individual spike waveforms from the raw datafile, for multiple
              % clusters. Returns the waveforms and their means within clusters.
@@ -657,7 +650,8 @@ classdef KiloSortDataset < handle
              
              % figure out actual times requested
              if ~isnan(p.Results.best_n_channels)
-                 cluster_best_template_channels = ds.computeBestChannelsByCluster();
+                 metrics = ds.getMetrics();
+                 cluster_best_template_channels = metrics.cluster_best_channels;
                  
                  % okay to have multiple clusters, just use first cluster
                  % to pick channels
@@ -735,6 +729,7 @@ classdef KiloSortDataset < handle
             p.addParameter('showPlots', false, @islogical);
             p.addParameter('rawData', [], @isnumeric); % for plotting only
             p.parse(varargin{:});
+            showPlots = p.Results.showPlots;
             
             % check sizes of everything
             nTimes = numel(times);
@@ -749,7 +744,8 @@ classdef KiloSortDataset < handle
             exclude_cluster_idx_each_snippet = p.Results.exclude_cluster_idx_each_snippet;
             
             % templates post-whitening is nTemplates x nTimepoints x nChannelsFull
-            templates = ds.computeUnwhitenedTemplatesAllChannels();
+            metrics = ds.getMetrics();
+            templates =  metrics.template_unw; % unwhitened templates, but not scaled and still in quantized units (not uV)
               
             nTimeTemplates = size(templates, 2);
               
@@ -787,7 +783,7 @@ classdef KiloSortDataset < handle
                 [~, channel_ind_this] = ismember(channels_idx_this, ds.channel_ids);
                 assert(all(channel_ind_this) > 0, 'Some channels in channel_idx_by_cluster not found in channel_ids');
                 
-                if p.Results.showPlots
+                if showPlots
                     clf;
                     plot(relTvec_snippet, p.Results.rawData(1, :, iT), 'k-', 'LineWidth', 2);
                     hold on;
@@ -805,7 +801,7 @@ classdef KiloSortDataset < handle
                     insert = amp .* permute(templates(ds.spike_templates(ind), indFromTemplate, channel_ind_this), [3 2 1]);
                     reconstruction(:, indInsert, iT) = reconstruction(:, indInsert, iT) + insert;
                     
-                    if p.Results.showPlots
+                    if showPlots
                         if tprime == t
                             args = {'LineWidth', 1, 'Color', 'g'};
                         else
@@ -815,7 +811,7 @@ classdef KiloSortDataset < handle
                     end
                 end
                 
-                if p.Results.showPlots
+                if showPlots
                     plot(relTvec_snippet, reconstruction(1, :, iT), 'r--', 'LineWidth', 2);
                     plot(relTvec_snippet, p.Results.rawData(1, :, iT) - int16(reconstruction(1, :, iT)), 'b--');
                     pause;

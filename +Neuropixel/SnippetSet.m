@@ -4,11 +4,11 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
     
     properties
         data (:, :, :) int16 % channels x time x snippets
-        cluster_idx (:, 1) int32
+        cluster_idx (:, 1) uint32
         
         % one of these will be filled, with absolute channel inds
         channel_idx_by_cluster (:, :) uint32 % if each cluster draws from different channels
-        unique_cluster_idx (:, 1) int32 % specifies the cluster_idx associated with each column here
+        unique_cluster_idx (:, 1) uint32 % specifies the cluster_idx associated with each column here
         
         sample_idx (:, 1) uint64
         trial_idx (:, 1) uint32
