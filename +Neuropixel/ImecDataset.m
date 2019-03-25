@@ -616,7 +616,7 @@ classdef ImecDataset < handle
             rms = rms * df.apScaleToUv;
         end
 
-        function rmsBadChannels = markBadChannelsByRMS(df, varargin)
+        function [rmsBadChannels, rmsByChannel] = markBadChannelsByRMS(df, varargin)
             p = inputParser();
             p.addParameter('rmsRange', [3 100], @isvector);
             p.addParameter('sampleMask', [], @(x) isempty(x) || islogical(x));
@@ -628,10 +628,10 @@ classdef ImecDataset < handle
 
             oldChannelMask = channelMask;
 
-            rms = df.computeRMSByChannel('sampleMask', p.Results.sampleMask);
+            rmsByChannel = df.computeRMSByChannel('sampleMask', p.Results.sampleMask);
             rmsMin = p.Results.rmsRange(1);
             rmsMax = p.Results.rmsRange(2);
-            channelMask(rms < rmsMin | rms > rmsMax) = false;
+            channelMask(rmsByChannel < rmsMin | rmsByChannel > rmsMax) = false;
 
             rmsBadChannels = find(~channelMask & oldChannelMask);
             df.markBadChannels(~channelMask);
