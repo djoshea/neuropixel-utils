@@ -1,0 +1,41 @@
+site_name: Neuropixel Utilities
+site_description: Documentation for neuropixel-utils
+site_author: Daniel J. O'Shea
+
+repo_name: 'djoshea/neuropixel-utils'
+repo_url: 'https://github.com/djoshea/neuropixel-utils'
+
+theme:
+  name: material
+  custom_dir: docs/theme/
+  feature:
+    tabs: true
+  palette:
+    primary: 'blue'
+    accent: 'blue'
+
+extra:
+  social:
+    - type: 'github'
+      link: 'https://github.com/djoshea'
+    - type: 'twitter'
+      link: 'https://twitter.com/djoshea'
+
+markdown_extensions:
+  - admonition
+  - codehilite
+  - markdown.extensions.def_list
+  - pymdownx.inlinehilite
+  - pymdownx.superfences
+  - smarty
+  - toc:
+      permalink: true
+
+nav:
+  - Neuropixel Utilities
+    - Overview: index.md
+    - Neuropixel.ImecDataset: imec_dataset.md
+    - Running Kilosort2: kilosort.md
+    - Neuropixel.KilosortDataset: kilosort_dataset.md
+
+copyright: 'Copyright &copy; 2019 &mdash; <a href="http://djoshea.com">Daniel J. O&#39;Shea</a>'
