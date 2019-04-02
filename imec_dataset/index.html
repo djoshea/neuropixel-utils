@@ -1,0 +1,1033 @@
+
+
+
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      <meta http-equiv="x-ua-compatible" content="ie=edge">
+      
+        <meta name="description" content="Documentation for neuropixel-utils">
+      
+      
+      
+        <meta name="author" content="Daniel J. O'Shea">
+      
+      
+        <meta name="lang:clipboard.copy" content="Copy to clipboard">
+      
+        <meta name="lang:clipboard.copied" content="Copied to clipboard">
+      
+        <meta name="lang:search.language" content="en">
+      
+        <meta name="lang:search.pipeline.stopwords" content="True">
+      
+        <meta name="lang:search.pipeline.trimmer" content="True">
+      
+        <meta name="lang:search.result.none" content="No matching documents">
+      
+        <meta name="lang:search.result.one" content="1 matching document">
+      
+        <meta name="lang:search.result.other" content="# matching documents">
+      
+        <meta name="lang:search.tokenizer" content="[\s\-]+">
+      
+      <link rel="shortcut icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.0.4, mkdocs-material-3.2.0">
+    
+    
+      
+        <title>Neuropixel.ImecDataset - Neuropixel Utilities</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/application.572ca0f0.css">
+      
+        <link rel="stylesheet" href="../assets/stylesheets/application-palette.22915126.css">
+      
+      
+        
+        
+        <meta name="theme-color" content="#2196f3">
+      
+    
+    
+      <script src="../assets/javascripts/modernizr.8c900955.js"></script>
+    
+    
+      
+        <link href="https://fonts.gstatic.com" rel="preconnect" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,400i,700|Roboto+Mono">
+        <style>body,input{font-family:"Roboto","Helvetica Neue",Helvetica,Arial,sans-serif}code,kbd,pre{font-family:"Roboto Mono","Courier New",Courier,monospace}</style>
+      
+    
+    <link rel="stylesheet" href="../assets/fonts/material-icons.css">
+    
+    
+    
+  </head>
+  
+    
+    
+    <body dir="ltr" data-md-color-primary="blue" data-md-color-accent="blue">
+  
+    <svg class="md-svg">
+      <defs>
+        
+        
+          <svg xmlns="http://www.w3.org/2000/svg" width="416" height="448"
+    viewBox="0 0 416 448" id="__github">
+  <path fill="currentColor" d="M160 304q0 10-3.125 20.5t-10.75 19-18.125
+        8.5-18.125-8.5-10.75-19-3.125-20.5 3.125-20.5 10.75-19 18.125-8.5
+        18.125 8.5 10.75 19 3.125 20.5zM320 304q0 10-3.125 20.5t-10.75
+        19-18.125 8.5-18.125-8.5-10.75-19-3.125-20.5 3.125-20.5 10.75-19
+        18.125-8.5 18.125 8.5 10.75 19 3.125 20.5zM360
+        304q0-30-17.25-51t-46.75-21q-10.25 0-48.75 5.25-17.75 2.75-39.25
+        2.75t-39.25-2.75q-38-5.25-48.75-5.25-29.5 0-46.75 21t-17.25 51q0 22 8
+        38.375t20.25 25.75 30.5 15 35 7.375 37.25 1.75h42q20.5 0
+        37.25-1.75t35-7.375 30.5-15 20.25-25.75 8-38.375zM416 260q0 51.75-15.25
+        82.75-9.5 19.25-26.375 33.25t-35.25 21.5-42.5 11.875-42.875 5.5-41.75
+        1.125q-19.5 0-35.5-0.75t-36.875-3.125-38.125-7.5-34.25-12.875-30.25-20.25-21.5-28.75q-15.5-30.75-15.5-82.75
+        0-59.25 34-99-6.75-20.5-6.75-42.5 0-29 12.75-54.5 27 0 47.5 9.875t47.25
+        30.875q36.75-8.75 77.25-8.75 37 0 70 8 26.25-20.5
+        46.75-30.25t47.25-9.75q12.75 25.5 12.75 54.5 0 21.75-6.75 42 34 40 34
+        99.5z" />
+</svg>
+        
+      </defs>
+    </svg>
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" data-md-component="overlay" for="__drawer"></label>
+    
+      <a href="#neuropixelimecdataset" tabindex="1" class="md-skip">
+        Skip to content
+      </a>
+    
+    
+      <header class="md-header" data-md-component="header">
+  <nav class="md-header-nav md-grid">
+    <div class="md-flex">
+      <div class="md-flex__cell md-flex__cell--shrink">
+        <a href=".." title="Neuropixel Utilities" class="md-header-nav__button md-logo">
+          
+            <i class="md-icon"></i>
+          
+        </a>
+      </div>
+      <div class="md-flex__cell md-flex__cell--shrink">
+        <label class="md-icon md-icon--menu md-header-nav__button" for="__drawer"></label>
+      </div>
+      <div class="md-flex__cell md-flex__cell--stretch">
+        <div class="md-flex__ellipsis md-header-nav__title" data-md-component="title">
+          
+            
+              <span class="md-header-nav__topic">
+                Neuropixel Utilities
+              </span>
+              <span class="md-header-nav__topic">
+                Neuropixel.ImecDataset
+              </span>
+            
+          
+        </div>
+      </div>
+      <div class="md-flex__cell md-flex__cell--shrink">
+        
+          
+            <label class="md-icon md-icon--search md-header-nav__button" for="__search"></label>
+            
+<div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="query" data-md-state="active">
+      <label class="md-icon md-search__icon" for="__search"></label>
+      <button type="reset" class="md-icon md-search__icon" data-md-component="reset" tabindex="-1">
+        &#xE5CD;
+      </button>
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="result">
+          <div class="md-search-result__meta">
+            Type to start searching
+          </div>
+          <ol class="md-search-result__list"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+          
+        
+      </div>
+      
+        <div class="md-flex__cell md-flex__cell--shrink">
+          <div class="md-header-nav__source">
+            
+
+
+  
+
+
+  <a href="https://github.com/djoshea/neuropixel-utils/" title="Go to repository" class="md-source" data-md-source="github">
+    
+      <div class="md-source__icon">
+        <svg viewBox="0 0 24 24" width="24" height="24">
+          <use xlink:href="#__github" width="24" height="24"></use>
+        </svg>
+      </div>
+    
+    <div class="md-source__repository">
+      djoshea/neuropixel-utils
+    </div>
+  </a>
+
+          </div>
+        </div>
+      
+    </div>
+  </nav>
+</header>
+    
+    <div class="md-container">
+      
+        
+      
+      
+      <main class="md-main">
+        <div class="md-main__inner md-grid" data-md-component="container">
+          
+            
+              <div class="md-sidebar md-sidebar--primary" data-md-component="navigation">
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    <nav class="md-nav md-nav--primary" data-md-level="0">
+  <label class="md-nav__title md-nav__title--site" for="__drawer">
+    <a href=".." title="Neuropixel Utilities" class="md-nav__button md-logo">
+      
+        <i class="md-icon"></i>
+      
+    </a>
+    Neuropixel Utilities
+  </label>
+  
+    <div class="md-nav__source">
+      
+
+
+  
+
+
+  <a href="https://github.com/djoshea/neuropixel-utils/" title="Go to repository" class="md-source" data-md-source="github">
+    
+      <div class="md-source__icon">
+        <svg viewBox="0 0 24 24" width="24" height="24">
+          <use xlink:href="#__github" width="24" height="24"></use>
+        </svg>
+      </div>
+    
+    <div class="md-source__repository">
+      djoshea/neuropixel-utils
+    </div>
+  </a>
+
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href=".." title="Overview" class="md-nav__link">
+      Overview
+    </a>
+  </li>
+
+    
+      
+      
+      
+
+  
+
+
+  <li class="md-nav__item md-nav__item--active">
+    
+    <input class="md-toggle md-nav__toggle" data-md-toggle="toc" type="checkbox" id="__toc">
+    
+      
+    
+    
+      <label class="md-nav__link md-nav__link--active" for="__toc">
+        Neuropixel.ImecDataset
+      </label>
+    
+    <a href="./" title="Neuropixel.ImecDataset" class="md-nav__link md-nav__link--active">
+      Neuropixel.ImecDataset
+    </a>
+    
+      
+<nav class="md-nav md-nav--secondary">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">Table of contents</label>
+    <ul class="md-nav__list" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#constructing-a-neuropixelimecdataset" title="Constructing a Neuropixel.ImecDataset" class="md-nav__link">
+    Constructing a Neuropixel.ImecDataset
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#specifying-a-channel-map" title="Specifying a Channel Map" class="md-nav__link">
+    Specifying a Channel Map
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exploring-metadata" title="Exploring metadata" class="md-nav__link">
+    Exploring metadata
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#setting-sync-bit-names" title="Setting sync bit names" class="md-nav__link">
+    Setting sync bit names
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#marking-bad-channels" title="Marking bad channels" class="md-nav__link">
+    Marking bad channels
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#writing-modified-metadata-back-to-disk" title="Writing modified metadata back to disk" class="md-nav__link">
+    Writing modified metadata back to disk
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#accessing-data" title="Accessing data" class="md-nav__link">
+    Accessing data
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#raw-memory-maps" title="Raw memory maps" class="md-nav__link">
+    Raw memory maps
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reading-specific-time-window" title="Reading specific time window" class="md-nav__link">
+    Reading specific time window
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#plotting-specific-time-windows" title="Plotting specific time windows" class="md-nav__link">
+    Plotting specific time windows
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reading-sync-channel" title="Reading sync channel" class="md-nav__link">
+    Reading sync channel
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#building-a-preprocessing-pipeline" title="Building a preprocessing pipeline" class="md-nav__link">
+    Building a preprocessing pipeline
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#modifying-a-dataset-during-copy-to-new-location" title="Modifying a dataset during copy to new location" class="md-nav__link">
+    Modifying a dataset during copy to new location
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#modifying-a-dataset-in-place" title="Modifying a dataset in place" class="md-nav__link">
+    Modifying a dataset in place
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#concatenating-multiple-files-together" title="Concatenating multiple files together" class="md-nav__link">
+    Concatenating multiple files together
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#excising-time-windows" title="Excising time windows" class="md-nav__link">
+    Excising time windows
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#making-copies-and-symbolic-links" title="Making copies and symbolic links" class="md-nav__link">
+    Making copies and symbolic links
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+      
+      
+      
+      
+    </ul>
+  
+</nav>
+    
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../kilosort/" title="Running Kilosort" class="md-nav__link">
+      Running Kilosort
+    </a>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../analysis/" title="Analysis of Kilosort Results" class="md-nav__link">
+      Analysis of Kilosort Results
+    </a>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../waveforms/" title="Extracting Waveforms" class="md-nav__link">
+      Extracting Waveforms
+    </a>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../acknowledgements/" title="Acknowledgements and Support" class="md-nav__link">
+      Acknowledgements and Support
+    </a>
+  </li>
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="toc">
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+<nav class="md-nav md-nav--secondary">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">Table of contents</label>
+    <ul class="md-nav__list" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#constructing-a-neuropixelimecdataset" title="Constructing a Neuropixel.ImecDataset" class="md-nav__link">
+    Constructing a Neuropixel.ImecDataset
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#specifying-a-channel-map" title="Specifying a Channel Map" class="md-nav__link">
+    Specifying a Channel Map
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exploring-metadata" title="Exploring metadata" class="md-nav__link">
+    Exploring metadata
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#setting-sync-bit-names" title="Setting sync bit names" class="md-nav__link">
+    Setting sync bit names
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#marking-bad-channels" title="Marking bad channels" class="md-nav__link">
+    Marking bad channels
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#writing-modified-metadata-back-to-disk" title="Writing modified metadata back to disk" class="md-nav__link">
+    Writing modified metadata back to disk
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#accessing-data" title="Accessing data" class="md-nav__link">
+    Accessing data
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#raw-memory-maps" title="Raw memory maps" class="md-nav__link">
+    Raw memory maps
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reading-specific-time-window" title="Reading specific time window" class="md-nav__link">
+    Reading specific time window
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#plotting-specific-time-windows" title="Plotting specific time windows" class="md-nav__link">
+    Plotting specific time windows
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reading-sync-channel" title="Reading sync channel" class="md-nav__link">
+    Reading sync channel
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#building-a-preprocessing-pipeline" title="Building a preprocessing pipeline" class="md-nav__link">
+    Building a preprocessing pipeline
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#modifying-a-dataset-during-copy-to-new-location" title="Modifying a dataset during copy to new location" class="md-nav__link">
+    Modifying a dataset during copy to new location
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#modifying-a-dataset-in-place" title="Modifying a dataset in place" class="md-nav__link">
+    Modifying a dataset in place
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#concatenating-multiple-files-together" title="Concatenating multiple files together" class="md-nav__link">
+    Concatenating multiple files together
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#excising-time-windows" title="Excising time windows" class="md-nav__link">
+    Excising time windows
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#making-copies-and-symbolic-links" title="Making copies and symbolic links" class="md-nav__link">
+    Making copies and symbolic links
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+      
+      
+      
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          <div class="md-content">
+            <article class="md-content__inner md-typeset">
+              
+                
+                  <a href="https://github.com/djoshea/neuropixel-utils/edit/master/docs/imec_dataset.md" title="Edit this page" class="md-icon md-content__icon">&#xE3C9;</a>
+                
+                
+                <h1 id="neuropixelimecdataset">Neuropixel.ImecDataset<a class="headerlink" href="#neuropixelimecdataset" title="Permanent link">&para;</a></h1>
+<p>The <code class="codehilite">Neuropixel.ImecDataset</code> class wraps one individual recording session acquired with SpikeGLX. Currently, four files with extensions <code class="codehilite"><span class="na">.imec.ap.bin</span></code>, <code class="codehilite"><span class="na">.imec.ap.meta</span></code>, <code class="codehilite"><span class="na">.imec.lf.bin</span></code>, and <code class="codehilite"><span class="na">.imec.lf.meta</span></code> comprise one ImecDataset.</p>
+<h2 id="constructing-a-neuropixelimecdataset">Constructing a <code class="codehilite">Neuropixel.ImecDataset</code><a class="headerlink" href="#constructing-a-neuropixelimecdataset" title="Permanent link">&para;</a></h2>
+<p>You construct a Neuropixel.ImecDataset by pointing it at the path to your dataset. How you specify the path is flexible:</p>
+<p>Point directly at one of the files. These are all equivalent, in that the resulting <code class="codehilite">imec</code> instance will wrap both AP and LF bin and meta files. (Though it&rsquo;s okay if the LF files are missing)</p>
+<div class="codehilite"><pre><span></span><span class="n">imec</span> <span class="p">=</span> <span class="n">Neuropixel</span><span class="p">.</span><span class="n">ImecDataset</span><span class="p">(</span><span class="s">&#39;/data/raw_datasets/neuropixel_01_g0_t0.imec.ap.bin&#39;</span><span class="p">);</span>
+<span class="n">imec</span> <span class="p">=</span> <span class="n">Neuropixel</span><span class="p">.</span><span class="n">ImecDataset</span><span class="p">(</span><span class="s">&#39;/data/raw_datasets/neuropixel_01_g0_t0&#39;</span><span class="p">);</span>
+<span class="n">imec</span> <span class="p">=</span> <span class="n">Neuropixel</span><span class="p">.</span><span class="n">ImecDataset</span><span class="p">(</span><span class="s">&#39;/data/raw_datasets/neuropixel_01&#39;</span><span class="p">);</span>
+</pre></div>
+
+<p>It&rsquo;s also okay to point at the parent directory as long as only one <code class="codehilite"><span class="na">.ap.bin</span></code> file is contained within.
+<div class="codehilite"><pre><span></span><span class="n">imec</span> <span class="p">=</span> <span class="n">Neuropixel</span><span class="p">.</span><span class="n">ImecDataset</span><span class="p">(</span><span class="s">&#39;/data/raw_datasets/&#39;</span><span class="p">);</span>
+</pre></div></p>
+<h3 id="specifying-a-channel-map">Specifying a Channel Map<a class="headerlink" href="#specifying-a-channel-map" title="Permanent link">&para;</a></h3>
+<p>When constructing the ImecDataset, you can specify a channel map. If you don&rsquo;t specify one, the default will be returned by <code class="codehilite">Neuropixel.Utils.getDefaultChannelMapFile()</code>, which in turn will look for the file pointed to by the environment variables <code class="codehilite">&#39;NEUROPIXEL_MAP_FILE&#39;</code> or <code class="codehilite">&#39;NPIX_MAP_FILE&#39;</code>. You can set these using Matlab&rsquo;s <code class="codehilite">setenv</code> function.</p>
+<p>These .mat files are expected to be in the same format as found on the <a href="https://github.com/cortex-lab/neuropixels">neuropixels repo</a>. For the phase 3A probe with 384 channels, the file <code class="codehilite">neuropixPhase3A_kilosortChanMap.mat</code> contains:</p>
+<div class="codehilite"><pre><span></span><span class="o">&gt;&gt;</span> <span class="n">ld</span> <span class="p">=</span> <span class="n">load</span><span class="p">(</span><span class="s">&#39;neuropixPhase3A_kilosortChanMap.mat&#39;</span><span class="p">)</span>
+
+<span class="n">struct</span> <span class="n">with</span> <span class="n">fields</span><span class="p">:</span>
+
+      <span class="n">chanMap</span><span class="p">:</span> <span class="p">[</span><span class="mi">384</span>×<span class="mi">1</span> <span class="n">double</span><span class="p">]</span>
+  <span class="n">chanMap0ind</span><span class="p">:</span> <span class="p">[</span><span class="mi">384</span>×<span class="mi">1</span> <span class="n">double</span><span class="p">]</span>
+    <span class="n">connected</span><span class="p">:</span> <span class="p">[</span><span class="mi">384</span>×<span class="mi">1</span> <span class="n">logical</span><span class="p">]</span>
+     <span class="n">shankInd</span><span class="p">:</span> <span class="p">[</span><span class="mi">384</span>×<span class="mi">1</span> <span class="n">double</span><span class="p">]</span>
+      <span class="n">xcoords</span><span class="p">:</span> <span class="p">[</span><span class="mi">384</span>×<span class="mi">1</span> <span class="n">double</span><span class="p">]</span>
+      <span class="n">ycoords</span><span class="p">:</span> <span class="p">[</span><span class="mi">384</span>×<span class="mi">1</span> <span class="n">double</span><span class="p">]</span>
+</pre></div>
+
+<p>You can construct a ChannelMap directly by pointing at the <code class="codehilite"><span class="na">.mat</span></code> file, although every function within <code class="codehilite">neuropixel-utils</code> will also accept the filename and construct the <code class="codehilite">ChannelMap</code> for you:</p>
+<div class="codehilite"><pre><span></span><span class="n">chanMap</span> <span class="p">=</span> <span class="n">Neuropixel</span><span class="p">.</span><span class="n">ChannelMap</span><span class="p">(</span><span class="n">mat_file_path</span><span class="p">);</span>
+</pre></div>
+
+<p>Then you can use this map for an ImecDataset using:
+<div class="codehilite"><pre><span></span><span class="n">imec</span> <span class="p">=</span> <span class="n">Neuropixel</span><span class="p">.</span><span class="n">ImecDataset</span><span class="p">(</span><span class="s">&#39;channelMap&#39;</span><span class="p">,</span> <span class="n">chanMap</span><span class="p">);</span>
+<span class="n">imec</span> <span class="p">=</span> <span class="n">Neuropixel</span><span class="p">.</span><span class="n">ImecDataset</span><span class="p">(</span><span class="s">&#39;channelMap&#39;</span><span class="p">,</span> <span class="n">mat_file_path</span><span class="p">);</span>
+</pre></div></p>
+<h2 id="exploring-metadata">Exploring metadata<a class="headerlink" href="#exploring-metadata" title="Permanent link">&para;</a></h2>
+<p>When the ImecDatset is created, the metadata are loaded from the <code class="codehilite"><span class="na">.ap.meta</span></code> file. You can request the full metadata using</p>
+<div class="codehilite"><pre><span></span><span class="n">meta</span> <span class="p">=</span> <span class="n">imec</span><span class="p">.</span><span class="n">readAPMeta</span><span class="p">()</span>
+
+  <span class="n">struct</span> <span class="n">with</span> <span class="n">fields</span><span class="p">:</span>
+
+               <span class="n">acqApLfSy</span><span class="p">:</span> <span class="p">[</span><span class="mi">384</span> <span class="mi">384</span> <span class="mi">1</span><span class="p">]</span>
+              <span class="n">appVersion</span><span class="p">:</span> <span class="mi">20171101</span>
+          <span class="n">fileCreateTime</span><span class="p">:</span> <span class="s">&#39;2018-06-08T12:09:07&#39;</span>
+                <span class="n">fileName</span><span class="p">:</span> <span class="s">&#39;neuropixel_01_g0_t0.imec.ap.bin&#39;</span>
+                <span class="n">fileSHA1</span><span class="p">:</span> <span class="s">&#39;36E9F78B0725C15431E12DEC516A779A31643ED8&#39;</span>
+           <span class="n">fileSizeBytes</span><span class="p">:</span> <span class="mf">8.6557e+10</span>
+            <span class="n">fileTimeSecs</span><span class="p">:</span> <span class="mf">3.7471e+03</span>
+             <span class="n">firstSample</span><span class="p">:</span> <span class="mi">7060812</span>
+                <span class="n">gateMode</span><span class="p">:</span> <span class="s">&#39;Immediate&#39;</span>
+                    <span class="c">...            </span>
+</pre></div>
+
+<p>The most commonly accessed metadata is stored in properties of the ImecDataset:
+<div class="codehilite"><pre><span></span><span class="n">ImecDataset</span> <span class="n">with</span> <span class="k">properties</span><span class="p">:</span>
+
+            <span class="n">pathRoot</span><span class="p">:</span> <span class="s">&#39;/data/neuropixel/raw_datasets&#39;</span> <span class="c">% parent directories</span>
+            <span class="n">fileStem</span><span class="p">:</span> <span class="s">&#39;neuropixel_01_g0_t0&#39;</span> <span class="c">% common prefix</span>
+        <span class="n">creationTime</span><span class="p">:</span> <span class="mf">7.3722e+05</span> <span class="c">% datenum</span>
+           <span class="n">nChannels</span><span class="p">:</span> <span class="mi">385</span> <span class="c">% total number of channels in the data file</span>
+          <span class="n">fileTypeAP</span><span class="p">:</span> <span class="s">&#39;ap&#39;</span> <span class="c">% indicates the file suffix right before .bin, usually ap or ap_CAR</span>
+          <span class="n">nSamplesAP</span><span class="p">:</span> <span class="mi">112412208</span> <span class="c">% number of time samples in the AP file</span>
+          <span class="n">nSamplesLF</span><span class="p">:</span> <span class="mi">0</span> <span class="c">% number of time samples in the LF file (if present)</span>
+                <span class="n">fsAP</span><span class="p">:</span> <span class="mi">30000</span> <span class="c">% sampling rate in Hz</span>
+                <span class="n">fsLF</span><span class="p">:</span> <span class="n">NaN</span> <span class="c">% sampling rate in Hz</span>
+    <span class="n">highPassFilterHz</span><span class="p">:</span> <span class="mi">300</span> <span class="c">% online high pass filter pole (imHpFlt)</span>
+              <span class="n">apGain</span><span class="p">:</span> <span class="mi">500</span> <span class="c">% AP gain selected</span>
+             <span class="n">apRange</span><span class="p">:</span> <span class="p">[</span><span class="o">-</span><span class="mf">0.6000</span> <span class="mf">0.6000</span><span class="p">]</span> <span class="c">% voltage range on ADC</span>
+              <span class="n">lfGain</span><span class="p">:</span> <span class="mi">250</span> <span class="c">% LF gain selected</span>
+             <span class="n">lfRange</span><span class="p">:</span> <span class="p">[</span><span class="o">-</span><span class="mf">0.6000</span> <span class="mf">0.6000</span><span class="p">]</span> <span class="c">% voltage range on ADC</span>
+             <span class="n">adcBits</span><span class="p">:</span> <span class="mi">10</span> <span class="c">% number of ADC bits used</span>
+          <span class="n">channelMap</span><span class="p">:</span> <span class="p">[</span><span class="mi">1</span>×<span class="mi">1</span> <span class="n">Neuropixel</span><span class="p">.</span><span class="n">ChannelMap</span><span class="p">]</span> <span class="c">% channel map for this recording</span>
+    <span class="n">syncChannelIndex</span><span class="p">:</span> <span class="mi">385</span> <span class="c">% index of the sync channel if present in AP file</span>
+        <span class="n">syncInAPFile</span><span class="p">:</span> <span class="mi">1</span> <span class="c">% whether the sync channels is present in the AP file</span>
+         <span class="n">badChannels</span><span class="p">:</span> <span class="p">[</span><span class="mi">3</span>×<span class="mi">1</span> <span class="n">double</span><span class="p">]</span> <span class="c">% list of channels marked as bad</span>
+        <span class="n">syncBitNames</span><span class="p">:</span> <span class="p">[</span><span class="mi">16</span>×<span class="mi">1</span> <span class="n">string</span><span class="p">]</span> <span class="c">% user-specified names of each sync bit for convenience</span>
+             <span class="n">syncRaw</span><span class="p">:</span> <span class="p">[]</span> <span class="c">% cached contents of sync if loaded</span>
+      <span class="n">bytesPerSample</span><span class="p">:</span> <span class="mi">2</span> <span class="c">% currently fixed at 2 for int16 samples</span>
+               <span class="n">hasAP</span><span class="p">:</span> <span class="mi">1</span> <span class="c">% was an associated AP file present?</span>
+               <span class="n">hasLF</span><span class="p">:</span> <span class="mi">0</span> <span class="c">% was an associated LF file present?</span>
+      <span class="n">channelMapFile</span><span class="p">:</span> <span class="s">&#39;~/npl/neuropixel-utils/map_files/neuropixPhase3A_kilosortChanMap.mat&#39;</span> <span class="c">% full path to channel map file</span>
+      <span class="n">mappedChannels</span><span class="p">:</span> <span class="p">[</span><span class="mi">384</span>×<span class="mi">1</span> <span class="n">double</span><span class="p">]</span> <span class="c">% list of channel ids that have coordinates in the channel map</span>
+     <span class="n">nChannelsMapped</span><span class="p">:</span> <span class="mi">384</span>
+   <span class="n">connectedChannels</span><span class="p">:</span> <span class="p">[</span><span class="mi">374</span>×<span class="mi">1</span> <span class="n">double</span><span class="p">]</span> <span class="c">% list of channel ids that are connected to voltage pads</span>
+  <span class="n">nChannelsConnected</span><span class="p">:</span> <span class="mi">374</span>
+        <span class="n">goodChannels</span><span class="p">:</span> <span class="p">[</span><span class="mi">371</span>×<span class="mi">1</span> <span class="n">double</span><span class="p">]</span> <span class="c">% list of channel ids that are marked good (or not marked as bad)</span>
+       <span class="n">nGoodChannels</span><span class="p">:</span> <span class="mi">371</span>
+          <span class="n">channelIds</span><span class="p">:</span> <span class="p">[</span><span class="mi">384</span>×<span class="mi">1</span> <span class="n">double</span><span class="p">]</span> <span class="c">% list of channel ids present in the channel map</span>
+        <span class="n">channelNames</span><span class="p">:</span> <span class="p">[</span><span class="mi">385</span>×<span class="mi">1</span> <span class="n">string</span><span class="p">]</span> <span class="c">% autogenerated names for each channel</span>
+  <span class="n">channelNamesPadded</span><span class="p">:</span> <span class="p">[</span><span class="mi">385</span>×<span class="mi">1</span> <span class="n">string</span><span class="p">]</span> <span class="c">% autogenerated names for each channel, where numbers are padded with spaces</span>
+           <span class="n">nSyncBits</span><span class="p">:</span> <span class="mi">16</span>
+       <span class="n">syncBitsNamed</span><span class="p">:</span> <span class="p">[</span><span class="mi">8</span>×<span class="mi">1</span> <span class="n">double</span><span class="p">]</span> <span class="c">% which of the sync bits have user provided names</span>
+              <span class="n">fileAP</span><span class="p">:</span> <span class="s">&#39;neuropixel_01_g0_t0.imec.ap.bin&#39;</span>
+              <span class="n">pathAP</span><span class="p">:</span> <span class="s">&#39;/data/neuropixel/raw_datasets/neuropixel_01_g0_t0.imec.ap.bin&#39;</span>
+          <span class="n">fileAPMeta</span><span class="p">:</span> <span class="s">&#39;neuropixel_01_g0_t0.imec.ap.meta&#39;</span>
+          <span class="n">pathAPMeta</span><span class="p">:</span> <span class="s">&#39;/data/neuropixel/raw_datasets/neuropixel_01_g0_t0.imec.ap.meta&#39;</span>
+              <span class="n">fileLF</span><span class="p">:</span> <span class="s">&#39;neuropixel_01_g0_t0.imec.lf.bin&#39;</span>
+              <span class="n">pathLF</span><span class="p">:</span> <span class="s">&#39;/data/neuropixel/raw_datasets/neuropixel_01_g0_t0.imec.lf.bin&#39;</span>
+          <span class="n">fileLFMeta</span><span class="p">:</span> <span class="s">&#39;neuropixel_01_g0_t0.imec.lf.meta&#39;</span>
+          <span class="n">pathLFMeta</span><span class="p">:</span> <span class="s">&#39;/data/neuropixel/raw_datasets/neuropixel_01_g0_t0.imec.lf.meta&#39;</span>
+            <span class="n">fileSync</span><span class="p">:</span> <span class="s">&#39;neuropixel_01_g0_t0.imec.ap.bin&#39;</span>
+            <span class="n">pathSync</span><span class="p">:</span> <span class="s">&#39;/data/neuropixel/raw_datasets/neuropixel_01_g0_t0.imec.ap.bin&#39;</span>
+      <span class="n">fileSyncCached</span><span class="p">:</span> <span class="s">&#39;neuropixel_01_g0_t0.sync.mat&#39;</span> <span class="c">% location where sync data will be cached for quick access</span>
+      <span class="n">pathSyncCached</span><span class="p">:</span> <span class="s">&#39;/data/neuropixel/raw_datasets/neuropixel_01_g0_t0.sync.mat&#39;</span>
+     <span class="n">creationTimeStr</span><span class="p">:</span> <span class="s">&#39;08-Jun-2018 12:09:07&#39;</span>
+         <span class="n">apScaleToUv</span><span class="p">:</span> <span class="mf">2.3438</span> <span class="c">% conversion factor. Multiply raw AP int16s by this to get uV</span>
+         <span class="n">lfScaleToUv</span><span class="p">:</span> <span class="mf">2.3438</span> <span class="c">% conversion factor. Multiply raw LF int16s by this to get uV</span>
+</pre></div></p>
+<h3 id="setting-sync-bit-names">Setting sync bit names<a class="headerlink" href="#setting-sync-bit-names" title="Permanent link">&para;</a></h3>
+<p>For convenience, if you use the sync bits for individual TTL signals during your recordings, you can set their names for the recording so that subsequent processing can refer to the bits by name rather than index. You may also find it useful to store additional data in some sync bits during subsequent processing, such as marking regions of time where an artifact was detected, such that specifying the bit by name is useful. Bits are ordered like <code class="codehilite">bitget</code>, i.e. 1 is the least significant bit.</p>
+<div class="codehilite"><pre><span></span><span class="n">imec</span><span class="p">.</span><span class="n">setSyncBitNames</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> &quot;<span class="n">trialStart</span>&quot;<span class="p">)</span>
+</pre></div>
+
+<p>The full set of sync bits is found in <code class="codehilite">imec.syncBitNames</code>, or you can lookup the bit corresponding to a given name using:</p>
+<div class="codehilite"><pre><span></span><span class="n">idx</span> <span class="p">=</span> <span class="n">imec</span><span class="p">.</span><span class="n">lookupSyncBitByName</span><span class="p">(</span>&quot;<span class="n">trialStart</span>&quot;<span class="p">)</span>
+</pre></div>
+
+<h3 id="marking-bad-channels">Marking bad channels<a class="headerlink" href="#marking-bad-channels" title="Permanent link">&para;</a></h3>
+<p>You can manually mark specific channels as bad using:
+<div class="codehilite"><pre><span></span>imec.markBadChannels(channelIds);
+</pre></div></p>
+<div class="admonition warning">
+<p class="admonition-title">Use channel IDs, not indices</p>
+<p>Note that like all channel lists, <code class="codehilite">channelIds</code> is specified using the actual unique ids of each channel (as specified in the ChannelMap), which is not necessarily their index into the channel map if the channels are not contiguously numbered.</p>
+<p>You can use <code class="codehilite">lookup_channelIds</code> to find the channel indices for a given set of channel ids if needed:
+<div class="codehilite"><pre><span></span><span class="p">[</span><span class="n">channelInds</span><span class="p">,</span> <span class="n">channelIds</span><span class="p">]</span> <span class="p">=</span> <span class="n">imec</span><span class="p">.</span><span class="n">lookup_channelIds</span><span class="p">(</span><span class="n">channelIds</span><span class="p">)</span>
+</pre></div></p>
+</div>
+<p>One common task is marking channels as bad if their RMS voltage lies outside a reasonable range:
+<div class="codehilite"><pre><span></span><span class="n">imec</span><span class="p">.</span><span class="n">markBadChannelsByRMS</span><span class="p">(</span><span class="err">&#39;</span><span class="n">rmsRange</span><span class="err">&#39;</span><span class="p">,</span> <span class="p">[</span><span class="mi">3</span> <span class="mi">100</span><span class="p">]);</span> <span class="o">%</span> <span class="p">[</span><span class="n">low</span> <span class="n">high</span><span class="p">]</span> <span class="n">range</span> <span class="n">of</span> <span class="n">RMS</span> <span class="k">in</span> <span class="n">uV</span>
+</pre></div></p>
+<p>The remaining &ldquo;good&rdquo; channel ids can always be accessed using <code class="codehilite">imec.goodChannels</code> which will be the set of connected channels excluding the bad channels.</p>
+<h3 id="writing-modified-metadata-back-to-disk">Writing modified metadata back to disk<a class="headerlink" href="#writing-modified-metadata-back-to-disk" title="Permanent link">&para;</a></h3>
+<p>After making any modifications to the metadata, such as setting the sync bit names or marking bad channels, you can write it back to disk (in the <code class="codehilite"><span class="na">.imec.ap.meta</span></code> file) such that it will be reloaded automatically the next time you create an ImecDataset instance for that file.</p>
+<div class="codehilite"><pre><span></span><span class="n">imec</span><span class="p">.</span><span class="n">writeModifiedAPMeta</span><span class="p">();</span>
+</pre></div>
+
+<p>You can also append whatever fields you want to the meta file using the <code class="codehilite">extraMeta</code> parameter:
+<div class="codehilite"><pre><span></span><span class="n">extraMeta</span><span class="p">.</span><span class="n">cleaned</span> <span class="p">=</span> <span class="n">true</span><span class="p">;</span>
+<span class="n">extraMeta</span><span class="p">.</span><span class="n">cleaningAlgorithm</span> <span class="p">=</span> <span class="s">&#39;v1&#39;</span><span class="p">;</span>
+<span class="n">imec</span><span class="p">.</span><span class="n">writeModifiedAPMeta</span><span class="p">(</span><span class="s">&#39;extraMeta&#39;</span><span class="p">,</span> <span class="n">extraMeta</span><span class="p">);</span>
+</pre></div></p>
+<h2 id="accessing-data">Accessing data<a class="headerlink" href="#accessing-data" title="Permanent link">&para;</a></h2>
+<h3 id="raw-memory-maps">Raw memory maps<a class="headerlink" href="#raw-memory-maps" title="Permanent link">&para;</a></h3>
+<p>The most convenient way to access the data is to request a memory map:
+<div class="codehilite"><pre><span></span><span class="n">mmap</span> <span class="p">=</span> <span class="n">imec</span><span class="p">.</span><span class="n">memmapAP_full</span><span class="p">();</span>
+<span class="n">value</span> <span class="p">=</span> <span class="n">mmap</span><span class="p">.</span><span class="n">Data</span><span class="p">.</span><span class="n">x</span><span class="p">(</span><span class="n">ch_index</span><span class="p">,</span> <span class="n">sample_index</span><span class="p">);</span> <span class="c">% access a specific sample</span>
+</pre></div></p>
+<p>Equivalent functionality is available for LF files using `imec.memmapLF_full()&rsquo;. If you wish to modify the underlying data file directly, you can also request a Writeable version of the memory map:
+<div class="codehilite"><pre><span></span><span class="n">mmap</span> <span class="p">=</span> <span class="n">imec</span><span class="p">.</span><span class="n">memmapAP_full</span><span class="p">(</span><span class="s">&#39;Writiable&#39;</span><span class="p">,</span> <span class="n">true</span><span class="p">);</span>
+<span class="n">mmap</span><span class="p">.</span><span class="n">Data</span><span class="p">.</span><span class="n">x</span><span class="p">(</span><span class="n">ch_index</span><span class="p">,</span> <span class="n">sample_index</span><span class="p">)</span> <span class="p">=</span> <span class="n">new_value</span><span class="p">;</span> <span class="c">% overwrite a specific sample</span>
+</pre></div></p>
+<h3 id="reading-specific-time-window">Reading specific time window<a class="headerlink" href="#reading-specific-time-window" title="Permanent link">&para;</a></h3>
+<p>You can also request a specific sample or time window directly:
+<div class="codehilite"><pre><span></span><span class="n">idxWindow</span> <span class="p">=</span> <span class="p">[</span><span class="n">idxFirst</span> <span class="n">idxLast</span><span class="p">];</span>
+<span class="p">[</span><span class="n">data_partial</span><span class="p">,</span> <span class="n">sampleIdx</span><span class="p">]</span> <span class="p">=</span> <span class="n">imec</span><span class="p">.</span><span class="n">readAP_idx</span><span class="p">(</span><span class="n">idxWindow</span><span class="p">);</span>
+
+<span class="n">timeWindow</span> <span class="p">=</span> <span class="p">[</span><span class="n">secStart</span><span class="p">,</span> <span class="n">secStop</span><span class="p">];</span> <span class="c">% in seconds</span>
+<span class="p">[</span><span class="n">data_partial</span><span class="p">,</span> <span class="n">sampleIdx</span><span class="p">]</span> <span class="p">=</span> <span class="n">imec</span><span class="p">.</span><span class="n">readAP_timeWindow</span><span class="p">(</span><span class="n">timeWindow</span><span class="p">);</span>
+</pre></div></p>
+<h3 id="plotting-specific-time-windows">Plotting specific time windows<a class="headerlink" href="#plotting-specific-time-windows" title="Permanent link">&para;</a></h3>
+<p>You can also quickly generate a stacked traces plot of a specific time window, optionally selecting which channels to plot. Take care to select a reasonable time window to avoid overwhelming your system. All channels are individually centered and then collectively normalized by the maximum value before plotting. You can change the global scaling factor by specifying <code class="codehilite">gain</code> &gt; 1.</p>
+<div class="codehilite"><pre><span></span><span class="n">imec</span><span class="p">.</span><span class="n">inspectAP_idxWindow</span><span class="p">(</span><span class="n">idxWindow</span><span class="p">,</span> <span class="c">...)</span>
+<span class="n">imec</span><span class="p">.</span><span class="n">inspectAP_timeWindow</span><span class="p">(</span><span class="n">timeWindow</span><span class="p">,</span> <span class="c">...)</span>
+</pre></div>
+
+<p>There are additional optional parameters you can specify:</p>
+<ul>
+<li><code class="codehilite">channels</code>: channel indices to plot, defaults to <code class="codehilite">imec.mappedChannels</code></li>
+<li><code class="codehilite">syncBits</code> : which sync bits to plot individually, defaults to <code class="codehilite">imec.syncBitsNamed</code></li>
+<li><code class="codehilite">gain</code>: global scaling factor, values larger then 1 will magnify the individual channels, defaults to 0.95</li>
+<li><code class="codehilite">car</code>: perform common average referencing before plotting, defaults to false
+<code class="codehilite"></code>downsample` : take every nth sample to speed up plotting, defaults to 1</li>
+</ul>
+<p>Good channels are plotted in black, non-connected channels in blue, and bad channels in red. Sync bits are also shown in red and are not affected by the normalization gain.</p>
+<p><img alt="imec_inspect" src="../images/imec_inspect.png" title="Raw Imec traces" /></p>
+<h3 id="reading-sync-channel">Reading sync channel<a class="headerlink" href="#reading-sync-channel" title="Permanent link">&para;</a></h3>
+<p>You can access the sync channel all at once using:</p>
+<div class="codehilite"><pre><span></span><span class="n">sync</span> <span class="p">=</span> <span class="n">imec</span><span class="p">.</span><span class="n">readSync</span><span class="p">();</span>
+<span class="n">trialStartBit</span> <span class="p">=</span> <span class="n">imec</span><span class="p">.</span><span class="n">readSyncBit</span><span class="p">(</span>&quot;<span class="n">trialStart</span>&quot;<span class="p">);</span>
+</pre></div>
+
+<p>Or a specific sample or time window using:
+<div class="codehilite"><pre><span></span><span class="p">[</span><span class="n">sync_partial</span><span class="p">,</span> <span class="n">sampleIdx</span><span class="p">]</span> <span class="p">=</span> <span class="n">imec</span><span class="p">.</span><span class="n">readSync_idx</span><span class="p">(</span><span class="n">idxWindow</span><span class="p">);</span>
+<span class="p">[</span><span class="n">sync_partial</span><span class="p">,</span> <span class="n">sampleIdx</span><span class="p">]</span> <span class="p">=</span> <span class="n">imec</span><span class="p">.</span><span class="n">readSync_timeWindow</span><span class="p">(</span><span class="n">timeWindow</span><span class="p">);</span>
+</pre></div></p>
+<p>You can also access the logical values of specific bits either by bit index or name using:
+<div class="codehilite"><pre><span></span><span class="n">partial</span> <span class="p">=</span> <span class="n">imec</span><span class="p">.</span><span class="n">readSyncBits_idx</span><span class="p">(</span><span class="n">bits_or_names</span><span class="p">,</span> <span class="n">idxWindow</span><span class="p">);</span> <span class="c">%  nTime x nBits</span>
+<span class="n">trialStart_partial</span> <span class="p">=</span> <span class="n">imec</span><span class="p">.</span><span class="n">readSyncBits_idx</span><span class="p">(</span>&quot;<span class="n">trialStart</span>&quot;<span class="p">,</span> <span class="n">idxWindow</span><span class="p">);</span> <span class="c">% nTime x 1</span>
+</pre></div></p>
+<h2 id="building-a-preprocessing-pipeline">Building a preprocessing pipeline<a class="headerlink" href="#building-a-preprocessing-pipeline" title="Permanent link">&para;</a></h2>
+<p>If the raw <code class="codehilite"><span class="na">.imec.ap.bin</span></code> file must be propcessed in some way before running Kilosort, e.g. to remove artifacts, you can implement this efficiently by writing a transformation function that will act on chunks of the data. One example is found in <code class="codehilite">Neuropixel.DataProcessFn.commonAverageReference</code>:</p>
+<div class="codehilite"><pre><span></span><span class="k">function</span><span class="w"> </span>[data, extra] <span class="p">=</span><span class="w"> </span><span class="nf">commonAverageReference</span><span class="p">(</span>imec, data, chIds, sampleIdx<span class="p">)</span><span class="w"> </span><span class="c">%#ok&lt;INUSD&gt;</span>
+    <span class="c">% chIds are the channel ids and imec.goodChannels is a list of channel ids</span>
+    <span class="c">% so this will lookup the channel indices of those channels both in chIdx that</span>
+    <span class="c">% are also marked as good. This prevents us from computing the reference</span>
+    <span class="c">% from the sync, reference, or bad channels.</span>
+    <span class="n">chanMask</span> <span class="p">=</span> <span class="n">imec</span><span class="p">.</span><span class="n">lookup_channelIds</span><span class="p">(</span><span class="n">intersect</span><span class="p">(</span><span class="n">chIds</span><span class="p">,</span> <span class="n">imec</span><span class="p">.</span><span class="n">goodChannels</span><span class="p">));</span>
+
+    <span class="c">% subtract median of each channel over time</span>
+    <span class="n">data</span><span class="p">(</span><span class="n">chanMask</span><span class="p">,</span> <span class="p">:)</span> <span class="p">=</span> <span class="nb">bsxfun</span><span class="p">(@</span><span class="n">minus</span><span class="p">,</span> <span class="n">data</span><span class="p">(</span><span class="n">chanMask</span><span class="p">,</span> <span class="p">:),</span> <span class="n">median</span><span class="p">(</span><span class="n">data</span><span class="p">(</span><span class="n">chanMask</span><span class="p">,</span> <span class="p">:),</span> <span class="mi">2</span><span class="p">));</span>
+
+    <span class="c">% subtract median across good channels</span>
+    <span class="n">data</span><span class="p">(</span><span class="n">chanMask</span><span class="p">,</span> <span class="p">:)</span> <span class="p">=</span> <span class="nb">bsxfun</span><span class="p">(@</span><span class="n">minus</span><span class="p">,</span> <span class="n">data</span><span class="p">(</span><span class="n">chanMask</span><span class="p">,</span> <span class="p">:),</span> <span class="n">median</span><span class="p">(</span><span class="n">data</span><span class="p">(</span><span class="n">chanMask</span><span class="p">,</span> <span class="p">:),</span> <span class="mi">1</span><span class="p">));</span>
+<span class="k">end</span>
+</pre></div>
+
+<p>Essentially, your transform function can perform any modifications to the data matrix and return the resulting data matrix. Here, <code class="codehilite">imec</code> will be the ImecDataset being transformed, <code class="codehilite">data</code> will be the <code class="codehilite">nChannels x nTime</code> chunk of data being processed. <code class="codehilite">chIds</code> will be the channel ids (not necessarily their indices into data but the ids assigned by the channel map), and will typically be the full list of channel ids present in the data file. <code class="codehilite">sampleIdx</code> is the sample indices in the current chunk. <code class="codehilite">extra</code> is an optional output argument that allows you to store any additional metadata. After the transformation function has been run on every chunk of the dataset, these individual <code class="codehilite">extra</code> outputs will be accumulated in a cell array by chunk.</p>
+<h3 id="modifying-a-dataset-during-copy-to-new-location">Modifying a dataset during copy to new location<a class="headerlink" href="#modifying-a-dataset-during-copy-to-new-location" title="Permanent link">&para;</a></h3>
+<p>Once you&rsquo;ve written your tranform function (or functions), you can run them on the dataset using:</p>
+<div class="codehilite"><pre><span></span><span class="p">[</span><span class="n">imecOut</span><span class="p">]</span> <span class="p">=</span> <span class="n">imec</span><span class="p">.</span><span class="n">saveTranformedDataset</span><span class="p">(</span><span class="n">outPath</span><span class="p">,</span> <span class="s">&#39;transformAP&#39;</span><span class="p">,</span> <span class="p">{</span><span class="n">cell</span> <span class="n">of</span> <span class="k">function</span> <span class="n">handles</span><span class="p">},</span> <span class="c">...</span>
+                             <span class="s">&#39;transformLF&#39;</span><span class="p">,</span> <span class="p">{</span><span class="n">cell</span> <span class="n">of</span> <span class="k">function</span> <span class="n">handles</span><span class="p">});</span>
+</pre></div>
+
+<p>You can provide one or more function handles (e.g. <code class="codehilite">@Neuropixel.DataProcessFn.commonAverageReference</code>) that will be applied sequentially. Other optional parameters include:</p>
+<ul>
+<li><code class="codehilite">dryRun</code>: if true, no actual data will be modified on disk, facilitating testing or step by step debugging of the transform functions before writing data. (default false)</li>
+<li><code class="codehilite">gpuArray</code>: if true, the data chunks will be copied to the GPU and the transformation functions will receive and return GPU arrays</li>
+<li><code class="codehilite">applyScaling</code>: if true, the data will be converted to floating point values with the correct analog scale. if false (default) the data will remain in the original, unscaled <code class="codehilite">int16</code> quantization.</li>
+<li><code class="codehilite">writeAP</code>: if true, the AP file will be transformed and copied</li>
+<li><code class="codehilite">writeLF</code>: if true, the LF file will be transformed and copied (default false but will be set true automatically if any transformLF is non-empty)</li>
+<li><code class="codehilite">goodChannelsOnly</code>: send only the channels marked good to the transform function</li>
+<li><code class="codehilite">connectedChannelsOnly</code>: send only the connected channels to the transform function</li>
+<li><code class="codehilite">mappedChannelsOnly</code>: send only the mapped channels to the transform function</li>
+<li><code class="codehilite">chunkSize</code>: specify the number of time samples sent to transform functions at once</li>
+<li><code class="codehilite">extraMeta</code>: a struct with extra meta fields to include or overwrite with the output file</li>
+<li><code class="codehilite">timeShifts</code>: a <code class="codehilite">Neuropixel.TimeShiftSpec</code> instance used to excise time windows, see <a href="#excising-time-windows">Excising time windows</a></li>
+</ul>
+<h3 id="modifying-a-dataset-in-place">Modifying a dataset in place<a class="headerlink" href="#modifying-a-dataset-in-place" title="Permanent link">&para;</a></h3>
+<p>Rather than generate a copy, you can also modify a file in place if you&rsquo;re short on disk space, but be careful, as there&rsquo;s no undo if anything goes wrong. The same additional parameters are accepted, and you may wish to test your code first by passing <code class="codehilite">&#39;dryRun&#39;, true</code>.</p>
+<div class="codehilite"><pre><span></span><span class="n">imec</span><span class="p">.</span><span class="n">modifyAPInPlace</span><span class="p">(</span><span class="n">outPath</span><span class="p">,</span> <span class="p">{</span><span class="n">cell</span> <span class="n">of</span> <span class="k">function</span> <span class="n">handles</span><span class="p">},</span> <span class="c">...);</span>
+<span class="n">imec</span><span class="p">.</span><span class="n">modifyLFInPlace</span><span class="p">(</span><span class="n">outPath</span><span class="p">,</span> <span class="p">{</span><span class="n">cell</span> <span class="n">of</span> <span class="k">function</span> <span class="n">handles</span><span class="p">},</span> <span class="c">...);</span>
+</pre></div>
+
+<h3 id="concatenating-multiple-files-together">Concatenating multiple files together<a class="headerlink" href="#concatenating-multiple-files-together" title="Permanent link">&para;</a></h3>
+<p>If you have multiple separate recording files that you wish to process and sort together, you can concatenate them together during the copy. The code will also scale the datasets up to a common gain factor if the file gains differ from each other. This will not of course increase the resolution of low-gain files, but it will ensure that the signal amplitudes match across files with different gains.</p>
+<div class="codehilite"><pre><span></span><span class="n">imecList</span> <span class="p">=</span> <span class="p">{</span><span class="n">imec1</span><span class="p">,</span> <span class="n">imec2</span><span class="p">,</span> <span class="c">...};</span>
+<span class="n">imecOut</span> <span class="p">=</span> <span class="n">Neuropixel</span><span class="p">.</span><span class="n">ImecDataset</span><span class="p">.</span><span class="n">writeConcatenatedFileMatchGains</span><span class="p">(</span><span class="n">outPath</span><span class="p">,</span> <span class="n">imecList</span><span class="p">,</span> <span class="c">...</span>
+        <span class="s">&#39;transformAP&#39;</span><span class="p">,</span> <span class="p">{</span><span class="n">cell</span> <span class="n">of</span> <span class="k">function</span> <span class="n">handles</span><span class="p">},</span> <span class="c">...</span>
+        <span class="s">&#39;transformLF&#39;</span><span class="p">,</span> <span class="p">{</span><span class="n">cell</span> <span class="n">of</span> <span class="k">function</span> <span class="n">handles</span><span class="p">},</span> <span class="c">...);</span>
+</pre></div>
+
+<h3 id="excising-time-windows">Excising time windows<a class="headerlink" href="#excising-time-windows" title="Permanent link">&para;</a></h3>
+<p>Occasionally it can be beneficial to remove certain time windows from a file, or to omit them while plotting data. This may be accomplished using <code class="codehilite">Neuropixel.TimeShiftSpec</code> instances to indicate which windows of time to keep and how to shift them so as to remove gaps. A <code class="codehilite">TimeShiftSpec</code> specifies a list of sample intervals bounded by a start and stop index in properties <code class="codehilite">idxStart</code> and <code class="codehilite">idxStop</code>. The start index in <code class="codehilite">idxStart</code> will be shifted to lie at sample index <code class="codehilite">idxShiftStart</code>. You can calculate these shifts directly, but it is typically easier to specify only the sample intervals you wish to keep and then construct the <code class="codehilite">TimeShiftSpec</code> using:</p>
+<div class="codehilite"><pre><span></span><span class="n">timeShifts</span> <span class="p">=</span> <span class="n">Neuropixel</span><span class="p">.</span><span class="n">TimeShiftSpec</span><span class="p">.</span><span class="n">buildToExciseGaps</span><span class="p">(</span><span class="n">idxStartList</span><span class="p">,</span> <span class="n">idxStopList</span><span class="p">);</span>
+</pre></div>
+
+<p>If you have known trial boundaries in your file (see  for more information), you can also excise the regions of time far from trial boundaries using the <code class="codehilite">TrialSegmentationInfo</code> instance. I&rsquo;ve found this to be useful to exclude time windows where the subject was asleep from further analysis.</p>
+<div class="codehilite"><pre><span></span><span class="n">timeShifts</span> <span class="p">=</span> <span class="n">tsi</span><span class="p">.</span><span class="n">computeShiftsExciseRegionsOutsideTrials</span><span class="p">(</span><span class="s">&#39;maxPauseSec&#39;</span><span class="p">,</span> <span class="mi">20</span><span class="p">);</span>
+</pre></div>
+
+<h3 id="making-copies-and-symbolic-links">Making copies and symbolic links<a class="headerlink" href="#making-copies-and-symbolic-links" title="Permanent link">&para;</a></h3>
+<p>You can generate a copy of a dataset using</p>
+<div class="codehilite"><pre><span></span><span class="p">[</span><span class="n">imecOut</span><span class="p">]</span> <span class="p">=</span> <span class="n">imec</span><span class="p">.</span><span class="n">saveTranformedDataset</span><span class="p">(</span><span class="n">outPath</span><span class="p">,</span> <span class="s">&#39;writeAP&#39;</span><span class="p">,</span> <span class="n">true</span><span class="p">,</span> <span class="s">&#39;writeLF&#39;</span><span class="p">,</span> <span class="n">true</span><span class="p">);</span>
+</pre></div>
+
+<p>Alternatively, you can create symbolic links to the AP bin and meta files in a new location using:</p>
+<div class="codehilite"><pre><span></span><span class="n">imecLinked</span> <span class="p">=</span> <span class="n">imec</span><span class="p">.</span><span class="n">symLinkAPIntoDirectory</span><span class="p">(</span><span class="n">outPath</span><span class="p">);</span>
+</pre></div>
+
+<p>This is useful for running Kilosort with varying parameters, since each run would ideally live in its own directory but there&rsquo;s no need for a real copy of the raw data.</p>
+                
+                  
+                
+              
+              
+                
+
+
+              
+            </article>
+          </div>
+        </div>
+      </main>
+      
+        
+<footer class="md-footer">
+  
+    <div class="md-footer-nav">
+      <nav class="md-footer-nav__inner md-grid">
+        
+          <a href=".." title="Overview" class="md-flex md-footer-nav__link md-footer-nav__link--prev" rel="prev">
+            <div class="md-flex__cell md-flex__cell--shrink">
+              <i class="md-icon md-icon--arrow-back md-footer-nav__button"></i>
+            </div>
+            <div class="md-flex__cell md-flex__cell--stretch md-footer-nav__title">
+              <span class="md-flex__ellipsis">
+                <span class="md-footer-nav__direction">
+                  Previous
+                </span>
+                Overview
+              </span>
+            </div>
+          </a>
+        
+        
+          <a href="../kilosort/" title="Running Kilosort" class="md-flex md-footer-nav__link md-footer-nav__link--next" rel="next">
+            <div class="md-flex__cell md-flex__cell--stretch md-footer-nav__title">
+              <span class="md-flex__ellipsis">
+                <span class="md-footer-nav__direction">
+                  Next
+                </span>
+                Running Kilosort
+              </span>
+            </div>
+            <div class="md-flex__cell md-flex__cell--shrink">
+              <i class="md-icon md-icon--arrow-forward md-footer-nav__button"></i>
+            </div>
+          </a>
+        
+      </nav>
+    </div>
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-footer-copyright">
+        
+          <div class="md-footer-copyright__highlight">
+            Copyright &copy; 2019 &mdash; <a href="http://djoshea.com">Daniel J. O&#39;Shea</a>
+          </div>
+        
+        powered by
+        <a href="https://www.mkdocs.org">MkDocs</a>
+        and
+        <a href="https://squidfunk.github.io/mkdocs-material/">
+          Material for MkDocs</a>
+      </div>
+      
+        
+  <div class="md-footer-social">
+    <link rel="stylesheet" href="../assets/fonts/font-awesome.css">
+    
+      <a href="https://github.com/djoshea" class="md-footer-social__link fa fa-github"></a>
+    
+      <a href="https://twitter.com/djoshea" class="md-footer-social__link fa fa-twitter"></a>
+    
+  </div>
+
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    
+      <script src="../assets/javascripts/application.b41f3d20.js"></script>
+      
+      <script>app.initialize({version:"1.0.4",url:{base:".."}})</script>
+      
+    
+    
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-322693-7"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'UA-322693-7');
+</script>
+
+  </body>
+</html>
