@@ -9,7 +9,7 @@ theme:
   name: material
   custom_dir: docs/theme/
   feature:
-    tabs: true
+    tabs: false
   palette:
     primary: 'blue'
     accent: 'blue'
@@ -32,10 +32,11 @@ markdown_extensions:
       permalink: true
 
 nav:
-  - Neuropixel Utilities
-    - Overview: index.md
-    - Neuropixel.ImecDataset: imec_dataset.md
-    - Running Kilosort2: kilosort.md
-    - Neuropixel.KilosortDataset: kilosort_dataset.md
+  - Overview: index.md
+  - Neuropixel.ImecDataset: imec_dataset.md
+  - Running Kilosort: kilosort.md
+  - Analysis of Kilosort Results: analysis.md
+  - Extracting Waveforms: waveforms.md
+  - Acknowledgements and Support: acknowledgements.md
 
 copyright: 'Copyright &copy; 2019 &mdash; <a href="http://djoshea.com">Daniel J. O&#39;Shea</a>'

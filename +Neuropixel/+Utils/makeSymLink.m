@@ -11,7 +11,7 @@ function success = makeSymLink(src, link, relative)
     end
     
     link = Neuropixel.Utils.GetFullPath(link);
-    mkdirRecursive(fileparts(link));
+    Neuropixel.Utils.mkdirRecursive(fileparts(link));
     % cant use exist on symlinks since it tests for existence of the file it points to
     sWarn = warning('off', 'MATLAB:DELETE:FileNotFound');
     try 

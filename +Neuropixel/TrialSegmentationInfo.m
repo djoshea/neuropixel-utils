@@ -112,10 +112,10 @@ classdef TrialSegmentationInfo < handle & matlab.mixin.Copyable
             end
         end
         
-        function spec = computeShiftsExciseRegionsOutsideTrials(tsi)
+        function spec = computeShiftsExciseRegionsOutsideTrials(tsi, varargin)
             % shifts is an nRegions x 3 matrix of uint64 sample idxs
             % start of original window, stop of original window, updated start for this window
-            [idxStart, idxStop, ~] = tsi.computeActiveRegions(); %#ok<*PROP>
+            [idxStart, idxStop, ~] = tsi.computeActiveRegions(varargin{:}); %#ok<*PROP>
             spec = Neuropixel.TimeShiftSpec.buildToExciseGaps(idxStart, idxStop);
         end
     end

@@ -70,8 +70,6 @@ function [vec, valid] = str2vector(str, varargin)
 
 emptyValue = NaN;
 invalidValue = NaN;
-assignargs(varargin);
-
 str = strtrim(str);
 
 if isempty(str)
@@ -85,15 +83,15 @@ end
 if any(str == ';')
     delim = ';';
     multDelimsAsOne = false;
-    orientFn = @makecol;
+    orientFn = @Neuropixel.Utils.makecol;
 elseif any(str == ',')
     delim = ',';
     multDelimsAsOne = false;
-    orientFn = @makerow;
+    orientFn = @Neuropixel.Utils.makerow;
 else
     delim = ' ';
     multDelimsAsOne = true;
-    orientFn = @makerow;
+    orientFn = @Neuropixel.Utils.makerow;
 end
 
 asCell = false;

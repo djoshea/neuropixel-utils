@@ -1,6 +1,8 @@
 classdef TensorUtils
-    % set of classes for building, manipulating, and computing on
-    % high-d (or arbitrary-d) matrices easily
+% set of classes for building, manipulating, and computing on
+% high-d (or arbitrary-d) matrices easily
+%
+% Daniel J. O'Shea, 2019
 
     methods(Static) % Simple internalized utils
         function v = wrapCell(v)

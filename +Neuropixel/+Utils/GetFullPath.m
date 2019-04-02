@@ -118,7 +118,7 @@ function File = GetFullPath(File)
 % but under Windows this would shadow the fast C-Mex.
 if isa(File, 'cell')
    for iC = 1:numel(File)
-      File{iC} = GetFullPath(File{iC});
+      File{iC} = Neuropixel.Utils.GetFullPath(File{iC});
    end
    return;
 end

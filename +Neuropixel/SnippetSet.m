@@ -4,11 +4,10 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
     
     properties
         data (:, :, :) int16 % channels x time x snippets
-        cluster_idx (:, 1) uint32
+        cluster_ids (:, 1) uint32
         
-        % one of these will be filled, with absolute channel inds
-        channel_idx_by_cluster (:, :) uint32 % if each cluster draws from different channels
-        unique_cluster_idx (:, 1) uint32 % specifies the cluster_idx associated with each column here
+        channel_ids_by_cluster (:, :) uint32 % nChannels x nClusters channel ids, which channel ids were extracted for each cluster
+        unique_cluster_ids (:, 1) uint32 % specifies the cluster_ids associated with each column here
         
         sample_idx (:, 1) uint64
         trial_idx (:, 1) uint32
@@ -75,7 +74,7 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
         end
         
         function n = get.nClusters(ss)
-            n = numel(ss.unique_cluster_idx);
+            n = numel(ss.unique_cluster_ids);
         end
         
         function v = get.valid(ss)
@@ -94,8 +93,8 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
             v = double(ss.window(1) : ss.window(2)) / ss.fs * 1000;
         end
         
-        function ss = selectClusters(ss, cluster_idx)
-            mask = ismember(ss.cluster_idx, cluster_idx);
+        function ss = selectClusters(ss, cluster_ids)
+            mask = ismember(ss.cluster_ids, cluster_ids);
             ss = ss.selectData('maskSnippets', mask);
         end 
         
@@ -112,12 +111,16 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
             ss.valid = ss.valid(mask); % first time auto generates based on data, so has to come first
             ss.data = ss.data(p.Results.maskChannels, p.Results.maskTime, mask);
             
-            ss.cluster_idx = ss.cluster_idx(mask);
+            ss.cluster_ids = ss.cluster_ids(mask);
         
             ss.sample_idx = ss.sample_idx(mask);
             if ~isempty(ss.trial_idx)
                 ss.trial_idx = ss.trial_idx(mask);
             end
+        end
+        
+        function [channelInds, channelIds] = lookup_channelIds(ss, channelIds)
+             [channelInds, channelIds] = ss.channelMap.lookup_channelIds(channelIds);
         end
     end
     
@@ -125,7 +128,7 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
         function hdata = plotAtProbeLocations(ss, varargin)
             p = inputParser();
             % specify one of these 
-            p.addParameter('cluster_idx', [], @(x) isempty(x) || isvector(x));
+            p.addParameter('cluster_ids', [], @(x) isempty(x) || isvector(x));
             p.addParameter('maskSnippets', ss.valid, @isvector);
             
             % and optionally these
@@ -158,8 +161,8 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
             % plot relative time vector
             tvec = linspace(0, xspacing * xmag, numel(ss.window(1) : ss.window(2)));
             
-            if ~isempty(p.Results.cluster_idx)
-                maskSnippets = ismember(ss.cluster_idx, p.Results.cluster_idx) & ss.valid;
+            if ~isempty(p.Results.cluster_ids)
+                maskSnippets = ismember(ss.cluster_ids, p.Results.cluster_ids) & ss.valid;
             else
                 maskSnippets = p.Results.maskSnippets;
             end
@@ -174,9 +177,9 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
             data = data - mean(data(:, :), 2); %#ok<*PROPLC>
             data = data ./ (max(data(:)) - min(data(:))) * yspacing * ymag;
             
-            cluster_idx = ss.cluster_idx(maskSnippets);
-            unique_cluster_idx = unique(cluster_idx);
-            nUniqueClusters = numel(unique_cluster_idx);
+            cluster_ids = ss.cluster_ids(maskSnippets);
+            unique_cluster_ids = unique(cluster_ids);
+            nUniqueClusters = numel(unique_cluster_ids);
             
             holding = ishold;
             nChannels = size(data, 1);
@@ -190,21 +193,22 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
             end
             
             for iClu = 1:nUniqueClusters
-                this_cluster_idx = unique_cluster_idx(iClu);
-                this_snippet_mask = cluster_idx == this_cluster_idx;
-                [~, this_cluster_ind] = ismember(this_cluster_idx, ss.unique_cluster_idx);
+                this_cluster_ids = unique_cluster_ids(iClu);
+                this_snippet_mask = cluster_ids == this_cluster_ids;
+                [~, this_cluster_ind] = ismember(this_cluster_ids, ss.unique_cluster_ids);
                 
                 if isfinite(p.Results.maxPerCluster)
                     idxKeep = find(this_snippet_mask, p.Results.maxPerCluster, 'first');
                     this_snippet_mask(idxKeep(end)+1:end) = false;
                 end
                 
-                this_channel_idx = ss.channel_idx_by_cluster(:, this_cluster_ind);
-                this_channel_idx = this_channel_idx(p.Results.maskChannels);
-                xc = ss.channelMap.xcoords(this_channel_idx);
-                yc = ss.channelMap.ycoords(this_channel_idx);
+                this_channel_ids = ss.channel_ids_by_cluster(:, this_cluster_ind);
+                this_channel_ids = this_channel_ids(p.Results.maskChannels);
+                this_channel_inds = ss.channelMap.lookup_channelIds(this_channel_ids);
+                xc = ss.channelMap.xcoords(this_channel_inds);
+                yc = ss.channelMap.ycoords(this_channel_inds);
                 
-                channels_plotted(this_channel_idx) = true;
+                channels_plotted(this_channel_inds) = true;
 
                 cmapIdx = mod(iClu-1, size(cmap, 1))+1;
                 
@@ -223,7 +227,7 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
                         hold on;
                     end
                     if iC == 1 
-                        Neuropixel.Utils.showFirstInLegend(handlesMean(iC, iClu), sprintf('cluster %d', this_cluster_idx));
+                        Neuropixel.Utils.showFirstInLegend(handlesMean(iC, iClu), sprintf('cluster %d', this_cluster_ids));
                     else
                         Neuropixel.Utils.hideInLegend(handlesMean(iC, iClu));
                     end
@@ -254,23 +258,6 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
             
             hdata.waveforms = handlesIndiv;
             hdata.waveformMeans = handlesMean;
-        end
-        
-        function plotStacked(ss, varargin)
-            p = inputParser();
-            p.addParameter('maskSnippets', ss.valid, @isvector);
-            p.addParameter('maskTime', true(ss.nTimepoints, 1), @isvector);
-            p.addParameter('maskChannels', true(ss.nChannels, 1), @isvector);
-            p.KeepUnmatched = true;
-            p.parse(varargin{:});
-            
-            channel_idx = TensorUtils.vectorMaskToIndices(p.Results.maskChannels);
-            data = double(ss.data(p.Results.maskChannels, p.Results.maskTime, p.Results.maskSnippets));
-            
-            chNames = sprintfc('ch %d', channel_idx);
-            ptstack(2, 1, ss.time_ms(p.Results.maskTime), data, ...
-                'showLabels', true, 'labelsStacked', chNames, p.Unmatched);
-            
         end
             
     end

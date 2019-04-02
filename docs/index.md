@@ -1,113 +1,271 @@
 # MATLAB Neuropixel Utilites
 
-`neuropixel-utils is a toolkit written in Matlab for manipulating datasets collected by [SpikeGLX](https://github.com/billkarsh/SpikeGLX) (e.g. `.ap.bin` files) and the results produced by [Kilosort](https://github.com/cortex-lab/KiloSort) / [Kilosort 2](https://github.com/MouseLand/Kilosort2/). Please note that much of this functionality is redundant with the tools found in the Cortex Lab's [spikes repository](https://github.com/cortex-lab/spikes), authored By Nick Steinmetz, Mush Okun, and others. Neuropixel utils is organized around MATLAB classes and prevents
+`neuropixel-utils` is a toolkit written in Matlab for manipulating datasets collected by [SpikeGLX](https://github.com/billkarsh/SpikeGLX) (e.g. `imec.ap.bin` files) and the results produced by [Kilosort](https://github.com/cortex-lab/KiloSort) / [Kilosort 2](https://github.com/MouseLand/Kilosort2/). Please note that some of this functionality is redundant with the tools found in the Cortex Lab's [spikes repository](https://github.com/cortex-lab/spikes), authored By Nick Steinmetz, Mush Okun, and others. Here, we prioritize an organized, easy to use, object-oriented approach to accessing, manipulating, and visualizing the data. This reduces the need to worry about metadata. Neuropixel Utils facilitates the following use cases:
 
-LFADS Run Manager was authored by [Daniel J O'Shea](http://djoshea.com) ([@djoshea](https://twitter.com/djoshea)) with contributions from [Chethan Pandarinath](http://snel.gatech.edu/) ([@chethan](https://twitter.com/chethan)), [David Sussillo](https://research.google.com/pubs/DavidSussillo.html) ([@SussilloDavid](https://twitter.com/sussillodavid)), and Reza Keshtkaran.
+- Load and visualize raw neuropixel data from `imec.ap.bin` and `imec.lf.bin` files in Matlab
+- Write custom pre-processing functions to apply to raw data either by writing a copy of the raw file or modifying it in place, optionally removing specific problematic time windows in the file
+- Concatenate multiple Imec data files together while matching the amplifier gains
+- Run Kilosort/Kilosort2, and load the results back into Matlab after manual inspection in Phy
+- Plot drift maps, using code adapted from the [spikes repository](https://github.com/cortex-lab/spikes)
+- Extract waveforms for each cluster from the raw data, optionally cleaning the snippets by subtracting templates for other clusters spiking during the same time window
+- Visualize cluster spiking images in space
+- Determine trial boundaries in the file, and efficiently segment Kilosort sorted results into individual trials
 
+Neuropixel utilities was authored by [Daniel J O'Shea](http://djoshea.com) ([@djoshea](https://twitter.com/djoshea)) to facilitate application of the [ERAASR algorithm](https://github.com/eraasr) to neuropixel recordings in NHPs, which necessitated precision manipulation and careful inspection of the raw Imec data traces before running Kilosort.
 
-LFADS Run Manager helps you to:
-
-* Organize your spiking neural datasets that will be used to train LFADS models.
-* Setup a collection of training runs that vary in hyperparameter settings and the particular datasets included. The latter is particularly useful when generating _stitched_ multisession LFADS models.
-* Generate shell scripts that will launch individual LFADS training runs *or* generate a script that will run the full set of runs somewhat in parallel by load balancing across GPUs and CPUs.
-* Load the posterior means and parameters of individual LFADS models after each has finished training.
-* Facilitate analysis, visualization, and comparison of the learned LFADS model generated factors, rates, etc.
-
-The code within the run manager helps organize LFADS runs and facilitate analysis, but ultimately calls the Python+Tensorflow LFADS code available on [Github](https://github.com/tensorflow/models/tree/master/research/lfads).
-
-To use the run manager, you will need to author a few functions that perform specific data processing steps that are specific to your datasets, such as extracting spike times. The goal of the run manager is to facilitate the above common tasks in a fairly dataset agnostic way, sparing you the need to hand-generate many one-off scripts to export data to HD5 in the right locations, drive the Tensorflow training, and to load the results from disk.
-
-## Quick example
-
-We'll walkthrough this example in more detail in this documentation, but to give you an idea of how the run manager works, here's the Matlab code you'd use to launch a couple of runs.
+## Example walkthrough
 
 ```matlab
-% Identify the datasets you'll be using
-% Here we'll add one at ~/lorenz_example/datasets/dataset001.mat
-dc = LorenzExperiment.DatasetCollection('~/lorenz_example/datasets');
-dc.name = 'lorenz_example';
-ds = LorenzExperiment.Dataset(dc, 'dataset001.mat'); % adds this dataset to the collection
-dc.loadInfo; % loads dataset metadata
+% Create an ImecDataset pointing at a specific
+>> channelMapFile = 'neuropixPhase3A_kilosortChanMap.mat';
+>> imec = Neuropixel.ImecDataset('/data/raw_datasets/neuropixel_01.imec.ap.bin', 'channelMap', channelMapFile);
 
-% Run a single model for each dataset, and one stitched run with all datasets
-runRoot = '~/lorenz_example/runs';
-rc = LorenzExperiment.RunCollection(runRoot, 'example', dc);
+ImecDataset with properties:
 
-% run files will live at ~/lorenz_example/runs/example/
+             pathRoot: '/data/raw_datasets'
+             fileStem: 'neuropixel_01'
+         creationTime: 7.3722e+05
+            nChannels: 385
+           fileTypeAP: 'ap'
+           nSamplesAP: 112412208
+           nSamplesLF: 0
+                 fsAP: 30000
+                 fsLF: NaN
+     highPassFilterHz: 300
+               apGain: 500
+              apRange: [-0.6000 0.6000]
+               lfGain: 250
+              lfRange: [-0.6000 0.6000]
+              adcBits: 10
+           channelMap: [1×1 Neuropixel.ChannelMap]
+     syncChannelIndex: 385
+         syncInAPFile: 1
+          badChannels: [3×1 double]
+         syncBitNames: [16×1 string]
+              syncRaw: []
+       bytesPerSample: 2
+                hasAP: 0
+                hasLF: 0
+       channelMapFile: '~/npl/neuropixel-utils/map_files/neuropixPhase3A_kilosortChanMap.mat'
+       mappedChannels: [384×1 double]
+      nChannelsMapped: 384
+    connectedChannels: [374×1 double]
+   nChannelsConnected: 374
+         goodChannels: [371×1 double]
+        nGoodChannels: 371
+           channelIdx: [384×1 double]
+         channelNames: [385×1 string]
+   channelNamesPadded: [385×1 string]
+            nSyncBits: 16
+        syncBitsNamed: [0×1 double]
+      creationTimeStr: '08-Jun-2018 12:09:07'
+          apScaleToUv: 2.3438
+          lfScaleToUv: 2.3438
 
-% Setup hyperparameters, 4 sets with number of factors swept through 2,4,6,8
-par = LorenzExperiment.RunParams;
-par.spikeBinMs = 2; % rebin the data at 2 ms
-par.c_co_dim = 0; % no controller outputs --> no inputs to generator
-par.c_batch_size = 150; % must be < 1/5 of the min trial count
-par.c_gen_dim = 64; % number of units in generator RNN
-par.c_ic_enc_dim = 64; % number of units in encoder RNN
-par.c_learning_rate_stop = 1e-3; % we can stop really early for the demo
-parSet = par.generateSweep('c_factors_dim', [2 4 6 8]);
-rc.addParams(parSet);
+% Mark individual channels as bad based on RMS voltage
+>> rmsBadChannels = imec.markBadChannelsByRMS('rmsRange', [3 100]);
 
-% Setup which datasets are included in each run, here just the one
-runName = dc.datasets(1).getSingleRunName(); % == 'single_dataset001'
-rc.addRunSpec(LorenzExperiment.RunSpec(runName, dc, 1));
+% Specify names for the individual bits in the sync channel
+>> imec.setSyncBitNames([1 2 3], {'trialInfo', 'trialStart', 'stim'});
 
-% Generate files needed for LFADS input on disk
-rc.prepareForLFADS();
+% Save the bad channels and Sync bit names to the .imec.ap.meta file so they are loaded next time
+>> imec.writeModifiedAPMeta();
 
-% Write a python script that will train all of the LFADS runs using a
-% load-balancer against the available CPUs and GPUs
-rc.writeShellScriptRunQueue('display', 0, 'virtualenv', 'tensorflow');
+% Perform common average referencing on the file and save the results to a new location
+>> cleanedPath = '/data/cleaned_datasets/neuropixel_01.imec.ap.bin';
+>> extraMeta = struct();
+>> extraMeta.commonAverageReferenced = true;
+>> fnList = {@Neuropixel.DataProcessFn.commonAverageReference};
+>> imec = imec.saveTranformedDataset(cleanedPath, 'transformAP', fnList, 'extraMeta', extraMeta);
+
+% Sym link the cleaned dataset into a separate directory for Kilosort2
+>> ksPath = '/data/kilosort/neuropixel_01.imec.ap.bin';
+>> imec = imec.symLinkAPIntoDirectory(ksPath);
+
+% Inspect the raw IMEC traces
+>> imec.inspectAP_timeWindow([200 201]); % 200-201 seconds into the recording
 ```
 
-You've now setup a 1x 4 grid of LFADS runs, spanning 4 different hyperparameter settings all on the same individual dataset
+Zoomed in view of data inspection figure. Black are good channels, blue are reference channels. Channels marked bad would be shown in red.
+![imec_inspect](images/imec_inspect.png "Raw Imec traces")
+
 
 ```matlab
->> rc
+% Run Kilosort2
+>> Neuropixel.runKilosort2(imec);
 
-LorenzExperiment.RunCollection "exampleRun" (16 runs total)
-  Dataset Collection "lorenz_example" (1 datasets) in ~/lorenz_example/datasets
-  Path: ~/lorenz_example/runs/exampleRun
+% Load the Kilosort2 results
+>> ks = Neuropixel.KiloSortDataset();
+>> ks.load()
 
-  4 parameter settings
-    [1 param_7I6XSW data_cgrfui] LorenzExperiment.RunParams useAlignmentMatrix=true c_factors_dim=2 c_ic_enc_dim=64 c_gen_dim=64 c_co_dim=0 c_batch_size=150 c_learning_rate_stop=0.001
-    [2 param_O4V73g data_2_zdvC] LorenzExperiment.RunParams useAlignmentMatrix=true c_factors_dim=4 c_ic_enc_dim=64 c_gen_dim=64 c_co_dim=0 c_batch_size=150 c_learning_rate_stop=0.001
-    [3 param_ngqEhM data_GeiefE] LorenzExperiment.RunParams useAlignmentMatrix=true c_factors_dim=6 c_ic_enc_dim=64 c_gen_dim=64 c_co_dim=0 c_batch_size=150 c_learning_rate_stop=0.001
-    [4 param_Qr2PeG data_RE1kuL] LorenzExperiment.RunParams useAlignmentMatrix=true c_factors_dim=8 c_ic_enc_dim=64 c_gen_dim=64 c_co_dim=0 c_batch_size=150 c_learning_rate_stop=0.001
+KiloSortDataset with properties:
 
-  1 run specifications
-  [ 1] LorenzExperiment.RunSpec "single_dataset001" (1 datasets)
+                  path: '/data/kilosort/neuropixel_01'
+           raw_dataset: [1×1 Neuropixel.ImecDataset]
+            channelMap: [1×1 Neuropixel.ChannelMap]
+                  fsAP: 30000
+           apScaleToUv: 2.3438
+                  meta: [1×1 struct]
+              pathLeaf: 'neuropixel_01'
+              isLoaded: 1
+         hasRawDataset: 1
+               nSpikes: 8181228
+       nChannelsSorted: 371
+             nClusters: 592
+            nTemplates: 653
+           nPCFeatures: 32
+   nFeaturesPerChannel: 3
+             nChannels: 371
+          syncBitNames: [16×1 string]
+              dat_path: 'neuropixel_01.imec.ap.bin'
+        n_channels_dat: 385
+                 dtype: 'int16'
+                offset: 0
+           sample_rate: 30000
+           hp_filtered: 0
+            amplitudes: [8181228×1 double]
+           channel_ids: [371×1 uint32]
+     channel_positions: [371×2 double]
+           pc_features: [8181228×3×32 single]
+        pc_feature_ind: [653×32 uint32]
+     similar_templates: [653×653 single]
+       spike_templates: [8181228×1 uint32]
+           spike_times: [8181228×1 uint64]
+     template_features: [8181228×32 single]
+  template_feature_ind: [653×32 uint32]
+             templates: [653×82×371 single]
+         templates_ind: [653×371 double]
+         whitening_mat: [371×371 double]
+     whitening_mat_inv: [371×371 double]
+        spike_clusters: [8181228×1 uint32]
+        cluster_groups: [592×1 categorical]
+           cluster_ids: [592×1 uint32]
+         clusters_good: [210×1 uint32]
+          clusters_mua: [58×1 uint32]
+        clusters_noise: [322×1 uint32]
+     clusters_unsorted: [2×1 uint32]
 
-                          name: 'exampleRun'
-                       comment: ''
-                      rootPath: '~/lorenz_example/runs'
-                       version: 20171107
-             datasetCollection: [1x1 LorenzExperiment.DatasetCollection]
-                          runs: [1x4 LorenzExperiment.Run]
-                        params: [4x1 LorenzExperiment.RunParams]
-                      runSpecs: [1x1 LorenzExperiment.RunSpec]
-                       nParams: 4
-                     nRunSpecs: 1
-                    nRunsTotal: 4
-                     nDatasets: 1
-                  datasetNames: {1x1 cell}
-                          path: '~/lorenz_example/runs/exampleRun'
-      pathsCommonDataForParams: {4x1 cell}
-                pathsForParams: {4x1 cell}
-    fileShellScriptTensorboard: '~/lorenz_example/runs/exampleRun/launch_tensorboard.sh'
-               fileSummaryText: '~/lorenz_example/runs/exampleRun/summary.txt'
-       fileShellScriptRunQueue: '~/lorenz_example/runs/exampleRun/run_lfadsqueue.py'
+% Define how the data are segmented into trials (you implement this)
+>> tsi = computeTrialSegmentation(imec)
+
+  TrialSegmentationInfo with properties:
+
+             fs: 30000
+        trialId: [1072×1 uint32]
+    conditionId: [1072×1 uint32]
+       idxStart: [1072×1 uint64]
+        idxStop: [1072×1 uint64]
+
+% Segment the KilosortDataset into trials based on start and stop idx
+% trial_ids are specified according to the data structure being merged into.
+% If a trial is included in trial_ids but not found in tsi,
+% its contents would be blank and trial_has_data(i) would be set false.
+%
+% Each of seg's properties are now nTrials x ... cells containing the data
+% corresponding to that trial
+>> trial_ids = min(tsi.trialId):max(tsi.trialId);
+>> seg = Neuropixel.KiloSortTrialSegmentedDataset(ks, tsi, trial_ids)
+
+KiloSortTrialSegmentedDataset with properties:
+
+                   dataset: [1×1 Neuropixel.KiloSortDataset]
+                 trial_ids: [1072×1 uint32]
+            trial_has_data: [1072×1 logical]
+               trial_start: [1072×1 uint64]
+                trial_stop: [1072×1 uint64]
+                 spike_idx: {1072×592 cell}
+               cluster_ids: [592×1 uint32]
+            cluster_groups: [592×1 categorical]
+                      sync: {1072×1 cell}
+              syncBitNames: [16×1 string]
+               raw_dataset: [1×1 Neuropixel.ImecDataset]
+                   nTrials: 1072
+           nTrialsHaveData: 1072
+                 nClusters: 592
+                 nChannels: 385
+         trial_duration_ms: [1072×1 double]
+                      fsAP: 30000
+                amplitudes: {1072×592 cell}
+               pc_features: {1072×592 cell}
+               spike_times: {1072×592 cell}
+  spike_times_ms_rel_start: {1072×592 cell}
+         template_features: {1072×592 cell}
+           spike_templates: {1072×592 cell}
+
+% Compute useful stats about each template and cluster
+>> metrics = ks.getMetrics()
+
+KilosortMetrics with properties:
+
+                         ks: [1×1 Neuropixel.KiloSortDataset]
+                         fs: 30000
+                 channelMap: [1×1 Neuropixel.ChannelMap]
+                channel_ids: [371×1 uint32]
+         concatenatedStarts: 1
+          concatenatedNames: {'neuropixel_01'}
+               template_unw: [653×82×371 single]
+            template_scaled: [653×82×371 single]
+      template_centerOfMass: [653×2 single]
+      template_is_localized: [653×1 logical]
+          template_waveform: [653×82 single]
+       template_waveform_ch: [653×1 uint32]
+         template_amplitude: [653×1 single]
+               template_ttp: [653×1 single]
+     template_best_channels: [653×371 uint32]
+                spike_times: [8181228×1 uint64]
+            spike_amplitude: [8181228×1 single]
+         spike_centerOfMass: [8181228×2 single]
+            spike_templates: [8181228×1 uint32]
+             spike_clusters: [8181228×1 uint32]
+                cluster_ids: [592×1 uint32]
+  cluster_template_mostUsed: [592×1 uint32]
+      cluster_template_list: {592×1 cell}
+  cluster_template_useCount: [592×653 uint64]
+      cluster_num_templates: [592×1 uint32]
+      cluster_best_channels: [592×371 uint32]
+       cluster_centerOfMass: [592×2 single]
+       cluster_is_localized: [592×1 logical]
+           cluster_waveform: [592×82×11 single]
+        cluster_waveform_ch: [592×592 uint32]
+          cluster_amplitude: [592×1 single]
+                cluster_ttp: [592×1 single]
+                spike_depth: [8181228×1 single]
+         spike_is_localized: [8181228×1 logical]
+             cluster_depth: [592×1 single]
+
+% Plot a drift map, annotated with trial start markers
+>> metrics.plotDriftmap('tsi', tsi);
 ```
+![driftmap](images/driftmap.png "Cluster driftmap")
 
-Then you can simply run `python run_lfadsqueue.py`, a script which was automatically generated to fire off all the LFADS jobs in parallel, load-balancing as many as your system can handle across available GPUs. Then wait a few hours/days...
-
-As they finish, you can load and visualize the results easily in Matlab. Here we plot the inferred, single-trial firing rates of the first neuron:
+Note that the cluster structure looks distinct during a few time windows near the beginning and end of the recording, corresponding to regions when no trials were being performed (blue ticks near the bottom).
 
 ```matlab
-run = rc.findRuns('single_dataset001', 1);
-pm = run.loadPosteriorMeans();
-rates1 = squeeze(pm.rates(1, :, :)); % time x trials
-...
+% Extract raw waveforms for a specific cluster id at the 24 largest amplitude channels
+% Clean these waveforms by subtracting the contribution of other clusters spiking within the same time window
+>> ss = ks.getWaveformsFromRawData('cluster_id', 255, 'num_waveforms', 100, 'best_n_channels', 24,  'subtractOtherClusters', true)
+
+SnippetSet with properties:
+
+                    data: [24×82×100 int16]
+             cluster_idx: [100×1 uint32]
+  channel_idx_by_cluster: [24×1 uint32]
+      unique_cluster_idx: 255
+             sample_idx: [100×1 uint64]
+               trial_idx: [0×1 uint32]
+                  window: [-40 41]
+                   valid: [100×1 logical]
+             channelMap: [1×1 Neuropixel.ChannelMap]
+               scaleToUv: 2.3438
+                      fs: 30000
+               nChannels: 24
+             nTimepoints: 82
+               nSnippets: 100
+               nClusters: 1
+             data_valid: [24×82×100 int16]
+                 time_ms: [1×82 double]
+
+% Plot these waveforms at their physical coordinates on the neuropixel
+>> ss.plotAtProbeLocations()
 ```
-
-The single-trial smoothed rates, colored by condition then look like:
-
-![Rates neuron 1](images/example_rates.png)
+![driftmap](images/waveforms_on_probe.png "Waveforms on probe")

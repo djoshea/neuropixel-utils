@@ -34,8 +34,8 @@ classdef KiloSortTrialSegmentedDataset < handle & matlab.mixin.Copyable
         nTrials
         nTrialsHaveData
         nClusters
-        nChannels
-        nChannelsConnected
+        nChannelsSorted
+        channel_ids % which channel_ids were used for sorting
         
         % nTrials x 1
         trial_duration_ms
@@ -142,7 +142,7 @@ classdef KiloSortTrialSegmentedDataset < handle & matlab.mixin.Copyable
             if p.Results.loadSync
                 nToLoad = nToLoad + 1;
             end
-            prog = ProgressBar(nToLoad, 'Segmenting trials: spike_times');
+            prog = Neuropixel.Utils.ProgressBar(nToLoad, 'Segmenting trials: spike_times');
             prog.increment();
             spike_times_grouped = Neuropixel.Utils.TensorUtils.splitAlongDimensionBySubscripts(...
                 dataset.spike_times, 1, [nTrials, nUnits], subs);
@@ -216,8 +216,12 @@ classdef KiloSortTrialSegmentedDataset < handle & matlab.mixin.Copyable
             n = numel(seg.cluster_ids);
         end
 
-        function n = get.nChannels(seg)
-            n = seg.raw_dataset.nChannels;
+        function n = get.nChannelsSorted(seg)
+            n = numel(seg.channel_ids);
+        end
+        
+        function n = get.channel_ids(seg)
+            n = seg.dataset.channel_ids;
         end
         
         function rd = get.raw_dataset(seg)
@@ -268,9 +272,20 @@ classdef KiloSortTrialSegmentedDataset < handle & matlab.mixin.Copyable
             end
         end
         
-        function clusterInds = lookupClusterInds(ds, cluster_ids)
+        function [clusterInds, cluster_ids] = lookup_clusterIds(ds, cluster_ids)
+            if islogical(cluster_ids)
+                cluster_ids = ds.cluster_ids(cluster_ids);
+             end
             [tf, clusterInds] = ismember(cluster_ids, ds.cluster_ids);
             assert(all(tf), 'Some cluster ids were not found in ds.clusterids');
+        end
+        
+        function [channelInds, channelIds] = lookup_channelIds(ds, channelIds)
+             if islogical(channelIds)
+                channelIds = ds.channel_ids(channelIds);
+             end
+            [tf, channelInds] = ismember(channelIds, ds.channel_ids);
+            assert(all(tf), 'Some channel ids not found');
         end
     end
 
@@ -284,8 +299,8 @@ classdef KiloSortTrialSegmentedDataset < handle & matlab.mixin.Copyable
             p = inputParser();
             % from KiloSortDataset.readAPSnippets
             p.addOptional('mask_cell', {}, @(x) isempty(x) || iscell(x));
-            p.addParameter('cluster_idx', seg.cluster_ids, @isvector); % which clusters each column of mask_cell correspond to
-            p.addParameter('channel_idx_by_cluster', [], @(x) isempty(x) || ismatrix(x)); % specify a subset of channels to extract
+            p.addParameter('cluster_ids', seg.cluster_ids, @isvector); % which clusters each column of mask_cell correspond to
+            p.addParameter('channel_ids_by_cluster', [], @(x) isempty(x) || ismatrix(x)); % specify a subset of channels to extract
             p.addParameter('best_n_channels', NaN, @isscalar); % or take the best n channels based on this clusters template when cluster_id is scalar 
 
             % other params:
@@ -301,13 +316,13 @@ classdef KiloSortTrialSegmentedDataset < handle & matlab.mixin.Copyable
             p.parse(varargin{:});
             
             % lookup cluster_ids from
-            cluster_idx = p.Results.cluster_idx;
-            [tf, cluster_ind] = ismember(cluster_idx, seg.cluster_ids);
+            cluster_ids = p.Results.cluster_ids;
+            [tf, cluster_ind] = ismember(cluster_ids, seg.cluster_ids);
             if any(~tf)
-                error('Some cluster_idx were not found in dataset');
+                error('Some cluster_ids were not found in dataset');
             end
 
-            nClu = numel(cluster_idx);
+            nClu = numel(cluster_ids);
             
             % specify all spikes of clusters if no mask provided
             mask_cell = p.Results.mask_cell;
@@ -328,7 +343,7 @@ classdef KiloSortTrialSegmentedDataset < handle & matlab.mixin.Copyable
          
             args = rmfield(p.Results, 'mask_cell');
             snippet_set = seg.dataset.getWaveformsFromRawData('spike_idx', masked_spike_idx, ...
-                'cluster_idx', cluster_idx, 'trial_idx', trial_idx, args);
+                'cluster_ids', cluster_ids, 'trial_idx', trial_idx, args);
         end
         
         function snippet_set = getSnippetsFromRawData(seg, rel_start_ms_each_trial, duration_or_window_ms, varargin)
@@ -344,7 +359,7 @@ classdef KiloSortTrialSegmentedDataset < handle & matlab.mixin.Copyable
 
             p = inputParser();
             p.addParameter('trial_idx', 1:seg.nTrials, @isvector);
-            p.addParameter('channel_idx', 1:seg.nChannels, @isvector);
+            p.addParameter('channel_ids', seg.channel_ids, @isvector);
             p.addParameter('raw_dataset', seg.raw_dataset, @(x) true); 
             p.parse(varargin{:});
             
@@ -371,10 +386,10 @@ classdef KiloSortTrialSegmentedDataset < handle & matlab.mixin.Copyable
             trial_starts = trial_starts(mask_non_nan);
             req_zero = uint64(round(rel_start_ms_each_trial * ms_to_samples)) + uint64(trial_starts);
 
-            channel_idx = p.Results.channel_idx;
+            channel_ids = p.Results.channel_ids;
             
             % inflate back to full trials
-            snippet_set = p.Results.raw_dataset.readAPSnippetSet(req_zero, window_samples, channel_idx);
+            snippet_set = p.Results.raw_dataset.readAPSnippetSet(req_zero, window_samples, channel_ids);
             snippet_set.data = Neuropixel.Utils.TensorUtils.inflateMaskedTensor(...
                 snippet_set.data, 3, mask_non_nan, 0);
             

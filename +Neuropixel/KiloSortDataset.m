@@ -2,7 +2,7 @@ classdef KiloSortDataset < handle
     % wrapper around a KiloSort dataset
     % todo - load cluster ratings from cluster_groups.tsv
     % Note 1: in the context of this file, time refers to samples, 1-indexed
-    % Note 2: this file will differ from raw_dataset in nChannels. Here, nChannels means the number of channels
+    % Note 2: this file will differ from raw_dataset in nChannelsSorted. Here, nChannelsSorted means the number of channels
     %   in .channel_ids (which will match the other properties)
 
     properties
@@ -14,6 +14,7 @@ classdef KiloSortDataset < handle
         
         fsAP % sampling rate pass thru to raw_dataset or specified during construction
         
+        apGain 
         apScaleToUv % multiply raw samples by this to get uV
         
         meta % ap metadata loaded
@@ -28,13 +29,13 @@ classdef KiloSortDataset < handle
         pathLeaf
         isLoaded
         hasRawDataset
+        nChannelsSorted
         nSpikes
-        nChannelsSorted % number of channels in channel_ids
         nClusters
         nTemplates
         nPCFeatures
         nFeaturesPerChannel
-        nChannels
+        nTemplateTimepoints
     end
     
     properties(SetAccess=protected)
@@ -63,10 +64,10 @@ classdef KiloSortDataset < handle
         % amplitudes.npy - [nSpikes, ] double vector with the amplitude scaling factor that was applied to the template when extracting that spike
         amplitudes(:,1) double;
 
-        % channel_map.npy - [nChannels, ] uint32 vector with the channel map, i.e. which row of the data file to look in for the channel in question
+        % channel_map.npy - [nChannelsSorted, ] uint32 vector with the channel map, i.e. which row of the data file to look in for the channel in question
         channel_ids(:, 1) uint32
 
-        % channel_positions.npy - [nChannels, 2] double matrix with each row giving the x and y coordinates of that channel. Together with the channel map, this determines how waveforms will be plotted in WaveformView (see below).
+        % channel_positions.npy - [nChannelsSorted, 2] double matrix with each row giving the x and y coordinates of that channel. Together with the channel map, this determines how waveforms will be plotted in WaveformView (see below).
         channel_positions(:, 2) double
 
         % pc_features.npy - [nSpikes, nFeaturesPerChannel, nPCFeatures] single matrix giving the PC values for each spike.
@@ -94,17 +95,17 @@ classdef KiloSortDataset < handle
         % template_feature_ind.npy - [nTemplates, nTempFeatures] uint32 matrix specifying which templateFeatures are included in the template_features matrix.
         template_feature_ind(:, :) uint32
 
-        % templates.npy - [nTemplates, nTimePoints, nTemplateChannels] single matrix giving the template shapes on the channels given in templates_ind.npy
+        % templates.npy - [nTemplates, nTemplateTimepoints, nTemplateChannels] single matrix giving the template shapes on the channels given in templates_ind.npy
         templates(:, :, :) single
 
         % templates_ind.npy - [nTemplates, nTempChannels] double matrix specifying the channels on which each template is defined.
-        % In the case of Kilosort templates_ind is just the integers from 0 to nChannels-1, since templates are defined on all channels.
+        % In the case of Kilosort templates_ind is just the integers from 0 to nChannelsSorted-1, since templates are defined on all channels.
         templates_ind(:, :) double
 
-        % whitening_mat.npy - [nChannels, nChannels] double whitening matrix applied to the data during automatic spike sorting
+        % whitening_mat.npy - [nChannelsSorted, nChannelsSorted] double whitening matrix applied to the data during automatic spike sorting
         whitening_mat(:, :) double
 
-        % whitening_mat_inv.npy - [nChannels, nChannels] double, the inverse of the whitening matrix.
+        % whitening_mat_inv.npy - [nChannelsSorted, nChannelsSorted] double, the inverse of the whitening matrix.
         whitening_mat_inv(:, :) double
 
         % spike_clusters.npy - [nSpikes, ] uint32 vector giving the cluster identity of each spike. This file is optional and
@@ -124,6 +125,14 @@ classdef KiloSortDataset < handle
         clusters_mua
         clusters_noise
         clusters_unsorted
+    end
+    
+    properties(Dependent)
+        nConcatenatedDatasets
+        concatenatedSamples
+        concatenatedStarts
+        concatenatedNames
+        concatenatedGains
     end
 
     methods % Dependent properties
@@ -147,17 +156,9 @@ classdef KiloSortDataset < handle
             end
         end
 
-        function n = get.nChannelsSorted(ds)
-            if isempty(ds.channel_ids)
-                n = NaN;
-            else
-                n = size(ds.channel_ids, 1);
-            end
-        end
-
         function n = get.nClusters(ds)
             if isempty(ds.cluster_ids)
-                n = NaN;xi
+                n = NaN;
             else
                 n = numel(ds.cluster_ids);
             end
@@ -187,7 +188,15 @@ classdef KiloSortDataset < handle
             end
         end
         
-        function n = get.nChannels(ds)
+        function n = get.nTemplateTimepoints(ds)
+            if isempty(ds.templates)
+                n = NaN;
+            else
+                n = size(ds.templates, 2);
+            end
+        end
+        
+        function n = get.nChannelsSorted(ds)
             if isempty(ds.channel_ids)
                 n = NaN;
             else
@@ -221,6 +230,18 @@ classdef KiloSortDataset < handle
                 end
             else
                 fsAP = ds.fsAP;
+            end
+        end
+        
+        function apGain = get.apGain(ds)
+            if isempty(ds.apGain)
+                if isempty(ds.raw_dataset)
+                    apGain = NaN;
+                else
+                    apGain = ds.raw_dataset.apGain;
+                end
+            else
+                apGain = ds.apGain;
             end
         end
         
@@ -270,6 +291,48 @@ classdef KiloSortDataset < handle
         
         function c = get.clusters_unsorted(ds)
             c = ds.cluster_ids(ds.cluster_groups == "unsorted");
+        end
+        
+        function n = get.nConcatenatedDatasets(ds)
+            n = numel(ds.concatenatedSamples);
+        end
+        
+        function v = get.concatenatedSamples(ds)
+            if ~isfield(ds.meta, 'concatenatedSamples')
+                if isempty(ds.raw_dataset)
+                    v = NaN;
+                else
+                    v = ds.raw_dataset.nSamplesAP;
+                end
+            else
+                v = Neuropixel.Utils.makecol(ds.meta.concatenatedSamples);
+            end
+        end
+        
+        function v = get.concatenatedStarts(ds)
+            if ~isfield(ds.meta, 'concatenatedStarts')
+                v = uint64(1);
+            else
+                cs = cumsum([uint64(1); ds.concatenatedSamples]);
+                v = cs(1:end-1);
+            end
+        end
+        
+        function v = get.concatenatedNames(ds)
+            if ~isfield(ds.meta, 'concatenated')
+                v = {ds.pathLeaf};
+            else
+                v = Neuropixel.Utils.makecol(strsplit(ds.meta.concatenated, ';'));
+            end
+            v = string(v);
+        end
+        
+        function v = get.concatenatedGains(ds)
+            if ~isfield(ds.meta, 'concatenatedGains')
+                v = ds.apGain;
+            else
+                v = Neuropixel.Utils.makecol(ds.meta.concatenatedGains);
+            end
         end
     end
 
@@ -371,7 +434,7 @@ classdef KiloSortDataset < handle
             end
         end
         
-        function printBasicStats(ds, varargin)
+        function s = printBasicStats(ds, varargin)
             s = ds.computeBasicStats(varargin{:});
             
             fprintf('%s: %.1f sec, %d (%d) spikes, %d (%d) clusters (with fr > %g Hz)\n', ds.pathLeaf, s.nSec, ...
@@ -382,7 +445,7 @@ classdef KiloSortDataset < handle
             xlabel('Cluster');
             ylabel('# spikes');
             hold on
-            horzLine(s.thresh, 'Color', 'r');
+            yline(s.thresh, 'Color', 'r');
             hold off;
             box off;
             grid on;
@@ -405,7 +468,7 @@ classdef KiloSortDataset < handle
             ds.hp_filtered = params.hp_filtered;
 
             p = ds.path;
-            prog = ProgressBar(15, 'Loading KiloSort dataset: ');
+            prog = Neuropixel.Utils.ProgressBar(15, 'Loading KiloSort dataset: ');
 
             ds.amplitudes = read('amplitudes');
             ds.channel_ids = read('channel_map');
@@ -539,21 +602,27 @@ classdef KiloSortDataset < handle
             [~, channel_inds] = ismember(channels, ds.channel_ids);
         end
         
-        function m = getMetrics(ds, recompute)
+        function m = computeMetrics(ds, recompute)
             if isempty(ds.metrics) || ~isvalid(ds.metrics) || (nargin >= 2 && recompute)
                 ds.metrics = Neuropixel.KilosortMetrics(ds);
             end
             m = ds.metrics;
         end
         
-        function clusterInds = lookupClusterInds(ds, cluster_ids)
+        function [clusterInds, cluster_ids] = lookup_clusterIds(ds, cluster_ids)
+            if islogical(cluster_ids)
+                cluster_ids = ds.cluster_ids(cluster_ids);
+             end
             [tf, clusterInds] = ismember(cluster_ids, ds.cluster_ids);
             assert(all(tf), 'Some cluster ids were not found in ds.clusterids');
         end
         
-        function clusterInds = lookupChannelInds(ds, channel_ids)
-            [tf, clusterInds] = ismember(channel_ids, ds.channel_ids);
-            assert(all(tf(:)), 'Some cluster ids were not found in ds.clusterids');
+        function [channelInds, channelIds] = lookup_channelIds(ds, channelIds)
+             if islogical(channelIds)
+                channelIds = ds.channel_ids(channelIds);
+             end
+            [tf, channelInds] = ismember(channelIds, ds.channel_ids);
+            assert(all(tf), 'Some channel ids not found');
         end
     end
     
@@ -578,13 +647,13 @@ classdef KiloSortDataset < handle
              % Load .dat and KiloSort/Phy output
 
              p = inputParser();
-             % specify one of spike_idx or spike_times and/or cluster_idx. spike_* take precedence
+             % specify one of spike_idx or spike_times and/or cluster_ids. spike_* take precedence
              p.addParameter('spike_idx', [], @isvector); % manually specify which idx into spike_times
              p.addParameter('spike_times', [], @isvector); % manually specify which times directly to extract
-             p.addParameter('cluster_idx', [], @isvector); % manually specify all spikes from specific cluster_idx
+             p.addParameter('cluster_ids', [], @isvector); % manually specify all spikes from specific cluster_ids
 
              % and ONE OR NONE of these to pick channels (or channels for each cluster)
-             p.addParameter('channel_idx_by_cluster', [], @(x) isempty(x) || ismatrix(x));
+             p.addParameter('channel_ids_by_cluster', [], @(x) isempty(x) || ismatrix(x));
              p.addParameter('best_n_channels', NaN, @isscalar); % or take the best n channels based on this clusters template when cluster_id is scalar
 
              % other params:
@@ -606,7 +675,7 @@ classdef KiloSortDataset < handle
              
              ds.checkLoaded();
              
-             unique_cluster_idx = p.Results.cluster_idx; % allow caller to specify directly
+             unique_cluster_ids = p.Results.cluster_ids; % allow caller to specify directly
 
              if ~isempty(p.Results.spike_times)
                  spike_times = p.Results.spike_times; %#ok<*PROPLC>
@@ -614,31 +683,31 @@ classdef KiloSortDataset < handle
                  if any(~tf)
                      error('Not all spike times were found in KiloSortDataset');
                  end
-                 cluster_idx = ds.spike_clusters(spike_idx);
-                 if isempty(unique_cluster_idx)
-                     unique_cluster_idx = unique(cluster_idx);
+                 cluster_ids = ds.spike_clusters(spike_idx);
+                 if isempty(unique_cluster_ids)
+                     unique_cluster_ids = unique(cluster_ids);
                  end
 
              elseif ~isempty(p.Results.spike_idx)
                  spike_idx = p.Results.spike_idx;
                  spike_times = ds.spike_times(spike_idx);
-                 cluster_idx = ds.spike_clusters(spike_idx);
-                 if isempty(unique_cluster_idx)
-                     unique_cluster_idx = unique(cluster_idx);
+                 cluster_ids = ds.spike_clusters(spike_idx);
+                 if isempty(unique_cluster_ids)
+                     unique_cluster_ids = unique(cluster_ids);
                  end
                  
-             elseif ~isempty(p.Results.cluster_idx)
-                 clu = p.Results.cluster_idx;
-                 unique_cluster_idx = clu;
+             elseif ~isempty(p.Results.cluster_ids)
+                 clu = p.Results.cluster_ids;
+                 unique_cluster_ids = clu;
 
                  if isscalar(clu)
                      spike_idx = find(ds.spike_clusters == clu);
                      spike_times = ds.spike_times(spike_idx);
-                     cluster_idx = repmat(clu, size(spike_times));
+                     cluster_ids = repmat(clu, size(spike_times));
                  else
                      [mask, which] = ismember(ds.spike_cluster, clu);
                      spike_times = ds.spike_times(mask);
-                     cluster_idx = clu(which(mask));
+                     cluster_ids = clu(which(mask));
                  end
              else
                  error('Must specify one of spike_times, spike_idx, or cluster_id');
@@ -650,29 +719,29 @@ classdef KiloSortDataset < handle
              
              % figure out actual times requested
              if ~isnan(p.Results.best_n_channels)
-                 metrics = ds.getMetrics();
+                 metrics = ds.computeMetrics();
                  cluster_best_template_channels = metrics.cluster_best_channels;
                  
                  % okay to have multiple clusters, just use first cluster
                  % to pick channels
 %                  assert(isscalar(p.Results.cluster_id), 'best_n_channels_for_cluster only valid for scalar cluster_id');
-                 [~, cluster_ind] = ismember(unique_cluster_idx, ds.cluster_ids);
+                 [~, cluster_ind] = ismember(unique_cluster_ids, ds.cluster_ids);
                  if any(cluster_ind == 0)
                      error('Some cluster idx not found in cluster_ids');
                  end
-                 channel_idx_by_cluster = cluster_best_template_channels(cluster_ind, 1:p.Results.best_n_channels)';
-             elseif ~isempty(p.Results.channel_idx_by_cluster)
-                 channel_idx_by_cluster = p.Results.channel_idx_by_cluster;
+                 channel_ids_by_cluster = cluster_best_template_channels(cluster_ind, 1:p.Results.best_n_channels)';
+             elseif ~isempty(p.Results.channel_ids_by_cluster)
+                 channel_ids_by_cluster = p.Results.channel_ids_by_cluster;
              else
-                 channel_idx_by_cluster = ds.channel_ids;
+                 channel_ids_by_cluster = ds.channel_ids;
              end
 
              if isfinite(p.Results.num_waveforms)             
                  % take num_waveforms from each cluster
                  mask = false(numel(spike_idx), 1);
                  nSample = p.Results.num_waveforms;
-                 [~, uclust_ind] = ismember(cluster_idx, unique_cluster_idx);
-                 nClu = numel(unique_cluster_idx);
+                 [~, uclust_ind] = ismember(cluster_ids, unique_cluster_ids);
+                 nClu = numel(unique_cluster_ids);
                  for iC = 1:nClu
                      thisC = find(uclust_ind == iC);
                      if numel(thisC) <= nSample
@@ -684,7 +753,7 @@ classdef KiloSortDataset < handle
                  
                  spike_idx = spike_idx(mask); %#ok<NASGU>
                  spike_times = spike_times(mask);
-                 cluster_idx = cluster_idx(mask);
+                 cluster_ids = cluster_ids(mask);
                  if ~isempty(p.Results.trial_idx)
                      trial_idx = trial_idx(mask);
                  end
@@ -693,11 +762,11 @@ classdef KiloSortDataset < handle
              % channel_ids is provided since raw data often has additional channels that we're not interested in
              window = p.Results.window;
              snippetSet = p.Results.raw_dataset.readAPSnippetSet(spike_times, ...
-                 window, 'channel_idx_by_cluster', channel_idx_by_cluster, 'unique_cluster_idx', unique_cluster_idx, ...
-                 'cluster_idx', cluster_idx, ...
+                 window, 'channel_ids_by_cluster', channel_ids_by_cluster, 'unique_cluster_ids', unique_cluster_ids, ...
+                 'cluster_ids', cluster_ids, ...
                  'car', p.Results.car);
-             snippetSet.cluster_idx = cluster_idx;
-             snippetSet.unique_cluster_idx = unique_cluster_idx;
+             snippetSet.cluster_ids = cluster_ids;
+             snippetSet.unique_cluster_ids = unique_cluster_ids;
              snippetSet.trial_idx = trial_idx;
              
              if p.Results.subtractOtherClusters
@@ -720,11 +789,11 @@ classdef KiloSortDataset < handle
             % generate the best reconstruction of each snippet using the amplitude-scaled templates 
             p = inputParser();
             % these define the lookup table of channels for each cluster
-            p.addParameter('channel_idx_by_cluster', ds.channel_ids, @(x) isempty(x) || ismatrix(x));
-            p.addParameter('unique_cluster_idx', 1, @isvector);
+            p.addParameter('channel_ids_by_cluster', ds.channel_ids, @(x) isempty(x) || ismatrix(x));
+            p.addParameter('unique_cluster_ids', 1, @isvector);
             % and this defines the cluster corresponding to each spike
-            p.addParameter('cluster_idx', ones(numel(times), 1), @isvector);
-            p.addParameter('exclude_cluster_idx_each_snippet', [], @(x) isempty(x) || isvector(x) || iscell(x));
+            p.addParameter('cluster_ids', ones(numel(times), 1), @isvector);
+            p.addParameter('exclude_cluster_ids_each_snippet', [], @(x) isempty(x) || isvector(x) || iscell(x));
             
             p.addParameter('showPlots', false, @islogical);
             p.addParameter('rawData', [], @isnumeric); % for plotting only
@@ -733,27 +802,27 @@ classdef KiloSortDataset < handle
             
             % check sizes of everything
             nTimes = numel(times);
-            channel_idx_by_cluster = p.Results.channel_idx_by_cluster;
-            assert(~isempty(channel_idx_by_cluster));
-            nChannels = size(channel_idx_by_cluster, 1);
-            unique_cluster_idx = p.Results.unique_cluster_idx;
-            assert(numel(unique_cluster_idx) == size(channel_idx_by_cluster, 2));
-            cluster_idx = p.Results.cluster_idx;
-            assert(numel(cluster_idx) == nTimes);
+            channel_ids_by_cluster = p.Results.channel_ids_by_cluster;
+            assert(~isempty(channel_ids_by_cluster));
+            nChannelsSorted = size(channel_ids_by_cluster, 1);
+            unique_cluster_ids = p.Results.unique_cluster_ids;
+            assert(numel(unique_cluster_ids) == size(channel_ids_by_cluster, 2));
+            cluster_ids = p.Results.cluster_ids;
+            assert(numel(cluster_ids) == nTimes);
             
-            exclude_cluster_idx_each_snippet = p.Results.exclude_cluster_idx_each_snippet;
+            exclude_cluster_ids_each_snippet = p.Results.exclude_cluster_ids_each_snippet;
             
             % templates post-whitening is nTemplates x nTimepoints x nChannelsFull
-            metrics = ds.getMetrics();
+            metrics = ds.computeMetrics();
             templates =  metrics.template_unw; % unwhitened templates, but not scaled and still in quantized units (not uV)
               
             nTimeTemplates = size(templates, 2);
               
             relTvec_template = int64(-floor(nTimeTemplates/2)+1:-floor(nTimeTemplates/2)+nTimeTemplates); % assumes template occurs at left edge
             relTvec_snippet = int64(window(1):window(2));
-            reconstruction = zeros(nChannels, numel(relTvec_snippet), nTimes, 'single');
+            reconstruction = zeros(nChannelsSorted, numel(relTvec_snippet), nTimes, 'single');
             
-            prog = ProgressBar(nTimes, 'Reconstructing templates around snippet times');
+            prog = Neuropixel.Utils.ProgressBar(nTimes, 'Reconstructing templates around snippet times');
             
             for iT = 1:nTimes
                 prog.update(iT);
@@ -763,10 +832,10 @@ classdef KiloSortDataset < handle
                 t = int64(times(iT));
                 minT = t + window(1) - int64(relTvec_template(end));
                 maxT = t + window(2) - int64(relTvec_template(1));
-                if iscell(exclude_cluster_idx_each_snippet)
-                    exclude_this = exclude_cluster_idx_each_snippet{iT};
-                elseif ~isempty(exclude_cluster_idx_each_snippet)
-                    exclude_this = exclude_cluster_idx_each_snippet(iT);
+                if iscell(exclude_cluster_ids_each_snippet)
+                    exclude_this = exclude_cluster_ids_each_snippet{iT};
+                elseif ~isempty(exclude_cluster_ids_each_snippet)
+                    exclude_this = exclude_cluster_ids_each_snippet(iT);
                 else
                     exclude_this = [];
                 end
@@ -776,12 +845,12 @@ classdef KiloSortDataset < handle
                 nearby_spike_inds(ismember(ds.spike_clusters(nearby_spike_inds), exclude_this)) = [];
 
                 % figure out what channels we need to reconstruct onto
-                cluster_idx_this = cluster_idx(iT);
-                [~, cluster_ind_this] = ismember(cluster_idx_this, unique_cluster_idx);
-                assert(cluster_ind_this > 0, 'Cluster for times(%d) not found in unique_cluster_idx', iT);
-                channels_idx_this = channel_idx_by_cluster(:, cluster_ind_this);
+                cluster_ids_this = cluster_ids(iT);
+                [~, cluster_ind_this] = ismember(cluster_ids_this, unique_cluster_ids);
+                assert(cluster_ind_this > 0, 'Cluster for times(%d) not found in unique_cluster_ids', iT);
+                channels_idx_this = channel_ids_by_cluster(:, cluster_ind_this);
                 [~, channel_ind_this] = ismember(channels_idx_this, ds.channel_ids);
-                assert(all(channel_ind_this) > 0, 'Some channels in channel_idx_by_cluster not found in channel_ids');
+                assert(all(channel_ind_this) > 0, 'Some channels in channel_ids_by_cluster not found in channel_ids');
                 
                 if showPlots
                     clf;
@@ -827,22 +896,22 @@ classdef KiloSortDataset < handle
             p.parse(varargin{:});
             
             if p.Results.excludeClusterFromOwnReconstruction
-                exclude_cluster_idx_each_snippet = ss.cluster_idx;
+                exclude_cluster_ids_each_snippet = ss.cluster_ids;
             else
-                exclude_cluster_idx_each_snippet = [];
+                exclude_cluster_ids_each_snippet = [];
             end
             
             reconstruction = ds.reconstructRawSnippetsFromTemplates(ss.sample_idx, ss.window, ...
-                'channel_idx_by_cluster', ss.channel_idx_by_cluster, 'unique_cluster_idx', ss.unique_cluster_idx, ...
-                'cluster_idx', ss.cluster_idx, 'exclude_cluster_idx_each_snippet', exclude_cluster_idx_each_snippet, ...
+                'channel_ids_by_cluster', ss.channel_ids_by_cluster, 'unique_cluster_ids', ss.unique_cluster_ids, ...
+                'cluster_ids', ss.cluster_ids, 'exclude_cluster_ids_each_snippet', exclude_cluster_ids_each_snippet, ...
                 'showPlots', p.Results.showPlots, 'rawData', ss.data);
             
             ssReconstruct = Neuropixel.SnippetSet(ds);
             ssReconstruct.data = int16(reconstruction);
             ssReconstruct.sample_idx = ss.sample_idx;
-            ssReconstruct.channel_idx_by_cluster = ss.channel_idx_by_cluster;
-            ssReconstruct.cluster_idx = ss.cluster_idx;
-            ssReconstruct.unique_cluster_idx = ss.unique_cluster_idx;
+            ssReconstruct.channel_ids_by_cluster = ss.channel_ids_by_cluster;
+            ssReconstruct.cluster_ids = ss.cluster_ids;
+            ssReconstruct.unique_cluster_ids = ss.unique_cluster_ids;
             ssReconstruct.window = ss.window;
         end
     end

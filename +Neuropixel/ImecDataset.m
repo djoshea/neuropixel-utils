@@ -1,4 +1,5 @@
 classdef ImecDataset < handle
+% Author: Daniel J. O'Shea (2019)
 
     properties(SetAccess = protected)
         pathRoot char = '';
@@ -54,7 +55,7 @@ classdef ImecDataset < handle
         goodChannels % connected channels sans badChannels
         nGoodChannels
         
-        channelIdx % 1 index channel list from channelMapFile
+        channelIds % 1 index channel list from channelMapFile
         channelNames % full list of channel names
         channelNamesPadded
 
@@ -219,7 +220,7 @@ classdef ImecDataset < handle
             if nargin < 3
                 newStem = df.fileStem;
             end
-            mkdirRecursive(newRoot);
+            Neuropixel.Utils.mkdirRecursive(newRoot);
 
             f = @(suffix) fullfile(newRoot, [newStem suffix]);
             docopy(df.pathAP, f('.imec.ap.bin'));
@@ -234,7 +235,7 @@ classdef ImecDataset < handle
                 if ~exist(from, 'file')
                     return;
                 end
-                debug('Copying to %s\n', to);
+                fprintf('Copying to %s\n', to);
                 [success, message, ~] = copyfile(from, to);
                 if ~success
                     error('Error writing %s: %s', to, message);
@@ -320,7 +321,7 @@ classdef ImecDataset < handle
             end
         end
 
-        function tf = getSyncBit(df, bit)
+        function tf = readSyncBit(df, bit)
             tf = logical(bitget(df.readSync(), bit));
         end
         
@@ -338,9 +339,9 @@ classdef ImecDataset < handle
                 bits = df.lookupSyncBitByName(bits);
             end
             vec = df.readSync_idx(idx);
-            mat = false(numel(bits), numel(vec));
+            mat = false(numel(vec), numel(bits));
             for iB = 1:numel(bits)
-                mat(iB, :) = logical(bitget(vec, bits(iB)));
+                mat(:, iB) = logical(bitget(vec, bits(iB)));
             end
         end
     end
@@ -372,7 +373,7 @@ classdef ImecDataset < handle
 
             if p.Results.applyScaling
                 data = single(data);
-                ch_conn_mask = df.lookup_channel_ids(df.connectedChannels);
+                ch_conn_mask = df.lookup_channelIds(df.connectedChannels);
                 data(ch_conn_mask, :) = data(ch_conn_mask, :) * single(df.apScaleToUv);
             end
         end
@@ -383,7 +384,7 @@ classdef ImecDataset < handle
             mat = df.readAP_idx(sampleIdx, varargin{:});
         end
         
-        function mat = readSyncBits_timeWindow(df, bits, timeWindowSec)
+        function [mat, sampleIdx] = readSyncBits_timeWindow(df, bits, timeWindowSec)
             idxWindow = df.closestSampleAPForTime(timeWindowSec);
             sampleIdx = idxWindow(1):idxWindow(2);
             mat = readSyncBits_idx(bits, sampleIdx);
@@ -391,11 +392,11 @@ classdef ImecDataset < handle
     end
     
     methods % Quick inspection
-        function [channelInds, channelIds] = lookup_channel_ids(df, channelIds)
+        function [channelInds, channelIds] = lookup_channelIds(df, channelIds)
              if islogical(channelIds)
                 channelIds = df.channelIdx(channelIds);
              end
-            [tf, channelInds] = ismember(channelIds, df.channelIdx);
+            [tf, channelInds] = ismember(channelIds, df.channelIds);
             assert(all(tf), 'Some channel ids not found');
         end
         
@@ -419,7 +420,7 @@ classdef ImecDataset < handle
             mat = df.readAP_idx(sampleIdx);
             labels = df.channelNamesPadded;
             
-            [channelInds, channelIds] = df.lookup_channel_ids(p.Results.channels);
+            [channelInds, channelIds] = df.lookup_channel_ids(p.Results.channels); %#ok<*PROPLC>
             mat = mat(channelInds, :);
             labels = labels(channelInds);
             connected = ismember(channelIds, df.connectedChannels);
@@ -512,57 +513,66 @@ classdef ImecDataset < handle
         end
     end
 
-    methods % Read data at specified times
-        function [data_ch_by_time_by_snippet, cluster_idx, channel_idx_by_cluster, unique_cluster_idx] = readAPSnippetsRaw(df, times, window, varargin)
+    methods(Hidden) % Read data at specified times
+        function [data_ch_by_time_by_snippet, cluster_ids, channel_ids_by_cluster, unique_cluster_ids] = readSnippetsRaw(df, times, window, varargin)
             % for each sample index in times, read the window times + window(1):window(2)
             % of samples around this time from some channels
 
             p = inputParser();
-            p.addParameter('channel_idx_by_cluster', [], @ismatrix);
-            p.addParameter('unique_cluster_idx', [], @isvector);
-            p.addParameter('cluster_idx', ones(numel(times), 1), @isvector);
+            p.addParameter('source', 'ap', @ischar);
+            p.addParameter('channel_ids_by_cluster', [], @ismatrix);
+            p.addParameter('unique_cluster_ids', [], @isvector);
+            p.addParameter('cluster_ids', ones(numel(times), 1), @isvector);
             p.addParameter('car', false, @islogical); % subtract median over channels
             p.parse(varargin{:});
 
-            channel_idx_by_cluster = p.Results.channel_idx_by_cluster;
-            unique_cluster_idx = p.Results.unique_cluster_idx;
-            if isempty(unique_cluster_idx)
-                unique_cluster_idx = unique(p.Results.cluster_idx);
+            channel_ids_by_cluster = p.Results.channel_ids_by_cluster;
+            unique_cluster_ids = p.Results.unique_cluster_ids;
+            if isempty(unique_cluster_ids)
+                unique_cluster_ids = unique(p.Results.cluster_ids);
             end
-            if isempty(channel_idx_by_cluster)
-                channel_idx_by_cluster = repmat(df.channelMap.chanMap, 1, numel(unique_cluster_idx));
+            if isempty(channel_ids_by_cluster)
+                channel_ids_by_cluster = repmat(df.channelMap.chanMap, 1, numel(unique_cluster_ids));
             end
-            if size(channel_idx_by_cluster, 1) == 1
+            if size(channel_ids_by_cluster, 1) == 1
                 % same channels each cluster, repmat column to make matrix
-                channel_idx_by_cluster = repmat(channel_idx_by_cluster, 1, numel(unique_cluster_idx));
+                channel_ids_by_cluster = repmat(channel_ids_by_cluster, 1, numel(unique_cluster_ids));
             end
-            assert(numel(unique_cluster_idx) == size(channel_idx_by_cluster, 2), ...
-                'unique_cluster_idx must have same number of clusters as columns in channel_idx_by_cluster');
+            assert(numel(unique_cluster_ids) == size(channel_ids_by_cluster, 2), ...
+                'unique_cluster_ids must have same number of clusters as columns in channel_ids_by_cluster');
 
-            cluster_idx = Neuropixel.Utils.makecol(p.Results.cluster_idx);
-            if isscalar(cluster_idx)
-                cluster_idx = repmat(cluster_idx, numel(times), 1);
+            cluster_ids = Neuropixel.Utils.makecol(p.Results.cluster_ids);
+            if isscalar(cluster_ids)
+                cluster_ids = repmat(cluster_ids, numel(times), 1);
             else
-                assert(numel(cluster_idx) == numel(times), 'cluster_idx must have same length as requested times');
+                assert(numel(cluster_ids) == numel(times), 'cluster_ids must have same length as requested times');
             end
 
-            [tf, cluster_ind] = ismember(cluster_idx, unique_cluster_idx);
-            assert(all(tf), 'Some cluster_idx were not found in unique_cluster_idx');
+            [tf, cluster_ind] = ismember(cluster_ids, unique_cluster_ids);
+            assert(all(tf), 'Some cluster_ids were not found in unique_cluster_ids');
 
-            mm = df.memmapAP_full();
-            nC = size(channel_idx_by_cluster, 1);
+            source = p.Results.source;
+            switch source
+                case 'ap'
+                    mm = df.memmapAP_full();
+                case 'lf'
+                    mm = df.memmapLF_full();
+                otherwise
+                    error('Unknown source');
+            end
+            nC = size(channel_ids_by_cluster, 1);
             nS = numel(times);
             nT = numel(window(1):window(2));
             out = zeros(nC, nT, nS, 'int16');
 
-            prog = ProgressBar(numel(times), 'Extracting AP snippets');
+            prog = Neuropixel.Utils.ProgressBar(numel(times), 'Extracting %s snippets', upper(source));
             for iS = 1:numel(times)
                 prog.update(iS);
 
                 idx_start = times(iS)+window(1);
                 idx_stop = idx_start + nT - 1;
 
-                channel_idx = channel_idx_by_cluster(:, cluster_ind(iS)); % which channels for this spike
+                channel_idx = channel_ids_by_cluster(:, cluster_ind(iS)); % which channels for this spike
                 if p.Results.car
                     extract = mm.Data.x(:, idx_start:idx_stop);
                     out(:, :, iS) = extract(channel_idx, :) - median(extract, 1);
@@ -573,16 +583,30 @@ classdef ImecDataset < handle
             data_ch_by_time_by_snippet = out;
             prog.finish();
         end
-
+    end
+    
+    methods  % Read data at specified times
         function snippet_set = readAPSnippetSet(df, times, window, varargin)
-            [data_ch_by_time_by_snippet, cluster_idx, channel_idx_by_cluster, unique_cluster_idx] = ...
-                df.readAPSnippetsRaw(times, window, varargin{:});
-            snippet_set = Neuropixel.SnippetSet(df);
+            [data_ch_by_time_by_snippet, cluster_ids, channel_ids_by_cluster, unique_cluster_ids] = ...
+                df.readSnippetsRaw(times, window, 'source', 'ap', varargin{:});
+            snippet_set = Neuropixel.SnippetSet(df, 'ap');
             snippet_set.data = data_ch_by_time_by_snippet;
             snippet_set.sample_idx = times;
-            snippet_set.channel_idx_by_cluster = channel_idx_by_cluster;
-            snippet_set.cluster_idx = cluster_idx;
-            snippet_set.unique_cluster_idx = unique_cluster_idx;
+            snippet_set.channel_ids_by_cluster = channel_ids_by_cluster;
+            snippet_set.cluster_ids = cluster_ids;
+            snippet_set.unique_cluster_ids = unique_cluster_ids;
+            snippet_set.window = window;
+        end
+
+        function snippet_set = readLFSnippetSet(df, times, window, varargin)
+            [data_ch_by_time_by_snippet, cluster_ids, channel_ids_by_cluster, unique_cluster_ids] = ...
+                df.readSnippetsRaw(times, window, 'source', 'lf', varargin{:});
+            snippet_set = Neuropixel.SnippetSet(df, 'lf');
+            snippet_set.data = data_ch_by_time_by_snippet;
+            snippet_set.sample_idx = times;
+            snippet_set.channel_ids_by_cluster = channel_ids_by_cluster;
+            snippet_set.cluster_ids = cluster_ids;
+            snippet_set.unique_cluster_ids = unique_cluster_ids;
             snippet_set.window = window;
         end
 
@@ -598,7 +622,7 @@ classdef ImecDataset < handle
             mm = df.memmapAP_by_chunk(chunkSize);
 
             sumByChunk = nan(df.nChannels, useChunks);
-            prog = ProgressBar(useChunks, 'Computing RMS per channel');
+            prog = Neuropixel.Utils.ProgressBar(useChunks, 'Computing RMS per channel');
             for iC =  1:useChunks
                 prog.increment();
                 data = mm.Data(iC+skipChunks).x;
@@ -615,92 +639,9 @@ classdef ImecDataset < handle
             rms = sqrt(sum(sumByChunk, 2) ./ (useChunks * chunkSize));
             rms = rms * df.apScaleToUv;
         end
-
-        function [rmsBadChannels, rmsByChannel] = markBadChannelsByRMS(df, varargin)
-            p = inputParser();
-            p.addParameter('rmsRange', [3 100], @isvector);
-            p.addParameter('sampleMask', [], @(x) isempty(x) || islogical(x));
-            p.parse(varargin{:});
-
-            channelMask = true(df.nChannels, 1);
-
-            channelMask(~df.channelMap.connected) = false;
-
-            oldChannelMask = channelMask;
-
-            rmsByChannel = df.computeRMSByChannel('sampleMask', p.Results.sampleMask);
-            rmsMin = p.Results.rmsRange(1);
-            rmsMax = p.Results.rmsRange(2);
-            channelMask(rmsByChannel < rmsMin | rmsByChannel > rmsMax) = false;
-
-            rmsBadChannels = find(~channelMask & oldChannelMask);
-            df.markBadChannels(~channelMask);
-        end
-
-        function markBadChannels(df, list)
-            % this adds to the set of bad channels, so multiple calls will
-            % remove additional channels
-            if islogical(list)
-                list = find(list);
-            end
-            df.badChannels = union(df.badChannels, list);
-        end
-
-       
     end
 
     methods(Hidden)
-%         function data_ch_by_time = readChannelBand(df, type, chFirst, chLast, sampleFirst, sampleLast, msg)
-%             if nargin < 5 || isempty(sampleFirst)
-%                 sampleFirst = 1;
-%             end
-%             if nargin < 7 || isempty(msg)
-%                 msg = 'Loading data from IMEC data file';
-%             end
-% 
-%             switch type
-%                 case {'ap', 'ap_CAR'}
-%                     fid = df.openAPFile();
-%                     nSamplesFull = df.nSamplesAP;
-%                 case 'lf'
-%                     fid = df.openLFFile();
-%                     nSamplesFull = df.nSamplesLF;
-%                 otherwise
-%                     error('Unknown type %s', type);
-%             end
-%             if nargin < 6 || isempty(sampleLast)
-%                 sampleLast = nSamplesFull;
-%             end
-% 
-%             % skip to the sampleFirst channel
-%             bytesOffsetSample = (sampleFirst-1)*df.nChannels*df.bytesPerSample;
-% 
-%             % skip to the chFirst channel
-%             bytesOffsetChannel = (chFirst-1)*df.bytesPerSample;
-% 
-%             fseek(fid, bytesOffsetSample + bytesOffsetChannel,'bof');
-% 
-%             % read this channel only
-%             nChRead = chLast - chFirst + 1;
-%             skipBytes = (df.nChannels-nChRead)*df.bytesPerSample;
-%             readStr = sprintf('%d*int16', nChRead);
-%             nSamplesRead = sampleLast - sampleFirst + 1;
-% 
-%             % split into large reads
-%             samplesPerSplit = 2^18;
-%             nReadSplits = ceil(nSamplesRead / samplesPerSplit);
-%             prog = ProgressBar(nReadSplits, msg);
-%             data_ch_by_time = zeros(nChRead, nSamplesRead, 'int16');
-%             sampleOffset = 0;
-%             for iS = 1:nReadSplits
-%                 prog.update(iS);
-%                 nSamplesReadThis = min(samplesPerSplit, nSamplesRead - sampleOffset);
-%                 data_ch_by_time(:, sampleOffset + (1:nSamplesReadThis)) = fread(fid, [nChRead, nSamplesReadThis], readStr, skipBytes);
-%                 sampleOffset = sampleOffset + nSamplesReadThis;
-%             end
-%             fclose(fid);
-%         end
-
         function fid = openAPFile(df)
             if ~exist(df.pathAP, 'file')
                 error('RawDataFile: %s not found', df.pathAP);
@@ -852,7 +793,7 @@ classdef ImecDataset < handle
             n = numel(df.goodChannels);
         end
         
-        function idx = get.channelIdx(df)
+        function idx = get.channelIds(df)
             idx = df.channelMap.chanMap;
         end
         
@@ -925,6 +866,39 @@ classdef ImecDataset < handle
             str = datestr(df.creationTime);
         end
     end
+    
+    methods % Marking Channels as bad
+            function [rmsBadChannels, rmsByChannel] = markBadChannelsByRMS(df, varargin)
+            p = inputParser();
+            p.addParameter('rmsRange', [3 100], @isvector);
+            p.addParameter('sampleMask', [], @(x) isempty(x) || islogical(x));
+            p.parse(varargin{:});
+
+            channelMask = true(df.nChannels, 1);
+
+            channelMask(~df.channelMap.connected) = false;
+
+            oldChannelMask = channelMask;
+
+            rmsByChannel = df.computeRMSByChannel('sampleMask', p.Results.sampleMask);
+            rmsMin = p.Results.rmsRange(1);
+            rmsMax = p.Results.rmsRange(2);
+            channelMask(rmsByChannel < rmsMin | rmsByChannel > rmsMax) = false;
+
+            rmsBadChannels = find(~channelMask & oldChannelMask);
+            df.markBadChannels(~channelMask);
+        end
+
+        function markBadChannels(df, list)
+            % this adds to the set of bad channels, so multiple calls will
+            % remove additional channels
+            if islogical(list)
+                list = find(list);
+            end
+            df.badChannels = union(df.badChannels, list);
+        end
+
+end
 
     methods % Modify bin data files in place
         function modifyAPInPlace(imec, varargin)
@@ -941,7 +915,7 @@ classdef ImecDataset < handle
             p.parse(varargin{:});
 
             if ~exist(newFolder, 'dir')
-                mkdirRecursive(newFolder);
+                Neuropixel.Utils.mkdirRecursive(newFolder);
             end
             newAPPath = fullfile(newFolder, imec.fileAP);
             Neuropixel.Utils.makeSymLink(imec.pathAP, newAPPath, p.Results.relative);
@@ -972,6 +946,9 @@ classdef ImecDataset < handle
 
             p.addParameter('writeAP', true, @islogical);
             p.addParameter('goodChannelsOnly', false, @islogical);
+            p.addParameter('connectedChannelsOnly', false, @islogical);
+            p.addParameter('mappedChannelsOnly', false, @islogical);
+            
             p.addParameter('writeSyncSeparate', false, @islogical); % true means ap will get only mapped channels, false will preserve channels as is
             p.addParameter('writeLF', false, @islogical);
             p.addParameter('chunkSize', 2^20, @isscalar);
@@ -985,22 +962,48 @@ classdef ImecDataset < handle
     end
 
     methods(Hidden)
+        function [chInds, chIds] = build_channelSelectors_internal(imec, varargin)
+            p = inputParser();
+            p.addParameter('goodChannelsOnly', false, @islogical);
+            p.addParameter('connectedChannelsOnly', false, @islogical);
+            p.addParameter('mappedChannelsOnly', false, @islogical);
+            p.parse(varargin{:});
+
+            if p.Results.goodChannelsOnly
+                [chInds, chIds] = imec.lookup_channelIds(imec.goodChannels);
+                assert(~isempty(chInds), 'No channels marked good in dataset')
+
+            elseif p.Results.connectedChannelsOnly
+                [chInds, chIds] = imec.lookup_channelIds(imec.connectedChannels); % excludes sync channel
+                assert(~isempty(chInds), 'No connected channels found in dataset');
+                
+            elseif p.Results.mappedChannelsOnly
+                [chInds, chIds] = imec.lookup_channelIds(imec.mappedChannels); % excludes sync channel
+                assert(~isempty(chInds), 'No mapped channels found in dataset');
+            else
+                chInds = 1:imec.nChannels;
+                chIds = imec.channelIds(chInds);
+            end
+        end   
+        
         function modifyInPlaceInternal(imec, mode, procFnList, varargin)
             p = inputParser();
             p.addParameter('chunkSize', 2^20, @isscalar);
             p.addParameter('gpuArray', false, @islogical);
             p.addParameter('applyScaling', false, @islogical); % convert to uV before processing
-            p.addParameter('goodChannelsOnly', true, @islogical);
-            p.addParameter('mappedChannelsOnly', true, @islogical);
-            p.addParameter('debug', false, @islogical); % for testing proc fn before modifying file
-
+            p.addParameter('goodChannelsOnly', false, @islogical);
+            p.addParameter('connectedChannelsOnly', false, @islogical);
+            p.addParameter('mappedChannelsOnly', false, @islogical);
+            
             p.addParameter('extraMeta', struct(), @isstruct);
+            p.addParameter('dryRun', false, @islogical); % for testing proc fn before modifying file
+
             p.parse(varargin{:});
 
             chunkSize = p.Results.chunkSize;
             useGpuArray = p.Results.gpuArray;
             applyScaling = p.Results.applyScaling;
-            debug = p.Results.debug;
+            dryRun = p.Results.dryRun;
 
             if ~iscell(procFnList)
                 procFnList = {procFnList};
@@ -1012,27 +1015,20 @@ classdef ImecDataset < handle
             % open writable memmapfile
             switch mode
                 case 'ap'
-                    mm = imec.memmapAP_full('Writable', ~debug);
+                    mm = imec.memmapAP_full('Writable', ~dryRun);
                 case 'lf'
-                    mm = imec.memmapLF_full('Writable', ~debug);
+                    mm = imec.memmapLF_full('Writable', ~dryRun);
                 otherwise
                     error('Unknown mode %s', mode);
             end
 
             % figure out which channels to keep
-            if p.Results.goodChannelsOnly
-                chIdx = imec.goodChannels;
-                assert(~isempty(chIdx), 'No goodChannels specified across all datasets')
-
-            elseif p.Results.mappedChannelsOnly
-                chIdx = imec.mappedChannels; % excludes sync channel
-                assert(~isempty(chIdx), 'No mapped channels found in first dataset');
-            else
-                chIdx = 1:imec.nChannels;
-            end
+            [chInds, chIds] = imec.build_channelSelectors_internal('goodChannelsOnly', p.Results.goodChannelsOnly, ...
+                'connectedChannelsOnly', p.Results.connectedChannelsOnly, ...
+                'mappedChannelsOnly', p.Results.mappedChannelsOnly);
 
             nChunks = ceil(size(mm.Data.x, 2) / chunkSize);
-            prog = ProgressBar(nChunks, 'Modifying %s file in place', mode);
+            prog = Neuropixel.Utils.ProgressBar(nChunks, 'Modifying %s file in place', mode);
             for iCh = 1:nChunks
                 if iCh == nChunks
                     idx = (iCh-1)*(chunkSize)+1 : size(mm.Data.x, 2);
@@ -1040,12 +1036,12 @@ classdef ImecDataset < handle
                     idx = (iCh-1)*(chunkSize) + (1:chunkSize);
                 end
 
-                data = mm.Data.x(chIdx, idx);
+                data = mm.Data.x(chInds, idx);
 
                 % ch_connected_mask indicates which channels are
                 % connected, which are the ones where scaling makes
                 % sense. chIdx is all channels being modified by procFnList
-                ch_conn_mask = ismember(chIdx, imec.connectedChannels);
+                ch_conn_mask = ismember(chIds, imec.connectedChannels);
 
                 % do additional processing here
                 if applyScaling
@@ -1067,7 +1063,7 @@ classdef ImecDataset < handle
                 % apply each procFn sequentially
                 for iFn = 1:numel(procFnList)
                     fn = procFnList{iFn};
-                    data = fn(imec, data, chIdx, idx);
+                    data = fn(imec, data, chIds, idx);
                 end
 
                 if useGpuArray
@@ -1080,18 +1076,36 @@ classdef ImecDataset < handle
 
                 data = int16(data);
 
-                if ~debug
-                    mm.Data.x(chIdx, idx) = data;
+                if ~dryRun
+                    mm.Data.x(chInds, idx) = data;
                 end
                 prog.increment();
             end
             prog.finish();
 
-            imec.writeModifiedAPMeta('extraMeta', p.Results.extraMeta);
+            if ~dryRun
+                imec.writeModifiedAPMeta('extraMeta', p.Results.extraMeta);
+            end
         end
     end
 
     methods(Static)
+        function [chIndsByFile, chIds] = multiFile_build_channelSelectors_internal(imecList, varargin)
+            for iF = 1:numel(imecList)
+                [~, chIdsThis] = imecList{iF}.build_channelSelectors_internal(varargin{:});
+                if iF == 1
+                    chIds = chIdsThis;
+                else
+                    chIds = intersect(chIds, chIdsThis);
+                end
+            end
+            if isempty(chIds)
+                error('No valid channels present across all datasets');
+            end
+            
+            chIndsByFile = cellfun(@(imec) imec.lookup_channelIds(chIds), imecList, 'UniformOutput', false);
+        end
+        
         function [parent, leaf, ext] = filepartsMultiExt(file)
             % like fileparts, but a multiple extension file like file.test.meta
             % will end up with leaf = file and ext = .test.meta
@@ -1285,11 +1299,13 @@ classdef ImecDataset < handle
             p.addParameter('timeShifts', {}, @(x) isempty(x) || isa(x, 'Neuropixel.TimeShiftSpec')); % cell array of time shifts for each file, a time shift is a n x 3 matrix of idxStart, idxStop, newIdxStart. These are used to excise specific time windows from the file
             
             p.addParameter('extraMeta', struct(), @isstruct);
+            p.addParameter('dryRun', false, @islogical);
             p.parse(varargin{:});
 
             nFiles = numel(imecList);
             stemList = cellfun(@(imec) imec.fileStem, imecList, 'UniformOutput', false);
-
+            dryRun = p.Results.dryRun;
+            
             function s = lastFilePart(f)
                 [~, f, e] = fileparts(f);
                 s = [f, e];
@@ -1302,8 +1318,8 @@ classdef ImecDataset < handle
             else
                 outPath = fullfile(parent, [leaf, ext]);
             end
-            if ~exist(outPath, 'dir')
-                mkdirRecursive(outPath);
+            if ~exist(outPath, 'dir') && ~dryRun
+                Neuropixel.Utils.mkdirRecursive(outPath);
             end
 
             % determine the gains that we will use
@@ -1314,7 +1330,7 @@ classdef ImecDataset < handle
                     gain = uGains;
                     multipliers = ones(nFiles, 1);
                     if numel(gains) > 1
-                        debug('All files have common gain of %d\n', gain);
+                        fprintf('All files have common gain of %d\n', gain);
                     end
                 else
                     % find largest gain that we can achieve by multiplying each
@@ -1325,7 +1341,7 @@ classdef ImecDataset < handle
                     end
                     multipliers = gain ./ gains;
                     assert(all(multipliers==round(multipliers)));
-                    debug('Converting all files to gain of %d\n', gain);
+                    fprintf('Converting all files to gain of %d\n', gain);
                 end
 
                 multipliers = int16(multipliers);
@@ -1333,31 +1349,21 @@ classdef ImecDataset < handle
 
             % figure out which channels to keep
             imec1 = imecList{1};
-            if p.Results.goodChannelsOnly
-                goodMat = false(imec1.nChannels, nFiles);
-                for i = 1:nFiles
-                    goodMat(imecList{i}.goodChannels, i) = true;
-                end
-                chIdx = find(all(goodMat, 2));
-                assert(~isempty(chIdx), 'No goodChannels specified across all datasets')
-
-            elseif p.Results.writeSyncSeparate
-                chIdx = imec1.mappedChannels; % excludes sync channel
-                assert(~isempty(chIdx), 'No mapped channels found in first dataset');
-
-            else
-                chIdx = 1:imec1.nChannels;
-            end
+            [chIndsByFile, ~] = Neuropixel.ImecDataset.multiFile_build_channelSelectors_internal('goodChannelsOnly', p.Results.goodChannelsOnly, ...
+                'mappedChannelsOnly', p.Results.mappedChannelsOnly);
 
             chunkSize = p.Results.chunkSize;
 
             useGpuArray = p.Results.gpuArray;
             applyScaling = p.Results.applyScaling;
             timeShifts = p.Results.timeShifts;
+            isConcatenation = numel(imecList) > 1;
             
-            Neuropixel.ImecDataset.clearDestinationStem(fullfile(outPath, leaf));
-
-            if p.Results.writeAP
+            if ~dryRun
+                Neuropixel.ImecDataset.clearDestinationStem(fullfile(outPath, leaf));
+            end
+            
+            if p.Results.writeAP || ~isempty(p.Results.transformAP)
                 gains = cellfun(@(imec) imec.apGain, imecList);
                 [multipliers, gain] = determineCommonGain(gains);
 
@@ -1378,17 +1384,19 @@ classdef ImecDataset < handle
                 end
                 meta.imroTbl = ['(' strjoin(pieces, ')('), ')'];
                 meta.fileName = [leaf '.imec.ap.bin'];
-                meta.concatenated = strjoin(stemList, ':');
-
-                % indicate concatenation time points in meta file
-                meta.concatenatedSamples = cellfun(@(imec) imec.nSamplesAP, imecList);
-                meta.concatenatedGains = gains;
-                meta.concatenatedMultipliers = multipliers;
-                meta.concatenatedAdcBits = cellfun(@(imec) imec.adcBits, imecList);
-                meta.concatenatedAiRangeMin = cellfun(@(imec) imec.apRange(1), imecList);
-                meta.concatenatedAiRangeMax = cellfun(@(imec) imec.apRange(2), imecList);
                 
-                if ~isempty(timeShifts)
+                % indicate concatenation time points in meta file
+                if isConcatenation
+                    meta.concatenated = strjoin(stemList, ':');
+                    meta.concatenatedSamples = cellfun(@(imec) imec.nSamplesAP, imecList);
+                    meta.concatenatedGains = gains;
+                    meta.concatenatedMultipliers = multipliers;
+                    meta.concatenatedAdcBits = cellfun(@(imec) imec.adcBits, imecList);
+                    meta.concatenatedAiRangeMin = cellfun(@(imec) imec.apRange(1), imecList);
+                    meta.concatenatedAiRangeMax = cellfun(@(imec) imec.apRange(2), imecList);
+                end
+                
+                if ~isempty(timeShifts) && isConcatenation
                     % log time shifts by file in meta
                     meta.concatenatedTimeShifts = strjoin(arrayfun(@(shift) shift.as_string(), timeShifts, 'UniformOutput', false), '; ');
                 end
@@ -1405,14 +1413,16 @@ classdef ImecDataset < handle
                     meta.(extraMetaFields{iFld}) = extraMeta.(extraMetaFields{iFld});
                 end
 
-                debug('Writing AP meta file %s\n', lastFilePart(metaOutFile));
-                Neuropixel.writeINI(metaOutFile, meta);
-
-                debug('Writing AP bin file %s\n', lastFilePart(outFile));
-                writeCatFile(outFile, chIdx, 'ap', multipliers, chunkSize, p.Results.transformAP, timeShifts);
+                fprintf('Writing AP meta file %s\n', lastFilePart(metaOutFile));
+                if ~dryRun
+                    Neuropixel.writeINI(metaOutFile, meta);
+                end
+                
+                fprintf('Writing AP bin file %s\n', (outFile));
+                writeCatFile(outFile, chIndsByFile, 'ap', multipliers, chunkSize, p.Results.transformAP, timeShifts, dryRun);
             end
 
-            if p.Results.writeLF
+            if p.Results.writeLF || ~isempty(p.Results.transformLF)
                 gains = cellfun(@(imec) imec.lfGain, imecList);
                 [multipliers, gain] = determineCommonGain(gains);
 
@@ -1430,54 +1440,58 @@ classdef ImecDataset < handle
                     gainVals{4} = sprintf('%d', gain);
                     pieces{iM} = strjoin(gainVals, ' ');
                 end
-                meta.imroTbl = ['(' strjoin(pieces, ')('), ')'];
+                meta. imroTbl = ['(' strjoin(pieces, ')('), ')'];
                 meta.fileName = [leaf '.imec.lf.bin'];
-                meta.concatenated = strjoin(stemList, ':');
-
+                
                 % indicate concatenation time points in meta file
-                meta.concatenatedSamples = cellfun(@(imec) imec.nSamplesLF, imecList);
-                meta.concatenatedGains = gains;
-                meta.concatenatedMultipliers = multipliers;
-                meta.concatenatedAdcBits = cellfun(@(imec) imec.adcBits, imecList);
-                meta.concatenatedAiRangeMin = cellfun(@(imec) imec.lfRange(1), imecList);
-                meta.concatenatedAiRangeMax = cellfun(@(imec) imec.lfRange(2), imecList);
+                if isConcatenation
+                    meta.concatenated = strjoin(stemList, ':');
+                    meta.concatenatedSamples = cellfun(@(imec) imec.nSamplesLF, imecList);
+                    meta.concatenatedGains = gains;
+                    meta.concatenatedMultipliers = multipliers;
+                    meta.concatenatedAdcBits = cellfun(@(imec) imec.adcBits, imecList);
+                    meta.concatenatedAiRangeMin = cellfun(@(imec) imec.lfRange(1), imecList);
+                    meta.concatenatedAiRangeMax = cellfun(@(imec) imec.lfRange(2), imecList);
+                end
+                
+                fprintf('Writing LF meta file %s\n', lastFilePart(metaOutFile));
+                if ~dryRun
+                    Neuropixel.writeINI(metaOutFile, meta);
+                end
 
-                debug('Writing LF meta file %s\n', lastFilePart(metaOutFile));
-                Neuropixel.writeINI(metaOutFile, meta);
-
-                debug('Writing LF bin file %s\n', lastFilePart(outFile));
-                writeCatFile(outFile, chIdx, 'lf', multipliers, chunkSize);
+                fprintf('Writing LF bin file %s\n', lastFilePart(outFile));
+                writeCatFile(outFile, chIndsByFile, 'lf', multipliers, chunkSize, p.Results.transformLF, timeShifts, dryRun);
             end
 
             if p.Results.writeSyncSeparate
                 outFile = fullfile(outPath, [leaf '.imec.sync.bin']);
-                debug('Writing separate sync bin file %s', lastFilePart(outFile));
-                writeCatFile(outFile, imec1.syncChannelIndex, 'sync', ones(nFiles, 1, 'int16'), chunkSize, p.Results.transformAP, timeShifts);
+                fprintf('Writing separate sync bin file %s', lastFilePart(outFile));
+                writeCatFile(outFile, imec1.syncChannelIndex, 'sync', ones(nFiles, 1, 'int16'), chunkSize, {}, timeShifts, dryRun);
             end
 
             outFile = fullfile(outPath, [leaf '.imec.ap.bin']);
             imecOut = Neuropixel.ImecDataset(outFile, 'channelMap', imec1.channelMapFile);
 
-            function writeCatFile(outFile, chIdx, mode, multipliers, chunkSize, procFnList, timeShifts)
-                if nargin < 6
-                    procFnList = {};
-                end
-                if nargin < 7
-                    timeShifts = {};
-                end
+            function writeCatFile(outFile, chIndsByFile, mode, multipliers, chunkSize, procFnList, timeShifts, dryRun)
                 if ~iscell(procFnList)
                     procFnList = {procFnList};
                 end
                 multipliers = int16(multipliers);
-
-                 % generate new ap.bin file
-                fidOut = fopen(outFile, 'w');
-                if fidOut == -1
-                    error('Error opening output file %s', outFile);
+                
+                % generate new ap.bin file
+                if ~dryRun
+                    fidOut = fopen(outFile, 'w');
+                    if fidOut == -1
+                        error('Error opening output file %s', outFile);
+                    end
                 end
 
                 for iF = 1:nFiles
-                    debug("Writing contents of %s\n", imecList{iF}.fileStem);
+                    fprintf("Writing contents of %s\n", imecList{iF}.fileStem);
+                    
+                    chInds = chIndsByFile{iF};
+                    chIds = imecList{iF}.channelIds(chInds);
+
                     switch mode
                         case 'ap'
                             mm = imecList{iF}.memmapAP_full();
@@ -1497,7 +1511,7 @@ classdef ImecDataset < handle
                     end
                     
                     nChunks = ceil(outSize / chunkSize);
-                    prog = ProgressBar(nChunks, 'Copying %s file %d / %d: %s', mode, iF, nFiles, imecList{iF}.fileStem);
+                    prog = Neuropixel.Utils.ProgressBar(nChunks, 'Copying %s file %d / %d: %s', mode, iF, nFiles, imecList{iF}.fileStem);
                     
                     for iCh = 1:nChunks
                         if iCh == nChunks
@@ -1507,13 +1521,13 @@ classdef ImecDataset < handle
                         end
 
                         source_idx = sourceIdxList(idx);
-                        data = mm.Data.x(chIdx, source_idx);
+                        data = mm.Data.x(chInds, source_idx);
 
                         % ch_connected_mask indicates which channels are
                         % connected, which are the ones where scaling makes
                         % sense. chIdx is all channels being written to
                         % output file
-                        ch_conn_mask = ismember(chIdx, imecList{iF}.connectedChannels);
+                        ch_conn_mask = ismember(chIds, imecList{iF}.connectedChannels);
 
                         if multipliers(iF) > 1
                             data(ch_conn_mask, :) = data(ch_conn_mask, :) * multipliers(iF);
@@ -1540,7 +1554,7 @@ classdef ImecDataset < handle
                             % apply each procFn sequentially
                             for iFn = 1:numel(procFnList)
                                 fn = procFnList{iFn};
-                                data = fn(imecList{iF}, data, chIdx, source_idx);
+                                data = fn(imecList{iF}, data, chIds, source_idx);
                             end
 
                             if useGpuArray
@@ -1554,134 +1568,18 @@ classdef ImecDataset < handle
                             data = int16(data);
                         end
 
-                        fwrite(fidOut, data, 'int16');
+                        if ~dryRun
+                            fwrite(fidOut, data, 'int16');
+                        end
                         prog.increment();
                     end
                     prog.finish();
                 end
-            end
-        end
-    end
-    
-    methods
-        function [chunkedOutputs, chunkSampleStartIdx] = testTransformInternal(imec, procFnList, mode, varargin)     
-            p = inputParser();
-            p.addParameter('timeIdxToInclude', [], @(x) isvector(x) || isempty(x));
-            p.addParameter('goodChannelsOnly', false, @islogical);
-            p.addParameter('writeSyncSeparate', false, @islogical); % true means ap will get only mapped channels, false will preserve channels as is
-            p.addParameter('chunkSize', 2^20, @isscalar);
-            p.addParameter('gpuArray', false, @islogical);
-            p.addParameter('applyScaling', false, @islogical); % convert to uV before processing
-            p.parse(varargin{:});
-
-            if ~iscell(procFnList)
-                procFnList = {procFnList};
-            end
-            chunkSize = p.Results.chunkSize;
-            useGpuArray = p.Results.gpuArray;
-            applyScaling = p.Results.applyScaling;
-
-            % determine channels to pass along
-            if p.Results.goodChannelsOnly
-                goodMat = false(imec.nChannels, 1);
-                goodMat(imec.goodChannels) = true;
-                chIdx = find(all(goodMat, 2));
-                assert(~isempty(chIdx), 'No goodChannels specified across all datasets')
-
-            elseif p.Results.writeSyncSeparate
-                chIdx = imec.mappedChannels; % excludes sync channel
-                assert(~isempty(chIdx), 'No mapped channels found in first dataset');
-
-            else
-                chIdx = 1:imec.nChannels;
-            end
-
-            switch mode
-                case 'ap'
-                    mm = imec.memmapAP_full();
-                case 'lf'
-                    mm = imec.memmapLF_full();
-                case 'sync'
-                    mm = imec.memmapSync_full();
-            end
-
-            nChunks = ceil(size(mm.Data.x, 2) / chunkSize);
-
-            chunkSampleStartIdx = 1 + chunkSize*(0:nChunks-1);
-            chunkSampleEndIdx = min(chunkSampleStartIdx + chunkSize - 1, imec.nSamplesAP);
-
-            timeIdxToInclude = p.Results.timeIdxToInclude;
-            if isempty(timeIdxToInclude)
-                maskRun = true(nChunks, 1);
-            else
-                maskRun = false(nChunks, 1);
-                for iT = 1:numel(timeIdxToInclude)
-                    maskRun(chunkSampleStartIdx <= timeIdxToInclude(iT) & timeIdxToInclude(iT) <= chunkSampleEndIdx) = true;
-                end
-            end
-            
-            if ~any(maskRun)
-                error('timeIdxToInclude is out of range');
-            end
-            
-            chunkedOutputs = cell(nChunks, 1);
-
-            prog = ProgressBar(nChunks, 'Testing transform pipeline on %d / %d chunks', nnz(maskRun), nChunks);
-            for iCh = 1:nChunks
-                prog.update(iCh);
-                if ~maskRun(iCh), continue, end
                 
-                if iCh == nChunks
-                    idx = (iCh-1)*(chunkSize)+1 : size(mm.Data.x, 2);
-                else
-                    idx = (iCh-1)*(chunkSize) + (1:chunkSize);
+                if ~dryRun
+                    fclose(fidOut);
                 end
-
-                data = mm.Data.x(chIdx, idx);
-
-                % ch_connected_mask indicates which channels are
-                % connected, which are the ones where scaling makes
-                % sense. chIdx is all channels being written to
-                % output file
-                ch_conn_mask = ismember(chIdx, imec.connectedChannels);
-
-                if applyScaling
-                    % convert to uV and to single
-                    switch mode
-                        case 'ap'
-                            data = single(data);
-                            data(ch_conn_mask, :) = data(ch_conn_mask, :) * single(imec.apScaleToUv);
-                        case 'lf'
-                            data = single(data);
-                            data(ch_conn_mask, :) = data(ch_conn_mask, :) * single(imec.lfScaleToUv);
-                    end
-                end
-
-                if useGpuArray
-                    data = gpuArray(data);
-                end
-
-                % apply each procFn sequentially
-                for iFn = 1:numel(procFnList)
-                    fn = procFnList{iFn};
-                    data = fn(imec, data, chIdx, idx);
-                end
-
-                if useGpuArray
-                    data = gather(data);
-                end
-
-                if applyScaling
-                    data(ch_conn_mask, :) = data(ch_conn_mask, :) ./ imec.scaleToUv;
-                end
-
-                chunkedOutputs{iCh} = int16(data);
-                
             end
-            prog.finish();
-            
-            chunkedOutputs = chunkedOutputs(maskRun);
-            chunkSampleStartIdx = chunkSampleStartIdx(maskRun); 
         end
     end
 end

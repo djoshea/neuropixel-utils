@@ -1,4 +1,6 @@
 classdef ChannelMap
+% Author: Daniel J. O'Shea (2019)
+
     properties
         file 
         
@@ -84,20 +86,30 @@ classdef ChannelMap
             xspacing = min(dxs);
         end
         
-        function closest_idx = getClosestChannels(map, nClosest, channel_idx, eligibleChannels)
+        function [channelInds, channelIds] = lookup_channelIds(df, channelIds)
+             if islogical(channelIds)
+                channelIds = df.chanMap(channelIds);
+             end
+            [tf, channelInds] = ismember(channelIds, df.chanMap);
+            assert(all(tf), 'Some channel ids not found');
+        end
+        
+        function closest_ids = getClosestChannels(map, nClosest, channel_ids, eligibleChannelIds)
             % channel_idx is is in 1:nChannels raw data indices
             % closest is numel(channel_idx) x nClosest
             
             if nargin < 3
-                channel_idx = map.connectedChannels;
+                channel_ids = map.connectedChannels;
             end
             if nargin < 4
-                eligibleChannels = map.connectedChannels;
+                eligibleChannelIds = map.connectedChannels;
             end
+            
+            eligibleChannelInds = map.lookup_channelIds(eligibleChannelIds);
                 
-            x = map.xcoords(eligibleChannels);
-            y = map.ycoords(eligibleChannels);
-            z = map.zcoords(eligibleChannels);
+            x = map.xcoords(eligibleChannelInds);
+            y = map.ycoords(eligibleChannelInds);
+            z = map.zcoords(eligibleChannelInds);
             N = numel(x);
 
             X = repmat(x, 1, N);
@@ -108,20 +120,20 @@ classdef ChannelMap
             distSq = (X - X').^2 + (Y - Y').^2 + (Z - Z').^2;
             distSq(logical(eye(N))) = Inf; % don't localize each channel to itself
             
-            [tf, idx] = ismember(channel_idx, map.connectedChannels);
-            assert(all(tf), 'Cannot localize non-connected channels');
+            [tf, channel_inds] = ismember(channel_ids, eligibleChannelInds);
+            assert(all(tf), 'Cannot localize non-connected channels or channels not in eligibleChannelIds');
             
-            closest_idx = nan(numel(idx), nClosest);
-            for iC = 1:numel(idx)
-                [~, idxSort] = sort(distSq(iC, :), 'ascend');
-                % idxSort will be in indices into connected
-                closest_idx(iC, :) = eligibleChannels(idxSort(1:nClosest));
+            closest_ids = nan(numel(channel_inds), nClosest);
+            for iC = 1:numel(channel_inds)
+                [~, idxSort] = sort(distSq(channel_inds(iC), :), 'ascend');
+                % idxSort will be in indices into eligible
+                closest_ids(iC, :) = eligibleChannelIds(idxSort(1:nClosest));
             end
             
-            function idxFull = indicesIntoMaskToOriginalIndices(idxIntoMasked, mask)
-                maskInds = find(mask);
-                idxFull = maskInds(idxIntoMasked);
-            end
+%             function idxFull = indicesIntoMaskToOriginalIndices(idxIntoMasked, mask)
+%                 maskInds = find(mask);
+%                 idxFull = maskInds(idxIntoMasked);
+%             end
         end
             
     end
