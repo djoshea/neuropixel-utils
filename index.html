@@ -273,6 +273,13 @@
     <ul class="md-nav__list" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#download-and-install" title="Download and install" class="md-nav__link">
+    Download and install
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#example-walkthrough" title="Example walkthrough" class="md-nav__link">
     Example walkthrough
   </a>
@@ -371,6 +378,13 @@
     <ul class="md-nav__list" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#download-and-install" title="Download and install" class="md-nav__link">
+    Download and install
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#example-walkthrough" title="Example walkthrough" class="md-nav__link">
     Example walkthrough
   </a>
@@ -397,7 +411,8 @@
                 
                 
                 <h1 id="matlab-neuropixel-utilites">MATLAB Neuropixel Utilites<a class="headerlink" href="#matlab-neuropixel-utilites" title="Permanent link">&para;</a></h1>
-<p><code class="codehilite">neuropixel-utils</code> is a toolkit written in Matlab for manipulating datasets collected by <a href="https://github.com/billkarsh/SpikeGLX">SpikeGLX</a> (e.g. <code class="codehilite">imec.ap.bin</code> files) and the results produced by <a href="https://github.com/cortex-lab/KiloSort">Kilosort</a> / <a href="https://github.com/MouseLand/Kilosort2/">Kilosort 2</a>. Please note that some of this functionality is redundant with the tools found in the Cortex Lab&rsquo;s <a href="https://github.com/cortex-lab/spikes">spikes repository</a>, authored By Nick Steinmetz, Mush Okun, and others. Here, we prioritize an organized, easy to use, object-oriented approach to accessing, manipulating, and visualizing the data. This reduces the need to worry about metadata. Neuropixel Utils facilitates the following use cases:</p>
+<p>Neuropixel Utils is a toolkit written in Matlab for manipulating datasets collected by <a href="https://github.com/billkarsh/SpikeGLX">SpikeGLX</a> (e.g. <code class="codehilite">imec.ap.bin</code> files) and the results produced by <a href="https://github.com/cortex-lab/KiloSort">Kilosort</a> / <a href="https://github.com/MouseLand/Kilosort2/">Kilosort 2</a>. Please note that some of this functionality is redundant with the tools found in the Cortex Lab&rsquo;s <a href="https://github.com/cortex-lab/spikes">spikes repository</a>, authored By Nick Steinmetz, Mush Okun, and others. Here, we prioritize an organized, easy to use, object-oriented approach to accessing, manipulating, and visualizing the data. This reduces the need to worry about metadata.</p>
+<p>Neuropixel Utils facilitates the following data processing steps:</p>
 <ul>
 <li><a href="/imec_dataset/#constructing-a-neuropixelimecdataset">Load</a> and <a href="/imec_dataset/#plotting-specific-time-windows">visualize</a> raw neuropixel data from <code class="codehilite">imec.ap.bin</code> and <code class="codehilite">imec.lf.bin</code> files in Matlab</li>
 <li><a href="/imec_dataset/#building-a-preprocessing-pipeline">Write custom pre-processing functions</a> to apply to raw data either by writing a copy of the raw file or modifying it in place, optionally removing specific problematic time windows in the file</li>
@@ -408,7 +423,14 @@
 <li><a href="/analysis/#plotting-electrical-images">Visualize cluster electrical spiking images</a> in space and <a href="/analysis/#plotting-cluster-centers-of-mass">cluster locations on the probe</a></li>
 <li><a href="/kilosort/#segmenting-a-kilosort-dataset-into-trials">Determine trial boundaries</a> in the file, and efficiently (segment Kilosort results into individual trials)[/kilosort/#kilosorttrialsegmenteddataset]</li>
 </ul>
-<p>Neuropixel utilities was authored by <a href="http://djoshea.com">Daniel J O&rsquo;Shea</a> (<a href="https://twitter.com/djoshea">@djoshea</a>) to facilitate application of the <a href="https://github.com/eraasr">ERAASR algorithm</a> to neuropixel recordings in NHPs, which necessitated precision manipulation and careful inspection of the raw Imec data traces before running Kilosort.</p>
+<h2 id="download-and-install">Download and install<a class="headerlink" href="#download-and-install" title="Permanent link">&para;</a></h2>
+<p>To get started, clone the repo:
+<div class="codehilite"><pre><span></span>git clone https://github.com/djoshea/neuropixel-utils.git
+</pre></div></p>
+<p>And add it to your path in Matlab:
+<div class="codehilite"><pre><span></span><span class="o">&gt;&gt;</span> <span class="n">addpath</span><span class="p">(</span><span class="s">&#39;/path/to/neuropixel-utils&#39;</span><span class="p">)</span>
+</pre></div></p>
+<p>Neuropixel Utils was authored by <a href="http://djoshea.com">Daniel J O&rsquo;Shea</a> (<a href="https://twitter.com/djoshea">@djoshea</a>) to facilitate precision artifact removal and careful inspection of raw data traces before running Kilosort, as well as post-hoc verification that the artifacts were removed successfully.</p>
 <h2 id="example-walkthrough">Example walkthrough<a class="headerlink" href="#example-walkthrough" title="Permanent link">&para;</a></h2>
 <div class="codehilite"><pre><span></span><span class="c">% Create an ImecDataset pointing at a specific</span>
 <span class="o">&gt;&gt;</span> <span class="n">channelMapFile</span> <span class="p">=</span> <span class="s">&#39;neuropixPhase3A_kilosortChanMap.mat&#39;</span><span class="p">;</span>
