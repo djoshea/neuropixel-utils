@@ -423,6 +423,7 @@
 <li><a href="/analysis/#plotting-electrical-images">Visualize cluster electrical spiking images</a> in space and <a href="/analysis/#plotting-cluster-centers-of-mass">cluster locations on the probe</a></li>
 <li><a href="/kilosort/#segmenting-a-kilosort-dataset-into-trials">Determine trial boundaries</a> in the file, and efficiently <a href="/kilosort/#kilosorttrialsegmenteddataset">segment Kilosort results into individual trials</a></li>
 </ul>
+<p>Neuropixel Utils was authored by <a href="http://djoshea.com">Daniel J O&rsquo;Shea</a> (<a href="https://twitter.com/djoshea">@djoshea</a>) to facilitate precision artifact removal and careful inspection of raw data traces before running Kilosort, as well as post-hoc verification that the artifacts were removed successfully.</p>
 <h2 id="download-and-install">Download and install<a class="headerlink" href="#download-and-install" title="Permanent link">&para;</a></h2>
 <p>To get started, clone the repo:
 <div class="codehilite"><pre><span></span>git clone https://github.com/djoshea/neuropixel-utils.git
@@ -430,7 +431,6 @@
 <p>And add it to your path in Matlab:
 <div class="codehilite"><pre><span></span><span class="o">&gt;&gt;</span> <span class="n">addpath</span><span class="p">(</span><span class="s">&#39;/path/to/neuropixel-utils&#39;</span><span class="p">)</span>
 </pre></div></p>
-<p>Neuropixel Utils was authored by <a href="http://djoshea.com">Daniel J O&rsquo;Shea</a> (<a href="https://twitter.com/djoshea">@djoshea</a>) to facilitate precision artifact removal and careful inspection of raw data traces before running Kilosort, as well as post-hoc verification that the artifacts were removed successfully.</p>
 <h2 id="example-walkthrough">Example walkthrough<a class="headerlink" href="#example-walkthrough" title="Permanent link">&para;</a></h2>
 <div class="codehilite"><pre><span></span><span class="c">% Create an ImecDataset pointing at a specific</span>
 <span class="o">&gt;&gt;</span> <span class="n">channelMapFile</span> <span class="p">=</span> <span class="s">&#39;neuropixPhase3A_kilosortChanMap.mat&#39;</span><span class="p">;</span>
