@@ -414,14 +414,14 @@
 <p>Neuropixel Utils is a toolkit written in Matlab for manipulating datasets collected by <a href="https://github.com/billkarsh/SpikeGLX">SpikeGLX</a> (e.g. <code class="codehilite">imec.ap.bin</code> files) and the results produced by <a href="https://github.com/cortex-lab/KiloSort">Kilosort</a> / <a href="https://github.com/MouseLand/Kilosort2/">Kilosort 2</a>. Please note that some of this functionality is redundant with the tools found in the Cortex Lab&rsquo;s <a href="https://github.com/cortex-lab/spikes">spikes repository</a>, authored By Nick Steinmetz, Mush Okun, and others. Here, we prioritize an organized, easy to use, object-oriented approach to accessing, manipulating, and visualizing the data. This reduces the need to worry about metadata.</p>
 <p>Neuropixel Utils facilitates the following data processing steps:</p>
 <ul>
-<li><a href="/imec_dataset/#constructing-a-neuropixelimecdataset">Load</a> and <a href="/imec_dataset/#plotting-specific-time-windows">visualize</a> raw neuropixel data from <code class="codehilite">imec.ap.bin</code> and <code class="codehilite">imec.lf.bin</code> files in Matlab</li>
-<li><a href="/imec_dataset/#building-a-preprocessing-pipeline">Write custom pre-processing functions</a> to apply to raw data either by writing a copy of the raw file or modifying it in place, optionally removing specific problematic time windows in the file</li>
-<li><a href="/imec_dataset/#concatenating-multiple-files-together">Concatenate multiple Imec data files</a> together while matching the amplifier gains</li>
-<li><a href="/kilosort/#running-kilosort">Run Kilosort/Kilosort2</a>, and <a href="/kilosort/#loading-kilosort-results">load the results</a> back into Matlab after manual inspection in Phy</li>
-<li><a href="/analysis/#plotting-drift-maps">Plot drift maps</a> using code adapted from the <a href="https://github.com/cortex-lab/spikes">spikes repository</a></li>
-<li><a href="/waveforms/#extracting-waveforms-via-kilosortdataset">Extract waveforms</a> for each cluster from the raw data, optionally cleaning the snippets by subtracting templates for other clusters spiking during the same time window</li>
-<li><a href="/analysis/#plotting-electrical-images">Visualize cluster electrical spiking images</a> in space and <a href="/analysis/#plotting-cluster-centers-of-mass">cluster locations on the probe</a></li>
-<li><a href="/kilosort/#segmenting-a-kilosort-dataset-into-trials">Determine trial boundaries</a> in the file, and efficiently <a href="/kilosort/#kilosorttrialsegmenteddataset">segment Kilosort results into individual trials</a></li>
+<li><a href="imec_dataset/#constructing-a-neuropixelimecdataset">Load</a> and <a href="imec_dataset/#plotting-specific-time-windows">visualize</a> raw neuropixel data from <code class="codehilite">imec.ap.bin</code> and <code class="codehilite">imec.lf.bin</code> files in Matlab</li>
+<li><a href="imec_dataset/#building-a-preprocessing-pipeline">Write custom pre-processing functions</a> to apply to raw data either by writing a copy of the raw file or modifying it in place, optionally removing specific problematic time windows in the file</li>
+<li><a href="imec_dataset/#concatenating-multiple-files-together">Concatenate multiple Imec data files</a> together while matching the amplifier gains</li>
+<li><a href="kilosort/#running-kilosort">Run Kilosort/Kilosort2</a>, and <a href="kilosort/#loading-kilosort-results">load the results</a> back into Matlab after manual inspection in Phy</li>
+<li><a href="analysis/#plotting-drift-maps">Plot drift maps</a> using code adapted from the <a href="https://github.com/cortex-lab/spikes">spikes repository</a></li>
+<li><a href="waveforms/#extracting-waveforms-via-kilosortdataset">Extract waveforms</a> for each cluster from the raw data, optionally cleaning the snippets by subtracting templates for other clusters spiking during the same time window</li>
+<li><a href="analysis/#plotting-electrical-images">Visualize cluster electrical spiking images</a> in space and <a href="analysis/#plotting-cluster-centers-of-mass">cluster locations on the probe</a></li>
+<li><a href="kilosort/#segmenting-a-kilosort-dataset-into-trials">Determine trial boundaries</a> in the file, and efficiently <a href="kilosort/#kilosorttrialsegmenteddataset">segment Kilosort results into individual trials</a></li>
 </ul>
 <p>Neuropixel Utils was authored by <a href="http://djoshea.com">Daniel J O&rsquo;Shea</a> (<a href="https://twitter.com/djoshea">@djoshea</a>) to facilitate precision artifact removal and careful inspection of raw data traces before running Kilosort, as well as post-hoc verification that the artifacts were removed successfully.</p>
 <h2 id="download-and-install">Download and install<a class="headerlink" href="#download-and-install" title="Permanent link">&para;</a></h2>
@@ -502,8 +502,8 @@
 <span class="o">&gt;&gt;</span> <span class="n">imec</span><span class="p">.</span><span class="n">inspectAP_timeWindow</span><span class="p">([</span><span class="mi">200</span> <span class="mi">201</span><span class="p">]);</span> <span class="c">% 200-201 seconds into the recording</span>
 </pre></div>
 
-<p>Zoomed in view of data inspection figure. Black are good channels, blue are reference channels. Channels marked bad would be shown in red.
-<img alt="imec_inspect" src="images/imec_inspect.png" title="Raw Imec traces" /></p>
+<p>Zoomed in view of data inspection figure. Black are good channels, blue are reference channels. Channels marked bad would be shown in red.</p>
+<p><img alt="imec_inspect" src="images/imec_inspect.png" title="Raw Imec traces" /></p>
 <p><div class="codehilite"><pre><span></span><span class="c">% Run Kilosort2</span>
 <span class="o">&gt;&gt;</span> <span class="n">Neuropixel</span><span class="p">.</span><span class="n">runKilosort2</span><span class="p">(</span><span class="n">imec</span><span class="p">);</span>
 

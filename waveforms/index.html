@@ -426,9 +426,9 @@
                 
                 <h1 id="extracting-raw-waveforms">Extracting raw waveforms<a class="headerlink" href="#extracting-raw-waveforms" title="Permanent link">&para;</a></h1>
 <h2 id="extracting-datasnippets-from-imecdataset">Extracting datasnippets from ImecDataset<a class="headerlink" href="#extracting-datasnippets-from-imecdataset" title="Permanent link">&para;</a></h2>
-<p>It is often useful to extract small windows of time from the raw data on each channel. Given a list of sample indices <code class="codehilite">times</code> you want to extract a window of time around, and a <code class="codehilite"><span class="n">window</span> <span class="o">=</span> <span class="p">[</span><span class="n">offsetPre</span> <span class="n">offsetPost</span><span class="p">]</span></code> of relative samples to collect around those times, you can do the following:</p>
+<p>It is often useful to extract small windows of time from the raw data on each channel. Given a list of sample indices <code class="codehilite">times</code> you want to extract a window of time around, and a <code class="codehilite">window = [offsetPre, offsetPost]</code> of relative samples to collect around those times, you can do the following:</p>
 <div class="codehilite"><pre><span></span><span class="o">&gt;&gt;</span> <span class="n">times</span> <span class="p">=</span> <span class="mf">1e5</span><span class="p">:</span><span class="mf">1e5</span><span class="p">:</span><span class="mf">1e6</span><span class="p">;</span>
-<span class="o">&gt;&gt;</span> <span class="n">window</span> <span class="p">=</span> <span class="p">[</span><span class="o">-</span><span class="mi">1000</span> <span class="mi">999</span><span class="p">];</span> <span class="c">% 1000 samples before plus 999 samples after</span>
+<span class="o">&gt;&gt;</span> <span class="n">window</span> <span class="p">=</span> <span class="p">[</span><span class="o">-</span><span class="mi">1000</span><span class="p">,</span> <span class="mi">999</span><span class="p">];</span> <span class="c">% 1000 samples before plus 999 samples after</span>
 <span class="o">&gt;&gt;</span> <span class="n">snippetSet</span> <span class="p">=</span> <span class="n">imec</span><span class="p">.</span><span class="n">readAPSnippetSet</span><span class="p">(</span><span class="n">times</span><span class="p">,</span> <span class="n">window</span><span class="p">)</span>
 
 <span class="n">snippetSet</span> <span class="p">=</span>
@@ -436,7 +436,7 @@
   <span class="n">SnippetSet</span> <span class="n">with</span> <span class="k">properties</span><span class="p">:</span>
 
                       <span class="n">data</span><span class="p">:</span> <span class="p">[</span><span class="mi">384</span>×<span class="mi">2000</span>×<span class="mi">10</span> <span class="n">int16</span><span class="p">]</span> <span class="c">% nChannels x nTimepoints x nSnippets snippet data</span>
-               <span class="n">cluster_ids</span><span class="p">:</span> <span class="p">[</span><span class="mi">10</span>×<span class="mi">1</span> <span class="n">uint32</span><span class="p">]</span>  
+               <span class="n">cluster_ids</span><span class="p">:</span> <span class="p">[</span><span class="mi">10</span>×<span class="mi">1</span> <span class="n">uint32</span><span class="p">]</span>
     <span class="n">channel_ids_by_cluster</span><span class="p">:</span> <span class="p">[</span><span class="mi">384</span>×<span class="mi">1</span> <span class="n">uint32</span><span class="p">]</span> <span class="c">% nChannels x nClusters channel ids, which channel ids were extracted for each cluster</span>
         <span class="n">unique_cluster_idx</span><span class="p">:</span> <span class="mi">1</span>
                 <span class="n">sample_idx</span><span class="p">:</span> <span class="p">[</span><span class="mi">10</span>×<span class="mi">1</span> <span class="n">uint64</span><span class="p">]</span>
@@ -454,10 +454,12 @@
 </pre></div>
 
 <h2 id="extracting-waveforms-via-kilosortdataset">Extracting waveforms via KilosortDataset<a class="headerlink" href="#extracting-waveforms-via-kilosortdataset" title="Permanent link">&para;</a></h2>
-<p>With this functionality in place, it is very easy to extract raw waveforms from the original <code class="codehilite">ImecDataset</code> guided by a <code class="codehilite">KilosortDataset</code> to provide the spike times. From a <code class="codehilite">KilosortDataset</code>, you can request waveforms based on one of:
-<em> <code class="codehilite">spike_idx</code> : index directly into <code class="codehilite">spike_times</code>
-</em> <code class="codehilite">spike_times</code> : find spikes that match times in <code class="codehilite">spike_times</code>
-* <code class="codehilite">cluster_ids</code> : find all spikes from a given cluster. Typically you would also specify <code class="codehilite">&#39;num_waveforms&#39;</code> to cap the total number of waveforms per cluster via random sample.</p>
+<p>With this functionality in place, it is very easy to extract raw waveforms from the original <code class="codehilite">ImecDataset</code> guided by a <code class="codehilite">KilosortDataset</code> to provide the spike times. From a <code class="codehilite">KilosortDataset</code>, you can request waveforms based on one of:</p>
+<ul>
+<li><code class="codehilite">spike_idx</code> : index directly into <code class="codehilite">spike_times</code></li>
+<li><code class="codehilite">spike_times</code> : find spikes that match times in <code class="codehilite">spike_times</code></li>
+<li><code class="codehilite">cluster_ids</code> : find all spikes from a given cluster. Often, you would also specify <code class="codehilite">&#39;num_waveforms&#39;</code> to cap the total number of waveforms per cluster via random sample, unless you want <em>every</em> spike for those clusters</li>
+</ul>
 <p>By default, waveforms will be extracted for every channel on the probe, unless you request specific <code class="codehilite">channel_ids_by_cluster</code> as a <code class="codehilite">nClusters</code> x <code class="codehilite">nChannels</code> matrix, or specify <code class="codehilite">best_n_channels</code> which will pick the best channels separately for each cluster.</p>
 <div class="codehilite"><pre><span></span><span class="n">snippetSet</span> <span class="p">=</span> <span class="n">ks</span><span class="p">.</span><span class="n">getWaveformsFromRawData</span><span class="p">(</span><span class="s">&#39;cluster_ids&#39;</span><span class="p">,</span> <span class="n">cluster_id</span><span class="p">,</span> <span class="c">...</span>
     <span class="s">&#39;num_waveforms&#39;</span><span class="p">,</span> <span class="mi">50</span><span class="p">,</span> <span class="s">&#39;best_n_channels&#39;</span><span class="p">,</span> <span class="mi">20</span><span class="p">,</span> <span class="s">&#39;car&#39;</span><span class="p">,</span> <span class="n">true</span><span class="p">);</span>
@@ -474,7 +476,7 @@
 
 <p><img alt="cluster_snippets_clean" src="../images/cluster_snippets_clean.png" title="Cluster waveforms" /></p>
 <h2 id="extracting-waveforms-via-kilosorttrialsegmenteddataset">Extracting waveforms via KiloSortTrialSegmentedDataset<a class="headerlink" href="#extracting-waveforms-via-kilosorttrialsegmenteddataset" title="Permanent link">&para;</a></h2>
-<p>If you have already <a href="/kilosort/#segmenting-a-kilosort-dataset-into-trials">segmented the data into trials</a>, you might wish to extract these waveforms for specific trials or even specific time windows within a trial, e.g. to check for  behaviorally-triggered probe movement.</p>
+<p>If you have already <a href="../kilosort/#segmenting-a-kilosort-dataset-into-trials">segmented the data into trials</a>, you might wish to extract these waveforms for specific trials or even specific time windows within a trial, e.g. to check for  behaviorally-triggered probe movement.</p>
 <p>For example, this will extract all spikes that occurred in the first 50 ms of each trial.</p>
 <div class="codehilite"><pre><span></span><span class="n">cluster_ind</span> <span class="p">=</span> <span class="n">seg</span><span class="p">.</span><span class="n">lookup_clusterIds</span><span class="p">(</span><span class="n">cluster_id</span><span class="p">);</span>
 

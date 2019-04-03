@@ -671,16 +671,22 @@
                 <h1 id="neuropixelimecdataset">Neuropixel.ImecDataset<a class="headerlink" href="#neuropixelimecdataset" title="Permanent link">&para;</a></h1>
 <p>The <code class="codehilite">Neuropixel.ImecDataset</code> class wraps one individual recording session acquired with SpikeGLX. Currently, four files with extensions <code class="codehilite"><span class="na">.imec.ap.bin</span></code>, <code class="codehilite"><span class="na">.imec.ap.meta</span></code>, <code class="codehilite"><span class="na">.imec.lf.bin</span></code>, and <code class="codehilite"><span class="na">.imec.lf.meta</span></code> comprise one ImecDataset.</p>
 <h2 id="constructing-a-neuropixelimecdataset">Constructing a <code class="codehilite">Neuropixel.ImecDataset</code><a class="headerlink" href="#constructing-a-neuropixelimecdataset" title="Permanent link">&para;</a></h2>
-<p>You construct a Neuropixel.ImecDataset by pointing it at the path to your dataset. How you specify the path is flexible:</p>
-<p>Point directly at one of the files. These are all equivalent, in that the resulting <code class="codehilite">imec</code> instance will wrap both AP and LF bin and meta files. (Though it&rsquo;s okay if the LF files are missing)</p>
+<p>You construct a Neuropixel.ImecDataset by pointing it at the path to your dataset. How you specify the path is flexible. You can point directly at one of the files:</p>
 <div class="codehilite"><pre><span></span><span class="n">imec</span> <span class="p">=</span> <span class="n">Neuropixel</span><span class="p">.</span><span class="n">ImecDataset</span><span class="p">(</span><span class="s">&#39;/data/raw_datasets/neuropixel_01_g0_t0.imec.ap.bin&#39;</span><span class="p">);</span>
-<span class="n">imec</span> <span class="p">=</span> <span class="n">Neuropixel</span><span class="p">.</span><span class="n">ImecDataset</span><span class="p">(</span><span class="s">&#39;/data/raw_datasets/neuropixel_01_g0_t0&#39;</span><span class="p">);</span>
-<span class="n">imec</span> <span class="p">=</span> <span class="n">Neuropixel</span><span class="p">.</span><span class="n">ImecDataset</span><span class="p">(</span><span class="s">&#39;/data/raw_datasets/neuropixel_01&#39;</span><span class="p">);</span>
 </pre></div>
 
-<p>It&rsquo;s also okay to point at the parent directory as long as only one <code class="codehilite"><span class="na">.ap.bin</span></code> file is contained within.
+<p>Or specify the common prefix to the <code class="codehilite"><span class="na">.imec.</span><span class="p">*</span></code> files comprising the dataset:</p>
+<div class="codehilite"><pre><span></span><span class="n">imec</span> <span class="p">=</span> <span class="n">Neuropixel</span><span class="p">.</span><span class="n">ImecDataset</span><span class="p">(</span><span class="s">&#39;/data/raw_datasets/neuropixel_01_g0_t0&#39;</span><span class="p">);</span>
+</pre></div>
+
+<p>The common prefix can be shorter as long as there is no ambiguity:</p>
+<div class="codehilite"><pre><span></span><span class="n">imec</span> <span class="p">=</span> <span class="n">Neuropixel</span><span class="p">.</span><span class="n">ImecDataset</span><span class="p">(</span><span class="s">&#39;/data/raw_datasets/neuropixel_01&#39;</span><span class="p">);</span>
+</pre></div>
+
+<p>You can also point at the parent directory as long as only one <code class="codehilite"><span class="na">.ap.bin</span></code> file is contained within.
 <div class="codehilite"><pre><span></span><span class="n">imec</span> <span class="p">=</span> <span class="n">Neuropixel</span><span class="p">.</span><span class="n">ImecDataset</span><span class="p">(</span><span class="s">&#39;/data/raw_datasets/&#39;</span><span class="p">);</span>
 </pre></div></p>
+<p>These are all equivalent, in that the resulting <code class="codehilite">imec</code> instance will wrap both AP and LF bin and meta files. (Though it&rsquo;s okay if the LF files are missing).</p>
 <h3 id="specifying-a-channel-map">Specifying a Channel Map<a class="headerlink" href="#specifying-a-channel-map" title="Permanent link">&para;</a></h3>
 <p>When constructing the ImecDataset, you can specify a channel map. If you don&rsquo;t specify one, the default will be returned by <code class="codehilite">Neuropixel.Utils.getDefaultChannelMapFile()</code>, which in turn will look for the file pointed to by the environment variables <code class="codehilite">&#39;NEUROPIXEL_MAP_FILE&#39;</code> or <code class="codehilite">&#39;NPIX_MAP_FILE&#39;</code>. You can set these using Matlab&rsquo;s <code class="codehilite">setenv</code> function.</p>
 <p>These .mat files are expected to be in the same format as found on the <a href="https://github.com/cortex-lab/neuropixels">neuropixels repo</a>. For the phase 3A probe with 384 channels, the file <code class="codehilite">neuropixPhase3A_kilosortChanMap.mat</code> contains:</p>
@@ -719,7 +725,7 @@
             <span class="n">fileTimeSecs</span><span class="p">:</span> <span class="mf">3.7471e+03</span>
              <span class="n">firstSample</span><span class="p">:</span> <span class="mi">7060812</span>
                 <span class="n">gateMode</span><span class="p">:</span> <span class="s">&#39;Immediate&#39;</span>
-                    <span class="c">...            </span>
+                    <span class="c">...</span>
 </pre></div>
 
 <p>The most commonly accessed metadata is stored in properties of the ImecDataset:
@@ -895,7 +901,7 @@
 <li><code class="codehilite">mappedChannelsOnly</code>: send only the mapped channels to the transform function</li>
 <li><code class="codehilite">chunkSize</code>: specify the number of time samples sent to transform functions at once</li>
 <li><code class="codehilite">extraMeta</code>: a struct with extra meta fields to include or overwrite with the output file</li>
-<li><code class="codehilite">timeShifts</code>: a <code class="codehilite">Neuropixel.TimeShiftSpec</code> instance used to excise time windows, see <a href="#excising-time-windows">Excising time windows</a></li>
+<li><code class="codehilite">timeShifts</code>: a <code class="codehilite">Neuropixel.TimeShiftSpec</code> instance used to excise time windows, see <a href="#excising-time-windows">excising time windows</a></li>
 </ul>
 <h3 id="modifying-a-dataset-in-place">Modifying a dataset in place<a class="headerlink" href="#modifying-a-dataset-in-place" title="Permanent link">&para;</a></h3>
 <p>Rather than generate a copy, you can also modify a file in place if you&rsquo;re short on disk space, but be careful, as there&rsquo;s no undo if anything goes wrong. The same additional parameters are accepted, and you may wish to test your code first by passing <code class="codehilite">&#39;dryRun&#39;, true</code>.</p>
