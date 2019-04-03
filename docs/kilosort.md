@@ -1,6 +1,6 @@
-# Running and loading KiloSort 1/2 results
+# Running Kilosort 1/2 and loading the results
 
-`KilosortDatset` is a wrapper around the output of Kilosort or Kilosort2, which will load the output files back into Matlab for further analysis. Most of these fields are explained in detail in the (Phy documentation)[https://phy-contrib.readthedocs.io/en/latest/template-gui/] but we document them here for convenience.
+`KilosortDatset` is a wrapper around the output of Kilosort or Kilosort2, which will load the output files back into Matlab for further analysis. Most of these fields are explained in detail in the [Phy documentation](https://phy-contrib.readthedocs.io/en/latest/template-gui/) but we document them here for convenience.
 
 ## Running Kilosort
 
@@ -8,6 +8,10 @@ To run Kilosort or Kilosort2 on an ImecDataset:
 
 ```matlab
 Neuropixel.runKilosort1(imec, ...);
+```
+
+Or for Kilosort 2:
+```matlab
 Neuropixel.runKiloSort2(imec, ...);
 ```
 
@@ -93,40 +97,40 @@ KiloSortDataset with properties:
 
 * `nFeaturesPerChannel` : number of PC features used for each channel
 
-* `amplitudes` - [nSpikes] double vector with the amplitude scaling factor that was applied to the template when extracting that spike
+* `amplitudes` - `[nSpikes]` double vector with the amplitude scaling factor that was applied to the template when extracting that spike
 
-* `channel_ids` - [nChannels] uint32 vector with the channel ids used for sorting
+* `channel_ids` - `[nChannels]` uint32 vector with the channel ids used for sorting
 
-* `channel_positions` - [nChannels, 2] double matrix with each row giving the x and y coordinates of that channel. Together with the channel map, this determines how waveforms will be plotted in WaveformView (see below).
+* `channel_positions` - `[nChannels, 2]` double matrix with each row giving the x and y coordinates of that channel. Together with the channel map, this determines how waveforms will be plotted in WaveformView (see below).
 
-* `pc_features` - [nSpikes, nFeaturesPerChannel, nPCFeatures] single matrix giving the PC values for each spike. The channels that those features came from are specified in pc_features_ind. E.g. the value at pc_features[123, 1, 5] is the projection of the 123rd spike onto the 1st PC on the channel given by pc_feature_ind[5].
+* `pc_features` - `[nSpikes, nFeaturesPerChannel, nPCFeatures]` single matrix giving the PC values for each spike. The channels that those features came from are specified in pc_features_ind. E.g. the value at pc_features[123, 1, 5] is the projection of the 123rd spike onto the 1st PC on the channel given by pc_feature_ind[5].
 
-* `pc_feature_ind` - [nTemplates, nPCFeatures] uint32 matrix specifying which channels contribute to each entry in dim 3 of the pc_features matrix
+* `pc_feature_ind` - `[nTemplates, nPCFeatures]` uint32 matrix specifying which channels contribute to each entry in dim 3 of the pc_features matrix
 
-* `similar_templates` - [nTemplates, nTemplates] single matrix giving the similarity score (larger is more similar) between each pair of templates
+* `similar_templates` - `[nTemplates, nTemplates]` single matrix giving the similarity score (larger is more similar) between each pair of templates
 similar_templates(:, :) single
 
-* `spike_templates` - [nSpikes] uint32 vector specifying the identity of the template that was used to extract each spike
+* `spike_templates` - `[nSpikes]` uint32 vector specifying the identity of the template that was used to extract each spike
 
-* `spike_times` - [nSpikes] uint64 vector giving the spike time of each spike in samples. To convert to seconds, divide by sample_rate from params.py.
+* `spike_times` - `[nSpikes]` uint64 vector giving the spike time of each spike in samples. To convert to seconds, divide by sample_rate from params.py.
 
-* `template_features` - [nSpikes, nTempFeatures] single matrix giving the magnitude of the projection of each spike onto nTempFeatures other features. Which other features is specified in template_feature_ind
+* `template_features` - `[nSpikes, nTempFeatures]` single matrix giving the magnitude of the projection of each spike onto nTempFeatures other features. Which other features is specified in template_feature_ind
 
-* `template_feature_ind` - [nTemplates, nTempFeatures] uint32 matrix specifying which templateFeatures are included in the template_features matrix.
+* `template_feature_ind` - `[nTemplates, nTempFeatures]` uint32 matrix specifying which templateFeatures are included in the template_features matrix.
 
-* `templates` - [nTemplates, nTimePoints, nTemplateChannels] single matrix giving the template shapes on the channels given in templates_ind
+* `templates` - `[nTemplates, nTimePoints, nTemplateChannels]` single matrix giving the template shapes on the channels given in templates_ind
 
-* `templates_ind` - [nTemplates, nTempChannels] double matrix specifying the channels on which each template is defined. In the case of Kilosort templates_ind is just the integers from 0 to nChannels-1, since templates are defined on all channels.
+* `templates_ind` - `[nTemplates, nTempChannels]` double matrix specifying the channels on which each template is defined. In the case of Kilosort templates_ind is just the integers from 0 to nChannels-1, since templates are defined on all channels.
 
-* `whitening_mat` - [nChannels, nChannels] double whitening matrix applied to the data during automatic spike sorting
+* `whitening_mat` - `[nChannels, nChannels]` double whitening matrix applied to the data during automatic spike sorting
 
-* `whitening_mat_inv` - [nChannels, nChannels] double, the inverse of the whitening matrix.
+* `whitening_mat_inv` - `[nChannels, nChannels] `double, the inverse of the whitening matrix.
 
-* `spike_clusters` - [nSpikes] uint32 vector giving the cluster identity of each spike.
+* `spike_clusters` - `[nSpikes]` uint32 vector giving the cluster identity of each spike.
 
-* `cluster_groups` - [nClusters] categorical vector giving the "cluster group" of each cluster (noise, mua, good, unsorted)
+* `cluster_groups` - `[nClusters]` categorical vector giving the "cluster group" of each cluster (noise, mua, good, unsorted)
 
-* `cluster_ids` - unique clusters in spike_clusters [nClusters]
+* `cluster_ids` - `[nClusters]` unique clusters in spike_clusters
 
 ## Segmenting a Kilosort dataset into trials
 

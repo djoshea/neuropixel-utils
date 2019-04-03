@@ -4,20 +4,30 @@ The `Neuropixel.ImecDataset` class wraps one individual recording session acquir
 
 ## Constructing a `Neuropixel.ImecDataset`
 
-You construct a Neuropixel.ImecDataset by pointing it at the path to your dataset. How you specify the path is flexible:
-
-Point directly at one of the files. These are all equivalent, in that the resulting `imec` instance will wrap both AP and LF bin and meta files. (Though it's okay if the LF files are missing)
+You construct a Neuropixel.ImecDataset by pointing it at the path to your dataset. How you specify the path is flexible. You can point directly at one of the files:
 
 ```matlab
 imec = Neuropixel.ImecDataset('/data/raw_datasets/neuropixel_01_g0_t0.imec.ap.bin');
+```
+
+Or specify the common prefix to the `.imec.*` files comprising the dataset:
+
+```matlab
 imec = Neuropixel.ImecDataset('/data/raw_datasets/neuropixel_01_g0_t0');
+```
+
+The common prefix can be shorter as long as there is no ambiguity:
+
+```matlab
 imec = Neuropixel.ImecDataset('/data/raw_datasets/neuropixel_01');
 ```
 
-It's also okay to point at the parent directory as long as only one `.ap.bin` file is contained within.
+You can also point at the parent directory as long as only one `.ap.bin` file is contained within.
 ```matlab
 imec = Neuropixel.ImecDataset('/data/raw_datasets/');
 ```
+
+These are all equivalent, in that the resulting `imec` instance will wrap both AP and LF bin and meta files. (Though it's okay if the LF files are missing).
 
 ### Specifying a Channel Map
 
@@ -68,7 +78,7 @@ meta = imec.readAPMeta()
             fileTimeSecs: 3.7471e+03
              firstSample: 7060812
                 gateMode: 'Immediate'
-                    ...            
+                    ...
 ```
 
 The most commonly accessed metadata is stored in properties of the ImecDataset:
@@ -291,7 +301,7 @@ You can provide one or more function handles (e.g. ```@Neuropixel.DataProcessFn.
 * `mappedChannelsOnly`: send only the mapped channels to the transform function
 * `chunkSize`: specify the number of time samples sent to transform functions at once
 * `extraMeta`: a struct with extra meta fields to include or overwrite with the output file
-* `timeShifts`: a `Neuropixel.TimeShiftSpec` instance used to excise time windows, see [Excising time windows](#excising-time-windows)
+* `timeShifts`: a `Neuropixel.TimeShiftSpec` instance used to excise time windows, see [excising time windows](#excising-time-windows)
 
 ### Modifying a dataset in place
 

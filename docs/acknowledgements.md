@@ -2,7 +2,7 @@
 
 ## Neuropixels and Kilosort
 
-Many of the core ideas and data structures used in these utilities are simply repackaged versions of existing code, and I am very grateful for the guidance provided by this code. These sources include:
+Many of the core ideas and data structures used in these utilities are reorganized versions of existing code, and I am very grateful for the authors who have written, documented, and released their code open source to the community. These sources include:
 
 * Harris+Carandini Cortex Lab [spikes repo](https://github.com/cortex-lab/spikes)
 
@@ -30,7 +30,6 @@ I'd also like to acknowledge several authors whose Matlab File Exchange contribu
 
 ## Support
 
-If you have any issues using this code with your data, please look for any similar (existing Github issues)[https://github.com/djoshea/neuropixel-utils/issues] or file a new issue there. Please don't email me straight away unless there's some need for confidentiality, as I'll most likely ask you to file a Github issue anyway. Across multiple repositiories, this policy helps me keep track of what needs to be fixed, and also helps other users who may have been encountering similar issues.
+If you have any issues using this code with your data, please look for any similar [existing Github issues](https://github.com/djoshea/neuropixel-utils/issues) or file a new issue there. Please don't email me straight away unless there's some need for confidentiality, as I'll most likely ask you to file a Github issue anyway. Across multiple repositiories, this policy helps me keep track of what needs to be fixed, and also helps other users who may have been encountering similar issues.
 
 Thanks!
-Dan
