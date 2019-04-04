@@ -4,17 +4,22 @@ classdef ChannelMap
     properties
         file 
         
-        chanMap
-        chanMap0ind
-        connected
+        channelIdsMapped uint32
+        connected logical
         shankInd
         xcoords
         ycoords
         zcoords
+        
+        syncChannelIndex uint32 % actual index in the AP bin file
+        syncChannelId uint32 % arbitrary channel id, typically the same as index
     end
     
     properties(Dependent)
+        syncInAPFile
+        channelIds
         nChannels
+        nChannelsMapped
         connectedChannels
         referenceChannels
         
@@ -32,17 +37,31 @@ classdef ChannelMap
             
             d = load(fname);
             map.file = fname;
-            map.chanMap = d.chanMap;
-            map.chanMap0ind = d.chanMap0ind;
-            map.connected = d.connected;
-            map.shankInd = d.shankInd;
-            map.xcoords = d.xcoords;
-            map.ycoords = d.ycoords;
+            map.channelIdsMapped = Neuropixel.Utils.makecol(d.chanMap);
+            map.connected = Neuropixel.Utils.makecol(d.connected);
+            map.shankInd = Neuropixel.Utils.makecol(d.shankInd);
+            map.xcoords = Neuropixel.Utils.makecol(d.xcoords);
+            map.ycoords = Neuropixel.Utils.makecol(d.ycoords);
             if isfield(d, 'zcoords')
-                map.zcoords = d.zcoords;
+                map.zcoords = Neuropixel.Utils.makecol(d.zcoords);
             else
                 map.zcoords = zeros(size(map.ycoords), 'like', map.ycoords);
             end
+            
+            if isfield(d, 'syncChannelIndex')
+                map.syncChannelIndex = uint32(d.syncChannelId);
+            else
+                map.syncChannelIndex = uint32(d.chanMap(end)+ 1);
+            end
+            if isfield(d, 'syncChannelId')
+                map.syncChannelId = uint32(d.syncChannelId);
+            else
+                map.syncChannelId = map.syncChannelIndex;
+            end
+        end
+        
+        function tf = get.syncInAPFile(map)
+            tf = ~isempty(map.syncChannelIndex);
         end
         
         function zcoords = get.zcoords(map)
@@ -53,16 +72,27 @@ classdef ChannelMap
             end
         end
         
+        function v = get.channelIds(map)
+            v = map.channelIdsMapped;
+            if ~isempty(map.syncChannelIndex)
+                v(map.syncChannelIndex) = map.syncChannelId;
+            end
+        end
+        
+        function nChannels = get.nChannelsMapped(map)
+            nChannels = numel(map.channelIdsMapped);
+        end
+        
         function nChannels = get.nChannels(map)
-            nChannels = numel(map.chanMap);
+            nChannels = numel(map.channelIds);
         end
             
         function sites = get.connectedChannels(map)
-            sites = map.chanMap(map.connected);
+            sites = map.channelIds(map.connected);
         end
         
         function sites = get.referenceChannels(map)
-            sites = map.chanMap(~map.connected);
+            sites = map.channelIds(~map.connected);
         end
         
         function zspacing = get.zspacing(map)
@@ -86,11 +116,11 @@ classdef ChannelMap
             xspacing = min(dxs);
         end
         
-        function [channelInds, channelIds] = lookup_channelIds(df, channelIds)
+        function [channelInds, channelIds] = lookup_channelIds(map, channelIds)
              if islogical(channelIds)
-                channelIds = df.chanMap(channelIds);
+                channelIds = map.channelIds(channelIds);
              end
-            [tf, channelInds] = ismember(channelIds, df.chanMap);
+            [tf, channelInds] = ismember(channelIds, map.channelIds);
             assert(all(tf), 'Some channel ids not found');
         end
         

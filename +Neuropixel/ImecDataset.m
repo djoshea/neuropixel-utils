@@ -23,9 +23,6 @@ classdef ImecDataset < handle
 
         channelMap = []; % can be stored using set channelMap
 
-        syncChannelIndex = NaN; % if in AP file, specify this
-        syncInAPFile logical = true; % is the sync info in the ap file, or in a separate .sync file
-
         % see markBadChannels
         badChannels
 
@@ -55,7 +52,7 @@ classdef ImecDataset < handle
         goodChannels % connected channels sans badChannels
         nGoodChannels
         
-        channelIds % 1 index channel list from channelMapFile
+        channelIds % list of ids from ChannelMap
         channelNames % full list of channel names
         channelNamesPadded
 
@@ -84,14 +81,16 @@ classdef ImecDataset < handle
 
         apScaleToUv % multiply raw int16 by this to get uV
         lfScaleToUv
+
+        % from channel map (although syncChannelIndex will be 1 if sync not in AP file)
+        syncChannelIndex % if sync in AP file, at one index
+        syncInAPFile % is the sync info in the ap file, or in a separate .sync file
     end
 
     methods
         function df = ImecDataset(fileOrFileStem, varargin)
             p = inputParser();
             p.addParameter('channelMap', [], @(x) true);
-            p.addParameter('syncInAPFile', true, @islogical);
-            p.addParameter('syncChannelIndex', NaN, @isscalar);
             p.addParameter('syncBitNames', [], @(x) isempty(x) || isstring(x) || iscellstr(x));
             p.parse(varargin{:})
 
@@ -115,25 +114,6 @@ classdef ImecDataset < handle
             end
             df.channelMap = Neuropixel.ChannelMap(channelMapFile);
             assert(df.channelMap.nChannels <= df.nChannels, 'Channel count is less than number of channels in channel map');
-
-            if p.Results.syncInAPFile
-                % check for cached sync file
-                if isnan(p.Results.syncChannelIndex)
-                    % assume last channel in ap file
-                    df.syncChannelIndex = df.nChannels;
-                else
-                    df.syncChannelIndex = p.Results.syncChannelIndex;
-                end
-                df.syncInAPFile = true;
-            else
-                if isnan(p.Results.syncChannelIndex)
-                    % assume first channel in sync file
-                    df.syncChannelIndex = 1;
-                else
-                    df.syncChannelIndex = p.Results.syncChannelIndex;
-                end
-                df.syncInAPFile = false;
-            end
 
             if ~isempty(p.Results.syncBitNames)
                 df.setSyncBitNames(1:numel(p.Results.syncBitNames), p.Resuls.syncBitNames);
@@ -532,7 +512,7 @@ classdef ImecDataset < handle
                 unique_cluster_ids = unique(p.Results.cluster_ids);
             end
             if isempty(channel_ids_by_cluster)
-                channel_ids_by_cluster = repmat(df.channelMap.chanMap, 1, numel(unique_cluster_ids));
+                channel_ids_by_cluster = repmat(df.channelMap.channelIds, 1, numel(unique_cluster_ids));
             end
             if size(channel_ids_by_cluster, 1) == 1
                 % same channels each cluster, repmat column to make matrix
@@ -677,6 +657,19 @@ classdef ImecDataset < handle
     end
 
     methods % Dependent properties
+        function tf = get.syncInAPFile(df)
+            tf = df.channelMap.syncInAPFile;
+        end
+        
+        function ind = get.syncChannelIndex(df)
+            if df.syncInAPFile
+                ind = df.channelMap.syncChannelIndex;
+            else
+                % if sync is in its own file, assume it's the first and only channel
+                ind = uint32(1);
+            end
+        end
+        
         function pathAP = get.pathAP(df)
             pathAP = fullfile(df.pathRoot, df.fileAP);
         end
@@ -757,7 +750,7 @@ classdef ImecDataset < handle
             if isempty(df.channelMap)
                 list = [];
             else
-                list = df.channelMap.chanMap;
+                list = df.channelMap.channelIds;
             end
         end
 
@@ -794,12 +787,12 @@ classdef ImecDataset < handle
         end
         
         function idx = get.channelIds(df)
-            idx = df.channelMap.chanMap;
-        end
+            idx = df.channelMap.channelIds;
+        end        
         
         function names = get.channelNames(df)
             names = strings(df.nChannels, 1);
-            names(df.channelMap.chanMap) = string(sprintfc("ch %d", df.channelMap.chanMap));
+            names(df.channelMap.channelIds) = string(sprintfc("ch %d", df.channelMap.channelIds));
             if ~isnan(df.syncChannelIndex)
                 names(df.syncChannelIndex) = "sync";
             end
@@ -807,7 +800,7 @@ classdef ImecDataset < handle
 
         function names = get.channelNamesPadded(df)
             names = strings(df.nChannels, 1);
-            names(df.channelMap.chanMap) = string(sprintfc("ch %03d", df.channelMap.chanMap));
+            names(df.channelMap.channelIds) = string(sprintfc("ch %03d", df.channelMap.channelIds));
             if ~isnan(df.syncChannelIndex)
                 names(df.syncChannelIndex) = "sync";
             end
@@ -945,14 +938,18 @@ end
             p.addParameter('applyScaling', false, @islogical); % convert to uV before processing
 
             p.addParameter('writeAP', true, @islogical);
+            p.addParameter('writeSyncSeparate', false, @islogical); % true means ap will get only mapped channels, false will preserve channels as is
+            p.addParameter('writeLF', false, @islogical);
+            
             p.addParameter('goodChannelsOnly', false, @islogical);
             p.addParameter('connectedChannelsOnly', false, @islogical);
             p.addParameter('mappedChannelsOnly', false, @islogical);
             
-            p.addParameter('writeSyncSeparate', false, @islogical); % true means ap will get only mapped channels, false will preserve channels as is
-            p.addParameter('writeLF', false, @islogical);
             p.addParameter('chunkSize', 2^20, @isscalar);
-
+            
+            p.addParameter('timeShiftsAP', {}, @(x) isempty(x) || isa(x, 'Neuropixel.TimeShiftSpec')); % cell array of time shifts for each file, a time shift is a n x 3 matrix of idxStart, idxStop, newIdxStart. These are used to excise specific time windows from the file
+            p.addParameter('timeShiftsLF', {}, @(x) isempty(x) || isa(x, 'Neuropixel.TimeShiftSpec')); % cell array of time shifts for each file, a time shift is a n x 3 matrix of idxStart, idxStop, newIdxStart. These are used to excise specific time windows from the file
+            
             p.addParameter('extraMeta', struct(), @isstruct);
             p.parse(varargin{:});
 
@@ -1286,6 +1283,8 @@ end
             p = inputParser();
             p.addParameter('writeAP', true, @islogical);
             p.addParameter('goodChannelsOnly', false, @islogical);
+            p.addParameter('mappedChannelsOnly', false, @islogical);
+            p.addParameter('connectedChannelsOnly', false, @islogical);
             p.addParameter('writeSyncSeparate', false, @islogical); % true means ap will get only mapped channels, false will preserve channels as is
             p.addParameter('writeLF', false, @islogical);
             p.addParameter('chunkSize', 2^20, @isscalar);
@@ -1296,7 +1295,8 @@ end
             p.addParameter('transformAP', {}, @(x) iscell(x) || isa(x, 'function_handle')); % list of transformation functions that accept (df, dataChunk) and return dataChunk someplace
             p.addParameter('transformLF', {}, @(x) iscell(x) || isa(x, 'function_handle')); % list of transformation functions that accept (df, dataChunk) and return dataChunk someplace
 
-            p.addParameter('timeShifts', {}, @(x) isempty(x) || isa(x, 'Neuropixel.TimeShiftSpec')); % cell array of time shifts for each file, a time shift is a n x 3 matrix of idxStart, idxStop, newIdxStart. These are used to excise specific time windows from the file
+            p.addParameter('timeShiftsAP', {}, @(x) isempty(x) || isa(x, 'Neuropixel.TimeShiftSpec')); % cell array of time shifts for each file, a time shift is a n x 3 matrix of idxStart, idxStop, newIdxStart. These are used to excise specific time windows from the file
+            p.addParameter('timeShiftsLF', {}, @(x) isempty(x) || isa(x, 'Neuropixel.TimeShiftSpec')); % cell array of time shifts for each file, a time shift is a n x 3 matrix of idxStart, idxStop, newIdxStart. These are used to excise specific time windows from the file
             
             p.addParameter('extraMeta', struct(), @isstruct);
             p.addParameter('dryRun', false, @islogical);
@@ -1348,15 +1348,15 @@ end
             end
 
             % figure out which channels to keep
-            imec1 = imecList{1};
-            [chIndsByFile, ~] = Neuropixel.ImecDataset.multiFile_build_channelSelectors_internal('goodChannelsOnly', p.Results.goodChannelsOnly, ...
-                'mappedChannelsOnly', p.Results.mappedChannelsOnly);
+            [chIndsByFile, ~] = Neuropixel.ImecDataset.multiFile_build_channelSelectors_internal(imecList, 'goodChannelsOnly', p.Results.goodChannelsOnly, ...
+                'connectedChannelsOnly', p.Results.connectedChannelsOnly, 'mappedChannelsOnly', p.Results.mappedChannelsOnly);
 
             chunkSize = p.Results.chunkSize;
 
             useGpuArray = p.Results.gpuArray;
             applyScaling = p.Results.applyScaling;
-            timeShifts = p.Results.timeShifts;
+            timeShiftsAP = p.Results.timeShiftsAP;
+            timeShiftsLF = p.Results.timeShiftsLF;
             isConcatenation = numel(imecList) > 1;
             
             if ~dryRun
@@ -1396,9 +1396,9 @@ end
                     meta.concatenatedAiRangeMax = cellfun(@(imec) imec.apRange(2), imecList);
                 end
                 
-                if ~isempty(timeShifts) && isConcatenation
+                if ~isempty(timeShiftsAP) && isConcatenation
                     % log time shifts by file in meta
-                    meta.concatenatedTimeShifts = strjoin(arrayfun(@(shift) shift.as_string(), timeShifts, 'UniformOutput', false), '; ');
+                    meta.concatenatedTimeShifts = strjoin(arrayfun(@(shift) shift.as_string(), timeShiftsAP, 'UniformOutput', false), '; ');
                 end
 
                 % compute union of badChannels
@@ -1419,7 +1419,7 @@ end
                 end
                 
                 fprintf('Writing AP bin file %s\n', (outFile));
-                writeCatFile(outFile, chIndsByFile, 'ap', multipliers, chunkSize, p.Results.transformAP, timeShifts, dryRun);
+                writeCatFile(outFile, chIndsByFile, 'ap', multipliers, chunkSize, p.Results.transformAP, timeShiftsAP, dryRun);
             end
 
             if p.Results.writeLF || ~isempty(p.Results.transformLF)
@@ -1454,23 +1454,33 @@ end
                     meta.concatenatedAiRangeMax = cellfun(@(imec) imec.lfRange(2), imecList);
                 end
                 
+                if ~isempty(timeShiftsLF) && isConcatenation
+                    % log time shifts by file in meta
+                    meta.concatenatedTimeShifts = strjoin(arrayfun(@(shift) shift.as_string(), timeShiftsLF, 'UniformOutput', false), '; ');
+                end
+
+                % compute union of badChannels
+                for iM = 2:numel(imecList)
+                    meta.badChannels = union(meta.badChannels, imecList{iM}.badChannels);
+                end
+                
                 fprintf('Writing LF meta file %s\n', lastFilePart(metaOutFile));
                 if ~dryRun
                     Neuropixel.writeINI(metaOutFile, meta);
                 end
 
                 fprintf('Writing LF bin file %s\n', lastFilePart(outFile));
-                writeCatFile(outFile, chIndsByFile, 'lf', multipliers, chunkSize, p.Results.transformLF, timeShifts, dryRun);
+                writeCatFile(outFile, chIndsByFile, 'lf', multipliers, chunkSize, p.Results.transformLF, timeShiftsLF, dryRun);
             end
 
             if p.Results.writeSyncSeparate
                 outFile = fullfile(outPath, [leaf '.imec.sync.bin']);
                 fprintf('Writing separate sync bin file %s', lastFilePart(outFile));
-                writeCatFile(outFile, imec1.syncChannelIndex, 'sync', ones(nFiles, 1, 'int16'), chunkSize, {}, timeShifts, dryRun);
+                writeCatFile(outFile, imecList{1}.syncChannelIndex, 'sync', ones(nFiles, 1, 'int16'), chunkSize, {}, timeShiftsAP, dryRun);
             end
 
             outFile = fullfile(outPath, [leaf '.imec.ap.bin']);
-            imecOut = Neuropixel.ImecDataset(outFile, 'channelMap', imec1.channelMapFile);
+            imecOut = Neuropixel.ImecDataset(outFile, 'channelMap', imecList{1}.channelMapFile);
 
             function writeCatFile(outFile, chIndsByFile, mode, multipliers, chunkSize, procFnList, timeShifts, dryRun)
                 if ~iscell(procFnList)
@@ -1495,10 +1505,13 @@ end
                     switch mode
                         case 'ap'
                             mm = imecList{iF}.memmapAP_full();
+                            nSamplesSource = imecList{iF}.nSamplesAP;
                         case 'lf'
                             mm = imecList{iF}.memmapLF_full();
+                            nSamplesSource = imecList{iF}.nSamplesLF;
                         case 'sync'
                             mm = imecList{iF}.memmapSync_full();
+                            nSamplesSource = imecList{iF}.nSamplesAP;
                     end
 
                     % build idx vector
@@ -1506,7 +1519,7 @@ end
                         outSize = size(mm.Data.x, 2);
                         sourceIdxList = uint64(1):uint64(outSize);
                     else
-                        sourceIdxList = timeShifts(iF).computeSourceIndices();
+                        sourceIdxList = timeShifts(iF).computeSourceIndices(nSamplesSource);
                         outSize = numel(sourceIdxList);
                     end
                     

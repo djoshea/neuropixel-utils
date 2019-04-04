@@ -1,4 +1,4 @@
-classdef TimeShiftSpec
+classdef TimeShiftSpec < handle
     % a simple class for holding information about a time shift that takes a set of specific time intervals
     % in the original file and maps them to new indices that have been squished together by excising some intervening intervals
     % This is used primarily for skipping over bad regions in a raw data file we don't want to sort
@@ -75,17 +75,36 @@ classdef TimeShiftSpec
             [~, time_src] = ismember(times, srcIdx);
         end
         
-        function shiftIndices = computeSourceIndices(spec)
-            % compute a nShiftedTimes x 1 vector of indices into the source file that would occupy times 1:nShiftedTimes in the shifted output file
+        function constrainToNumSamples(spec, nSamplesSource)
+            maskKeep = spec.idxStart <= uint64(nSamplesSource);
+            spec.idxStart = spec.idxStart(maskKeep);
+            spec.idxStop = min(spec.idxStart(maskKeep), uint64(nSamplesSource));
+            spec.idxShiftStart = spec.idxShiftStart(maskKeep);
+        end
+        
+        function shiftIndices = computeSourceIndices(spec, nSamplesSource)
+            % compute a nShiftedTimes x 1 vector of indices into the source file imec
+            % that would occupy times 1:nShiftedTimes in the shifted output file
             % if a given slot isn't filled, it will be set to 0
-           shiftIndices = zeros(spec.nShiftedTimes, 1, 'uint64');
-           dur = spec.intervalDurations;
-           for i = 1:spec.nIntervals
+           
+            if nargin < 2
+                nSamplesSource = inf;
+            else
+                nSamplesSource = int64(nSamplesSource);
+            end
+
+            shiftIndices = zeros(spec.nShiftedTimes, 1, 'uint64');
+            dur = spec.intervalDurations;
+            for i = 1:spec.nIntervals
                offsets = int64(0):(int64(dur(i)) - int64(1));
                to = int64(spec.idxShiftStart(i)) + offsets;
                from = int64(spec.idxStart(i)) + offsets;
+
+               mask = to >= int64(1) & from >= int64(1) & from <= nSamplesSource;
+               to = to(mask);
+               from = from(mask);
                shiftIndices(to) = from;
-           end
+            end
         end
     end
     
