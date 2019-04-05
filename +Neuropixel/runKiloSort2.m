@@ -42,7 +42,7 @@ function rez = runKiloSort2(imec, varargin)
     assert(~isempty(goodChannels), 'Must mark good channels');
 
     map = imec.channelMap;
-    chanMap = map.chanMap; 
+    chanMap = map.channelIdsMapped; 
     xcoords = map.xcoords; 
     ycoords = map.ycoords; 
     % this is a mask over mapped channels that is true if channel is good
