@@ -11,8 +11,9 @@ function rez = runKiloSort2(imec, varargin)
     end
     
     ops = defaultConfig();
+    ops.fig = false; % default avoid plotting in main loop, can be overriden as parameter to runKilosort2
     ops.trange = [0 Inf];
-    ops.markSplitsOnly = false;
+    ops.markSplitsOnly = false; % custom parameter for local working version of Kilosort2
     ops.fproc = fullfile(p.Results.workingDir, sprintf('temp_wh_%s.dat', imec.fileStem));
     
     flds = fieldnames(p.Unmatched);
