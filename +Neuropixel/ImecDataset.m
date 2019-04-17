@@ -592,10 +592,12 @@ classdef ImecDataset < handle
 
         function rms = computeRMSByChannel(df, varargin)
             p = inputParser();
-            p.addParameter('sampleMask', [], @(x) isempty(x) || islogical(x));
+            p.addParameter('sampleMaskFn', [], @(x) isempty(x) || isa(x, 'function_handle')); % sampleMaskFn(data_ch_x_time, sample_idx_time) --> logical_time mask of time samples valid for use, useful if you have artifacts at known times
             p.parse(varargin{:});
+            
+            sampleMaskFn = p.Results.sampleMaskFn;
+            
             % skip the first few chunks
-
             skipChunks = 5;
             useChunks = 5;
             chunkSize = 1000000;
@@ -607,9 +609,9 @@ classdef ImecDataset < handle
                 prog.increment();
                 data = mm.Data(iC+skipChunks).x;
 
-                if ~isempty(p.Results.sampleMask)
+                if ~isempty(sampleMaskFn)
                     idx = (iC+skipChunks-1)*chunkSize + (1:chunkSize);
-                    mask = p.Results.sampleMask(idx);
+                    mask = sampleMaskFn(data, idx);
                     data = data(:, mask);
                 end
 
@@ -864,7 +866,7 @@ classdef ImecDataset < handle
             function [rmsBadChannels, rmsByChannel] = markBadChannelsByRMS(df, varargin)
             p = inputParser();
             p.addParameter('rmsRange', [3 100], @isvector);
-            p.addParameter('sampleMask', [], @(x) isempty(x) || islogical(x));
+            p.addParameter('sampleMaskFn', [], @(x) isempty(x) || isa(x, 'function_handle')); % sampleMaskFn(data_ch_x_time, sample_idx_time) --> logical_time mask of time samples valid for use, useful if you have artifacts at known times
             p.parse(varargin{:});
 
             channelMask = true(df.nChannels, 1);
@@ -873,7 +875,7 @@ classdef ImecDataset < handle
 
             oldChannelMask = channelMask;
 
-            rmsByChannel = df.computeRMSByChannel('sampleMask', p.Results.sampleMask);
+            rmsByChannel = df.computeRMSByChannel('sampleMaskFn', p.Results.sampleMaskFn);
             rmsMin = p.Results.rmsRange(1);
             rmsMax = p.Results.rmsRange(2);
             channelMask(rmsByChannel < rmsMin | rmsByChannel > rmsMax) = false;
