@@ -58,6 +58,7 @@ end
 
 axis tight;
 box off;
+set(gca, 'TickDir', 'out');
 
 if ~washolding
     hold off;

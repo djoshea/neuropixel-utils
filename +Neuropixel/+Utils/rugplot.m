@@ -18,11 +18,13 @@ function h = rugplot(ticks, varargin)
     p.addParameter('side', 'top', @ischar);
     p.addParameter('length', 0.01, @isscalar); % fraction of axis extents
     p.addParameter('offset', 0, @isscalar); % fraction of axis extents, + mean away from center of axis
+    p.addParameter('expand_limits', false, @islogical);
     p.parse(varargin{:});
     
     side = p.Results.side;
     ylfull = ylim;
-    xlfull = xlim;    
+    xlfull = xlim;  
+    expand = p.Results.expand_limits;
 
     switch side
         case {'top', 'bottom'}
@@ -38,15 +40,31 @@ function h = rugplot(ticks, varargin)
        
     switch side
         case 'top'
+            if expand
+                ylfull(2) = ylfull(2) + len;
+                ylim(ylfull);
+            end
             x = [ticks'; ticks'];
             y = repmat([ylfull(2); ylfull(2)-len], 1, numel(ticks)) + offset;
         case 'bottom'
+            if expand
+                ylfull(1) = ylfull(1) - len;
+                ylim(ylfull);
+            end
             x = [ticks'; ticks'];
             y = repmat([ylfull(1); ylfull(1)+len], 1, numel(ticks)) - offset;
         case 'right'
+            if expand
+                xlfull(2) = xlfull(2) + len;
+                xlim(xlfull);
+            end
             y = [ticks'; ticks'];
             x = repmat([xlfull(2); xlfull(2)-len], 1, numel(ticks)) + offset;
         case 'left'
+            if expand
+                xlfull(1) = ylfull(1) - len;
+                xlim(xlfull);
+            end
             y = [ticks'; ticks'];
             x = repmat([xlfull(1); xlfull(1)+len], 1, numel(ticks)) - offset;
     end
