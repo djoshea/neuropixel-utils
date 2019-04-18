@@ -73,18 +73,28 @@ classdef TrialSegmentationInfo < handle & matlab.mixin.Copyable
         
         function h = markTrialTicks(tsi, varargin)
             p = inputParser();
+            p.addParameter('sample_window', [], @(x) isempty(x) || isvector(x)); % masks which trials to include, note that it applies before the time shifts
             p.addParameter('time_shifts', [], @(x) isempty(x) || isa(x, 'Neuropixel.TimeShiftSpec'));
             p.addParameter('side', 'bottom', @ischar);
             p.addParameter('Color', [0 0 1], @isvector);
+            p.addParameter('timeInSeconds', true, @islogical); % if true, x axis is seconds, if false, is samples 
+            p.addParameter('expand_limits', false, @islogical);
             p.parse(varargin{:});
             
             timeShifts = p.Results.time_shifts;
             ticks =  tsi.idxStart;
+            sample_window = p.Results.sample_window;
+            if ~isempty(sample_window)
+                mask = ticks >= sample_window(1) & ticks <= sample_window(2);
+                ticks = ticks(mask);
+            end
             if ~isempty(timeShifts)
                 ticks = timeShifts.shiftTimes(ticks);
             end
-            ticks = double(ticks) / tsi.fs;
-            h = Neuropixel.Utils.rugplot(ticks, 'side', p.Results.side, 'Color', p.Results.Color);
+            if p.Results.timeInSeconds
+                ticks = double(ticks) / tsi.fs;
+            end
+            h = Neuropixel.Utils.rugplot(ticks, 'side', p.Results.side, 'Color', p.Results.Color, 'expand_limits', p.Results.expand_limits);
             set(h, 'XLimInclude', 'off');
         end
         

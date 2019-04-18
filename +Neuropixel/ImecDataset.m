@@ -94,6 +94,7 @@ classdef ImecDataset < handle
             p.addParameter('syncBitNames', [], @(x) isempty(x) || isstring(x) || iscellstr(x));
             p.parse(varargin{:})
 
+            fileOrFileStem = char(fileOrFileStem);
             file = Neuropixel.ImecDataset.findImecFileInDir(fileOrFileStem, 'ap');
             if isempty(file)
                 error('No AP Imec file found at or in %s', fileOrFileStem);
@@ -170,6 +171,7 @@ classdef ImecDataset < handle
         end
 
         function setSyncBitNames(df, idx, names)
+            % idx is the indices of which bits to set to the corresponding items from names
             assert(all(idx >= 1 & idx <= df.nSyncBits), 'Sync bit indices must be in [1 %d]', df.nSyncBits);
             if isscalar(idx) && ischar(names)
                 df.syncBitNames{idx} = names;
@@ -315,6 +317,7 @@ classdef ImecDataset < handle
         end
         
         function mat = readSyncBits_idx(df, bits, idx)
+            % mat is nTime x nBits
             if isstring(bits)
                 bits = df.lookupSyncBitByName(bits);
             end
@@ -382,7 +385,7 @@ classdef ImecDataset < handle
         
         function inspectAP_timeWindow(df, timeWindowSec, varargin)
             idxWindow = df.closestSampleAPForTime(timeWindowSec);
-            df.inspectAP_idxWindow(idxWindow, varargin{:});
+            df.inspectAP_idxWindow(idxWindow, 'timeInSeconds', true, varargin{:});
         end
         
         function inspectAP_idxWindow(df, idxWindow, varargin)
@@ -394,13 +397,15 @@ classdef ImecDataset < handle
             p.addParameter('gain', 0.95, @isscalar);
             p.addParameter('car', false, @islogical);
             p.addParameter('downsample',1, @isscalar); 
+            p.addParameter('timeInSeconds', false, @islogical);
+            p.addParameter('tsi', [], @(x) isempty(x) || isa(x, 'Neuropixel.TrialSegmentationInfo')); % to mark trial boundaries
             p.parse(varargin{:});
             
             sampleIdx = idxWindow(1):idxWindow(2);
             mat = df.readAP_idx(sampleIdx);
             labels = df.channelNamesPadded;
             
-            [channelInds, channelIds] = df.lookup_channel_ids(p.Results.channels); %#ok<*PROPLC>
+            [channelInds, channelIds] = df.lookup_channelIds(p.Results.channels); %#ok<*PROPLC>
             mat = mat(channelInds, :);
             labels = labels(channelInds);
             connected = ismember(channelIds, df.connectedChannels);
@@ -431,7 +436,7 @@ classdef ImecDataset < handle
             syncBits = p.Results.syncBits;
             if ~isempty(syncBits)
                 syncBitMat = df.readSyncBits_idx(syncBits, sampleIdx);
-                mat = cat(1, mat, syncBitMat);
+                mat = cat(1, mat, syncBitMat');
                 colors = cat(1, colors, repmat([1 0 0], size(syncBitMat, 1), 1));
                 labels = cat(1, labels, df.syncBitNames(syncBits));
                 normalizeMask = cat(1, normalizeMask, false(size(syncBitMat, 1), 1));
@@ -440,8 +445,20 @@ classdef ImecDataset < handle
             if ~p.Results.showLabels
                 labels = [];
             end
-            Neuropixel.Utils.plotStackedTraces(sampleIdx, mat', 'colors', colors, 'labels', labels, ...
+            
+            if p.Results.timeInSeconds
+                time = double(sampleIdx) / df.fsAP;
+            else
+                time = sampleIdx;
+            end
+            Neuropixel.Utils.plotStackedTraces(time, mat', 'colors', colors, 'labels', labels, ...
                 'gain', p.Results.gain, 'normalizeMask', normalizeMask, 'normalizeEach', false);
+            
+            tsi = p.Results.tsi;
+            if ~isempty(tsi)
+                tsi.markTrialTicks('sample_window', idxWindow, 'timeInSeconds', p.Results.timeInSeconds, ...
+                    'side', 'bottom', 'Color', [0.2 0.2 1], 'expand_limits', true);
+            end
         end
     end
 
@@ -593,22 +610,32 @@ classdef ImecDataset < handle
         function rms = computeRMSByChannel(df, varargin)
             p = inputParser();
             p.addParameter('sampleMaskFn', [], @(x) isempty(x) || isa(x, 'function_handle')); % sampleMaskFn(data_ch_x_time, sample_idx_time) --> logical_time mask of time samples valid for use, useful if you have artifacts at known times
+            p.addParameter('car', false, @islogical);
+            p.addParameter('useChunks', 50, @isscalar);
+            p.addParameter('chunkSize', 100000, @isscalar);
             p.parse(varargin{:});
             
             sampleMaskFn = p.Results.sampleMaskFn;
             
-            % skip the first few chunks
-            skipChunks = 5;
-            useChunks = 5;
-            chunkSize = 1000000;
+            % aim for the middle of the file
+            chunkSize = min(df.fsAP, p.Results.chunkSize);
             mm = df.memmapAP_by_chunk(chunkSize);
+            nChunks = numel(mm.Data);
+            useChunks = min(nChunks, p.Results.useChunks);
+            skipChunks = floor((nChunks-useChunks)/2);
+            
+            ch_mask = df.lookup_channelIds(df.mappedChannels); % for common average referencing
 
             sumByChunk = nan(df.nChannels, useChunks);
-            prog = Neuropixel.Utils.ProgressBar(useChunks, 'Computing RMS per channel');
+%             prog = Neuropixel.Utils.ProgressBar(useChunks, 'Computing RMS per channel');
             for iC =  1:useChunks
-                prog.increment();
+%                 prog.increment();
                 data = mm.Data(iC+skipChunks).x;
-
+                
+                if p.Results.car
+                    data(ch_mask, :) = data(ch_mask, :) - mean(data(ch_mask, :), 1, 'native');
+                end
+                
                 if ~isempty(sampleMaskFn)
                     idx = (iC+skipChunks-1)*chunkSize + (1:chunkSize);
                     mask = sampleMaskFn(data, idx);
@@ -617,7 +644,7 @@ classdef ImecDataset < handle
 
                 sumByChunk(:, iC) = sum((single(data) - mean(single(data), 2)).^2, 2);
             end
-            prog.finish();
+%             prog.finish();
             rms = sqrt(sum(sumByChunk, 2) ./ (useChunks * chunkSize));
             rms = rms * df.apScaleToUv;
         end
@@ -859,6 +886,11 @@ classdef ImecDataset < handle
 
         function str = get.creationTimeStr(df)
             str = datestr(df.creationTime);
+        end
+        
+        function file = getAuxiliaryFileWithSuffix(df, suffix)
+             suffix = char(suffix);
+             file = fullfile(df.pathRoot, [df.fileStem, '.', suffix]);
         end
     end
     
@@ -1136,6 +1168,7 @@ end
             if nargin < 2
                 type = 'ap';
             end
+            fileOrFileStem = char(fileOrFileStem);
 
             if exist(fileOrFileStem, 'file') == 2
                 file = fileOrFileStem;
