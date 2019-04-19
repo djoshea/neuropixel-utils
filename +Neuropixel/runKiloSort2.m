@@ -13,7 +13,11 @@ function rez = runKiloSort2(imec, varargin)
     ops = defaultConfig();
     ops.fig = false; % default avoid plotting in main loop, can be overriden as parameter to runKilosort2
     ops.trange = [0 Inf];
+    
+    % custom params added locally
     ops.markSplitsOnly = false; % custom parameter for local working version of Kilosort2
+    ops.spikeThreshBothDirs = false; % apply spkTh threshold from above and below
+    
     ops.fproc = fullfile(p.Results.workingDir, sprintf('temp_wh_%s.dat', imec.fileStem));
     
     flds = fieldnames(p.Unmatched);
@@ -25,6 +29,7 @@ function rez = runKiloSort2(imec, varargin)
             error('Unknown option %s', fld);
         end
     end
+    assert(ops.spkTh < 0, 'Option spkTh should be negative');
     
     ops.root = imec.pathRoot;
     ops.fs = imec.fsAP;        % sampling rate		(omit if already in chanMap file)
