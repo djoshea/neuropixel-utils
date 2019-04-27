@@ -1,13 +1,13 @@
-function [proxMat, distMat] = generateChannelProximityMatrix(channelMap, distanceThresh, channelInds)
+function [proxMat, distMat] = generateChannelProximityMatrix(channelMap, distanceThresh, channelIds)
 % generate an N x N matrix which is true where two channels are within
 % distanceThresh of each other (in microns). By default uses connected
 % channels but other channel inds may be specified
 
 if nargin < 3
-    channelInds = find(channelMap.connected);
+    channelIds = channelMap.connectedChannels;
 end
 
-
+channelInds = channelMap.lookup_channelIds(channelIds);
 x = channelMap.xcoords(channelInds);
 y = channelMap.ycoords(channelInds);
 N = numel(x);

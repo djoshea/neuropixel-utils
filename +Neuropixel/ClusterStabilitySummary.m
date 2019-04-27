@@ -51,19 +51,19 @@ classdef ClusterStabilitySummary < handle & matlab.mixin.Copyable
             t = double(s.idxStart) / double(s.fs);
         end
         
-        function clusterInd = lookupClusterIds(s, cluster_ids)
+        function clusterInd = lookup_clusterIds(s, cluster_ids)
             [tf, clusterInd] = ismember(uint32(cluster_ids), s.cluster_ids);
             assert(all(tf), 'Clusters not found');
         end  
         
-        function [conditionInd, condition_list] = lookupConditionIdsInList(s, condition_ids)
+        function [conditionInd, condition_list] = lookup_conditionIdsInList(s, condition_ids)
             condition_list = s.condition_list;
             [tf, conditionInd] = ismember(condition_ids, condition_list);
             conditionInd(~tf) = NaN;
         end
         
         function inds = get.conditionIndInList(s)
-            inds = s.lookupConditionIdsInList(s.condition_ids);
+            inds = s.lookup_conditionIdsInList(s.condition_ids);
         end
         
         function meanFR = computeMeanFRByCondition(s, varargin)
@@ -100,9 +100,9 @@ classdef ClusterStabilitySummary < handle & matlab.mixin.Copyable
             if iscellstr(condition_ids) %#ok<ISCLSTR>
                 condition_ids = string(condition_ids);
             end
-            clusterInd = s.lookupClusterIds(cluster_ids);
+            clusterInd = s.lookup_clusterIds(cluster_ids);
             
-            [conditionIndToPlot, condition_list] = s.lookupConditionIdsInList(condition_ids); %#ok<*PROPLC>
+            [conditionIndToPlot, condition_list] = s.lookup_conditionIdsInList(condition_ids); %#ok<*PROPLC>
             conditionIndByTrial = s.conditionIndInList;
             nCondsTotal = numel(condition_list);
             x = s.getStartTimeSec();

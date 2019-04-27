@@ -44,12 +44,15 @@ classdef ImecDataset < handle
 
         channelMapFile
         mappedChannels
+        mappedChannelInds
         nChannelsMapped % number of channels in the channel map (excludes sync)
 
         connectedChannels
+        connectedChannelInds
         nChannelsConnected % excludes reference and sync channels
 
         goodChannels % connected channels sans badChannels
+        goodChannelInds
         nGoodChannels
         
         channelIds % list of ids from ChannelMap
@@ -782,6 +785,7 @@ classdef ImecDataset < handle
                 list = df.channelMap.channelIds;
             end
         end
+            list = df.lookup_channelIds(df.mappedChannels);
 
         function list = get.connectedChannels(df)
             if isempty(df.channelMap)
@@ -790,6 +794,7 @@ classdef ImecDataset < handle
                 list = df.channelMap.connectedChannels;
             end
         end
+        function list = get.connectedChannelInds(df)
 
         function n = get.nChannelsMapped(df)
             if isempty(df.channelMap)
@@ -810,6 +815,7 @@ classdef ImecDataset < handle
         function ch = get.goodChannels(df)
             ch = setdiff(df.connectedChannels, df.badChannels);
         end
+            list = df.lookup_channelIds(df.goodChannels);
 
         function n = get.nGoodChannels(df)
             n = numel(df.goodChannels);
