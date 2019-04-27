@@ -26,6 +26,10 @@ classdef ChannelMap
         yspacing
         xspacing
         zspacing
+        
+        xlim
+        ylim
+        zlim
     end
     
     methods
@@ -92,7 +96,7 @@ classdef ChannelMap
         end
         
         function sites = get.referenceChannels(map)
-            sites = map.channelIds(~map.connected);
+            sites = setdiff(map.channelIdsMapped, map.connectedChannels);
         end
         
         function zspacing = get.zspacing(map)
@@ -114,6 +118,21 @@ classdef ChannelMap
             dxs = diff(xs);
             dxs = dxs(dxs > 0);
             xspacing = min(dxs);
+        end
+        
+        function ylim = get.ylim(map)
+            ys = map.yspacing;
+            ylim = [min(map.ycoords) - ys, max(map.ycoords) + ys];
+        end
+        
+        function xlim = get.xlim(map)
+            xs = map.yspacing;
+            xlim = [min(map.xcoords) - xs, max(map.xcoords) + xs];
+        end
+        
+        function zlim = get.zlim(map)
+            zs = map.yspacing;
+            zlim = [min(map.zcoords) - zs, maz(map.zcoords) + zs];
         end
         
         function [channelInds, channelIds] = lookup_channelIds(map, channelIds)
@@ -164,6 +183,58 @@ classdef ChannelMap
 %                 maskInds = find(mask);
 %                 idxFull = maskInds(idxIntoMasked);
 %             end
+        end
+        
+        function plotRecordingSites(map, varargin)
+            p = inputParser();
+            p.addParameter('channel_ids', map.channelIdsMapped, @isvector);
+            p.addParameter('goodChannels', [], @isvector);
+            p.addParameter('badChannels', [], @isvector);
+            
+            p.addParameter('markerSize', 20, @isscalar);
+            p.addParameter('showChannelLabels', false, @islogical);
+            p.addParameter('labelArgs', {}, @iscell);
+            
+            p.addParameter('color_connected', [0.7 0.7 0.7], @(x) true);
+            p.addParameter('color_bad', [1 0.7 0.7], @(x) true);
+            p.addParameter('color_good', [0.7 1 0.7], @(x) true);
+            p.addParameter('color_reference', [0.5 0.5 1], @(x) true);
+            p.parse(varargin{:});
+            
+            [channelInds, channelIds] = map.lookup_channelIds(p.Results.channel_ids);
+            xc = map.xcoords(channelInds);
+            yc = map.ycoords(channelInds);
+            
+            is_connected = ismember(channelIds, map.connectedChannels);
+            is_good = ismember(channelIds, p.Results.goodChannels);
+            is_bad = ismember(channelIds, p.Results.badChannels);
+            is_ref = ismember(channelIds, map.referenceChannels);
+            cmap = zeros(numel(channelInds), 3);
+            cmap(is_connected, :) = repmat(p.Results.color_connected, nnz(is_connected), 1);
+            cmap(is_good, :) = repmat(p.Results.color_good, nnz(is_good), 1);
+            cmap(is_bad, :) = repmat(p.Results.color_bad, nnz(is_bad), 1);
+            cmap(is_ref, :) = repmat(p.Results.color_reference, nnz(is_ref), 1);
+            
+            channelTypes = strings(numel(channelInds), 1);
+            channelTypes(is_connected) = "Connected";
+            channelTypes(is_good) = "Good";
+            channelTypes(is_bad) = "Bad";
+            channelTypes(is_ref) = "Reference";
+            
+            h = scatter(xc, yc, p.Results.markerSize, cmap, 's', 'filled');
+            h.DataTipTemplate.DataTipRows(1).Format = '%g um';
+            h.DataTipTemplate.DataTipRows(2).Format = '%g um';
+            h.DataTipTemplate.DataTipRows(end+1) = dataTipTextRow('channel id', double(channelIds));
+            h.DataTipTemplate.DataTipRows(end+1) = dataTipTextRow('type', channelTypes);
+
+            if p.Results.showChannelLabels
+                for iC = 1:numel(channelInds)
+                    text(xc(iC), yc(iC), sprintf('ch %d', m.channel_ids(channelInds(iC))), ...
+                            'HorizontalAlignment', 'right', 'VerticalAlignment', 'middle', ...
+                            'Background', 'none', ...
+                            p.Results.labelArgs{:});
+                end
+            end
         end
             
     end
