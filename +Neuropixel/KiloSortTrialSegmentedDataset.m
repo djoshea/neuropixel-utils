@@ -121,10 +121,7 @@ classdef KiloSortTrialSegmentedDataset < handle & matlab.mixin.Copyable
             nUnits = numel(seg.cluster_ids);
 
             % figure out which trial each spike in spike_times belongs
-            % to do discard data that occurs after trial stop, here we assume that each
-            % trial ends at the next's start and the last trial ends at EOF
-            edges = [tsi_start_idx; tsi_stop_idx(end)];
-            trial_info_idx_each_spike = discretize(seg.dataset.spike_times, edges);
+            trial_info_idx_each_spike = tsi.segmentTimes(seg.dataset.spike_times);
             trial_info_trial_id_each_spike = Neuropixel.Utils.TensorUtils.selectAlongDimensionWithNaNs(tsi_trial_ids, 1, trial_info_idx_each_spike);
 
             % convert trial info idx into trial_ids idx

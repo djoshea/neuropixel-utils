@@ -8,6 +8,11 @@ classdef TrialSegmentationInfo < handle & matlab.mixin.Copyable
         idxStart(:, 1) uint64 % in samples
         idxStop(:, 1) uint64 % in samples, may not be used
     end
+    
+    properties(Dependent)
+        nTrials
+        trialsAreAdjacent % true if each trial's stop == next trial's start
+    end
 
     methods
         function tsi = TrialSegmentationInfo(nTrials, fs)
@@ -22,6 +27,31 @@ classdef TrialSegmentationInfo < handle & matlab.mixin.Copyable
             tsi.conditionId = zeros(nTrials, 1, 'uint32');
             tsi.idxStart = zeros(nTrials, 1, 'uint64');
             tsi.idxStop = zeros(nTrials, 1, 'uint64');
+        end
+        
+        function nTrials = get.nTrials(tsi)
+            nTrials = numel(tsi.trialId);
+        end
+        
+        function tf = get.trialsAreAdjacent(tsi)
+            % true if each trial's stop == next trial's start (or within one sample
+            tf = all(int64(tsi.idxStart(2:end)) - int64(tsi.idxStop(1:end-1)) <= int64(1));
+        end
+        
+        function [trialInds, trialIds] = segmentTimes(tsi, times)
+            edges = [tsi.idxStart; tsi.idxStop(end)];
+            trialInds = discretize(times, edges);
+            if ~tsi.trialsAreAdjacent
+                % nan out trial assignments for times which lie past the corresponding trial stop
+                mask = ~isnan(trialInds);
+                correspondingStop = zeros(size(times), 'uint64');
+                correspondingStop(mask) = tsi.idxStop(trialInds(mask));
+                trialInds(times > correspondingStop) = NaN;
+            end
+            
+            trialIds = zeros(size(times), 'like', trialInds);
+            mask = ~isnan(trialInds);
+            trialIds(mask) = tsi.trialId(trialInds(mask));
         end
         
         function truncateTrialsLongerThan(tsi, maxDurSec)
@@ -62,12 +92,14 @@ classdef TrialSegmentationInfo < handle & matlab.mixin.Copyable
             p.addParameter('Color', [0 0 1], @isvector);
             p.addParameter('LineSpecStart', '-', @ischar);
             p.addParameter('LineSpecStop', '--', @ischar);
+            p.addParameter('xOffset', 0, @isscalar);
             p.parse(varargin{:});
+            xOffset = p.Results.xOffset;
             
             hold on;
             for iT = 1:numel(tsi.idxStart)
-                xline(tsi.idxStart(iT) / tsi.fs, p.Results.LineSpecStart, num2str(tsi.trialId(iT)), 'Color', p.Results.Color, 'LineWidth', 0.5);
-                xline(tsi.idxStart(iT) / tsi.fs, p.Results.LineSpecStop, 'Color', p.Results.Color, 'LineWidth', 0.5);
+                xline(tsi.idxStart(iT) / tsi.fs + xOffset, p.Results.LineSpecStart, num2str(tsi.trialId(iT)), 'Color', p.Results.Color, 'LineWidth', 0.5);
+                xline(tsi.idxStart(iT) / tsi.fs + xOffset, p.Results.LineSpecStop, 'Color', p.Results.Color, 'LineWidth', 0.5);
             end
         end
         
@@ -79,22 +111,32 @@ classdef TrialSegmentationInfo < handle & matlab.mixin.Copyable
             p.addParameter('Color', [0 0 1], @isvector);
             p.addParameter('timeInSeconds', true, @islogical); % if true, x axis is seconds, if false, is samples 
             p.addParameter('expand_limits', false, @islogical);
+            p.addParameter('xOffset', 0, @isscalar);
             p.parse(varargin{:});
+            xOffset = p.Results.xOffset;
             
             timeShifts = p.Results.time_shifts;
             ticks =  tsi.idxStart;
             sample_window = p.Results.sample_window;
             if ~isempty(sample_window)
                 mask = ticks >= sample_window(1) & ticks <= sample_window(2);
-                ticks = ticks(mask);
+            else
+                mask = true(size(ticks));
             end
+            ticks = ticks(mask);
             if ~isempty(timeShifts)
                 ticks = timeShifts.shiftTimes(ticks);
             end
             if p.Results.timeInSeconds
                 ticks = double(ticks) / tsi.fs;
             end
-            h = Neuropixel.Utils.rugplot(ticks, 'side', p.Results.side, 'Color', p.Results.Color, 'expand_limits', p.Results.expand_limits);
+            
+            templateRows = [ ...
+                dataTipTextRow('idx start', tsi.idxStart(mask), '%d'); ...
+                dataTipTextRow('trial id', tsi.trialId(mask), '%d'); ...
+                dataTipTextRow('idx start', tsi.conditionId(mask), '%d') ];
+            h = Neuropixel.Utils.rugplot(ticks + xOffset, 'side', p.Results.side, 'Color', p.Results.Color, 'expand_limits', p.Results.expand_limits, ...
+                'dataTipTemplateRows', templateRows);
             set(h, 'XLimInclude', 'off');
         end
         
@@ -106,7 +148,9 @@ classdef TrialSegmentationInfo < handle & matlab.mixin.Copyable
             p.addParameter('Color', [0 0 1], @isvector);
             p.addParameter('LineSpecStart', '-', @ischar);
             p.addParameter('LineSpecStop', '--', @ischar);
+            p.addParameter('xOffset', 0, @isscalar);
             p.parse(varargin{:});
+            xOffset = p.Results.xOffset;
             
             [idxStart, idxStop, trialStartStop] = tsi.computeActiveRegions('maxPauseSec', p.Results.maxPauseSec); %#ok<*PROPLC>
             timeShiftSpec = p.Results.time_shifts;
@@ -117,8 +161,8 @@ classdef TrialSegmentationInfo < handle & matlab.mixin.Copyable
             hold on;
             for iT = 1:numel(idxStart)
                 str = sprintf('Trial %d-%d', trialStartStop(iT, 1), trialStartStop(iT, 2));
-                xline(double(idxStart(iT)) / tsi.fs, p.Results.LineSpecStart, '', 'Color', p.Results.Color, 'LineWidth', 0.5);
-                xline(double(idxStop(iT))  / tsi.fs, p.Results.LineSpecStop, str, 'Color', p.Results.Color, 'LineWidth', 0.5);
+                xline(double(idxStart(iT)) / tsi.fs + xOffset, p.Results.LineSpecStart, '', 'Color', p.Results.Color, 'LineWidth', 0.5);
+                xline(double(idxStop(iT))  / tsi.fs + xOffset, p.Results.LineSpecStop, str, 'Color', p.Results.Color, 'LineWidth', 0.5);
             end
         end
         

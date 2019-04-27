@@ -310,7 +310,7 @@ classdef KiloSortDataset < handle
         end
         
         function v = get.concatenatedStarts(ds)
-            if ~isfield(ds.meta, 'concatenatedStarts')
+            if ~isfield(ds.meta, 'concatenatedSamples')
                 v = uint64(1);
             else
                 cs = cumsum([uint64(1); ds.concatenatedSamples]);
@@ -322,7 +322,11 @@ classdef KiloSortDataset < handle
             if ~isfield(ds.meta, 'concatenated')
                 v = {ds.pathLeaf};
             else
-                v = Neuropixel.Utils.makecol(strsplit(ds.meta.concatenated, ';'));
+                if contains(ds.meta.concatenated, ';')
+                    v = Neuropixel.Utils.makecol(strsplit(ds.meta.concatenated, ';'));
+                else
+                    v = Neuropixel.Utils.makecol(strsplit(ds.meta.concatenated, ':'));
+                end
             end
             v = string(v);
         end
@@ -604,6 +608,7 @@ classdef KiloSortDataset < handle
         
         function m = computeMetrics(ds, recompute)
             if isempty(ds.metrics) || ~isvalid(ds.metrics) || (nargin >= 2 && recompute)
+                ds.load();
                 ds.metrics = Neuropixel.KilosortMetrics(ds);
             end
             m = ds.metrics;
@@ -623,6 +628,10 @@ classdef KiloSortDataset < handle
              end
             [tf, channelInds] = ismember(channelIds, ds.channel_ids);
             assert(all(tf), 'Some channel ids not found');
+        end
+        
+        function [fileInds, origSampleInds] = lookup_sampleIndexInConcatenatedFile(ds, inds)
+           [fileInds, origSampleInds] = Neuropixel.Utils.lookup_sampleIndexInConcatenatedFile(ds.concatenatedStarts, inds);
         end
     end
     

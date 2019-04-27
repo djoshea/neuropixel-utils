@@ -19,6 +19,7 @@ function h = rugplot(ticks, varargin)
     p.addParameter('length', 0.01, @isscalar); % fraction of axis extents
     p.addParameter('offset', 0, @isscalar); % fraction of axis extents, + mean away from center of axis
     p.addParameter('expand_limits', false, @islogical);
+    p.addParameter('dataTipTemplateRows', [], @(x) isempty(x) || isa(x, 'matlab.graphics.datatip.DataTipTextRow'));
     p.parse(varargin{:});
     
     side = p.Results.side;
@@ -69,5 +70,23 @@ function h = rugplot(ticks, varargin)
             x = repmat([xlfull(1); xlfull(1)+len], 1, numel(ticks)) - offset;
     end
     hold on;
-    h = line(x, y, 'Color', p.Results.Color, 'LineWidth', 0.5);
+    
+    % convert many small lines to one line with NaNs in between
+    X = cat(1, x, nan(1, size(x, 2)));
+    Y = cat(1, y, nan(1, size(y, 2)));
+    h = plot(X(:), Y(:), '-', 'Color', p.Results.Color, 'LineWidth', 0.5);
+    
+    %h = plot(x, y, '-', 'Color', p.Results.Color, 'LineWidth', 0.5);
+    
+    if ~isempty(p.Results.dataTipTemplateRows)
+        rows = p.Results.dataTipTemplateRows;
+        for iR = 1:numel(rows)
+            vals = Neuropixel.Utils.makerow(double(rows(iR).Value));
+            vals = repmat(vals, 3, 1);
+            rows(iR).Value = vals(:)';
+        end
+        h.DataTipTemplate.DataTipRows = rows;
+    end
+    
+    set(h.Parent, 'TickDir', 'out');
 end
