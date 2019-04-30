@@ -73,7 +73,7 @@ classdef KiloSortTrialSegmentedDataset < handle & matlab.mixin.Copyable
         function seg = KiloSortTrialSegmentedDataset(dataset, tsi, trial_ids, varargin)
             p = inputParser();
             p.addParameter('loadFeatures', true, @islogical);
-            p.addParameter('loadSync', true, @islogical);
+            p.addParameter('loadSync', false, @islogical);
             p.parse(varargin{:});
             
             % trial_ids specifies the id of each trial that will appear in
@@ -90,29 +90,19 @@ classdef KiloSortTrialSegmentedDataset < handle & matlab.mixin.Copyable
             % to the trials in the neuropixel file)
             nTrials = numel(trial_ids);
             
-            % filter trialInfo included in trial_ids
-            tsi_trial_ids = tsi.trialId;
-            tsi_start_idx = tsi.idxStart;
-            tsi_stop_idx = tsi.idxStop;
-
-            [trial_info_included, trial_idx_each_trial_info] = ismember(tsi_trial_ids, trial_ids);
-            if ~any(trial_info_included)
-                warning('No trial ids found in trialInfo were included');
+            [mask_trial_in_tsi, tsi_ind_each_local_trial] = ismember(trial_ids, tsi.trialId);
+            if ~any(mask_trial_in_tsi)
+                warning('No trial ids found in TSI were included');
                 return;
             end
-            tsi_trial_ids = tsi_trial_ids(trial_info_included);
-            tsi_start_idx = tsi_start_idx(trial_info_included);
-            tsi_stop_idx = tsi_stop_idx(trial_info_included);
-            trial_idx_each_trial_info = trial_idx_each_trial_info(trial_info_included);
-
+            
+            seg.trial_has_data = mask_trial_in_tsi;
+            
             seg.trial_start = nan(nTrials, 1);
-            seg.trial_start(trial_idx_each_trial_info) = tsi_start_idx;
+            seg.trial_start(mask_trial_in_tsi) = tsi.idxStart(tsi_ind_each_local_trial(mask_trial_in_tsi));
 
             seg.trial_stop = nan(nTrials, 1);
-            seg.trial_stop(trial_idx_each_trial_info) = tsi_stop_idx;
-
-            seg.trial_has_data = false(nTrials, 1);
-            seg.trial_has_data(trial_idx_each_trial_info) = true;
+            seg.trial_stop(mask_trial_in_tsi) = tsi.idxStop(tsi_ind_each_local_trial(mask_trial_in_tsi));
 
             % lookup from columns of all the nTrials x nUnits back into template ids
             seg.cluster_ids = dataset.cluster_ids;
@@ -121,16 +111,13 @@ classdef KiloSortTrialSegmentedDataset < handle & matlab.mixin.Copyable
             nUnits = numel(seg.cluster_ids);
 
             % figure out which trial each spike in spike_times belongs
-            trial_info_idx_each_spike = tsi.segmentTimes(seg.dataset.spike_times);
-            trial_info_trial_id_each_spike = Neuropixel.Utils.TensorUtils.selectAlongDimensionWithNaNs(tsi_trial_ids, 1, trial_info_idx_each_spike);
-
-            % convert trial info idx into trial_ids idx
-            [~, trial_idx_each_spike] = ismember(trial_info_trial_id_each_spike, trial_ids);
-
+            % indices into TSI's list of trials, now we need to map into seg.trial_ids list
+            local_trial_ind_each_spike = get_local_trial_ind_each_time(tsi, trial_ids, seg.dataset.spike_times);
+            
             % which cluster does each spike belong to
             [~, unit_idx_each_spike] = ismember(seg.dataset.spike_clusters, seg.cluster_ids);
 
-            subs = [trial_idx_each_spike, unit_idx_each_spike];
+            subs = [local_trial_ind_each_spike, unit_idx_each_spike];
 
             nToLoad = 3;
             if p.Results.loadFeatures
@@ -188,17 +175,25 @@ classdef KiloSortTrialSegmentedDataset < handle & matlab.mixin.Copyable
             if p.Results.loadSync
                 prog.increment('Segmenting trials: sync');
                 sync = dataset.readSync();
-                trial_info_idx_each_sample = discretize(1:numel(sync), edges);
-                trial_info_trial_id_each_sample = Neuropixel.Utils.TensorUtils.selectAlongDimensionWithNaNs(tsi_trial_ids, 1, trial_info_idx_each_sample);
-                % convert trial info idx into trial_ids idx
-                [~, trial_idx_each_sample] = ismember(trial_info_trial_id_each_sample, trial_ids);
+                sample_vec = uint32(1:numel(sync))';
+                local_trial_ind_each_sample = get_local_trial_ind_each_time(tsi, trial_ids, sample_vec);
+            
                 seg.sync = Neuropixel.Utils.TensorUtils.splitAlongDimensionBySubscripts(...
-                    sync, 1, nTrials, trial_idx_each_sample);
+                    sync, 1, nTrials, local_trial_ind_each_sample);
             else
                 seg.sync = {};
             end
             
             prog.finish();
+            
+            function local_trial_ind_each_time = get_local_trial_ind_each_time(tsi, trial_ids, times)
+                [~, trial_id_each_time, in_trial] = tsi.segmentTimes(times); % indices into TSI's list of trials, now we need to map into seg.trial_ids list
+
+                [mask_in_trial_ids, local_trial_ind_each_time] = ismember(trial_id_each_time, trial_ids);
+                local_trial_ind_each_time = single(local_trial_ind_each_time);
+                local_trial_ind_each_time(~in_trial) = NaN;
+                local_trial_ind_each_time(~mask_in_trial_ids) = NaN;
+            end
         end
 
         function n = get.nTrials(seg)

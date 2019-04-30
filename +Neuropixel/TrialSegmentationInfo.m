@@ -6,7 +6,7 @@ classdef TrialSegmentationInfo < handle & matlab.mixin.Copyable
         trialId(:, 1) uint32
         conditionId(:, 1) uint32
         idxStart(:, 1) uint64 % in samples
-        idxStop(:, 1) uint64 % in samples, may not be used
+        idxStop(:, 1) uint64 % in samples, may not be used        
     end
     
     properties(Dependent)
@@ -38,9 +38,10 @@ classdef TrialSegmentationInfo < handle & matlab.mixin.Copyable
             tf = all(int64(tsi.idxStart(2:end)) - int64(tsi.idxStop(1:end-1)) <= int64(1));
         end
         
-        function [trialInds, trialIds] = segmentTimes(tsi, times)
-            edges = [tsi.idxStart; tsi.idxStop(end)];
+        function [trialInds, trialIds, mask_in_trial] = segmentTimes(tsi, times)
+            edges = [tsi.idxStart; tsi.idxStop(end) + uint64(1)];
             trialInds = discretize(times, edges);
+            trialInds(trialInds == numel(edges)) = NaN; % ignore the last bin
             if ~tsi.trialsAreAdjacent
                 % nan out trial assignments for times which lie past the corresponding trial stop
                 mask = ~isnan(trialInds);
@@ -50,8 +51,8 @@ classdef TrialSegmentationInfo < handle & matlab.mixin.Copyable
             end
             
             trialIds = zeros(size(times), 'like', trialInds);
-            mask = ~isnan(trialInds);
-            trialIds(mask) = tsi.trialId(trialInds(mask));
+            mask_in_trial = ~isnan(trialInds);
+            trialIds(mask_in_trial) = tsi.trialId(trialInds(mask_in_trial));
         end
         
         function truncateTrialsLongerThan(tsi, maxDurSec)
@@ -60,7 +61,7 @@ classdef TrialSegmentationInfo < handle & matlab.mixin.Copyable
             longTrials = durations > maxDurSamples;
             tsi.idxStop(longTrials) = tsi.idxStart(longTrials) + maxDurSamples;
         end
-        
+     
         function [idxStart, idxStop, trialStartStop] = computeActiveRegions(tsi, varargin)
             p = inputParser();
             p.addParameter('maxPauseSec', 20, @isscalar); % in samples
