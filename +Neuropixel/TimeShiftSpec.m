@@ -82,6 +82,13 @@ classdef TimeShiftSpec < handle
             spec.idxShiftStart = spec.idxShiftStart(maskKeep);
         end
         
+        function constrainToSampleWindow(spec, window)
+            maskKeep = spec.idxStop >= uint64(window(1)) & spec.idxStart <= uint64(window(2));
+            spec.idxStart = max(uint64(window(1)), spec.idxStart(maskKeep));
+            spec.idxStop = min(spec.idxStop(maskKeep), uint64(window(2)));
+            spec.idxShiftStart = spec.idxShiftStart(maskKeep);
+        end
+        
         function shiftIndices = computeSourceIndices(spec, nSamplesSource)
             % compute a nShiftedTimes x 1 vector of indices into the source file imec
             % that would occupy times 1:nShiftedTimes in the shifted output file
@@ -112,6 +119,10 @@ classdef TimeShiftSpec < handle
             end
             
             spec = Neuropixel.TimeShiftSpec(idxStart, idxStop, regionUpdatedStarts);
+        end
+        
+        function spec = buildToConstrainSampleWindow(window)
+            spec = Neuropixel.TimeShiftSpec(window(1), window(2), uint64(1));
         end
     end
     

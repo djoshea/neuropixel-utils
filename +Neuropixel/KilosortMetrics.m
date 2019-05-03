@@ -834,7 +834,7 @@ classdef KilosortMetrics < handle
 %                     fileNames = strings(numel(spikeTimesOrig), 1);
 %                     mask = ~isnan(fileInd);
 %                     fileNames(mask) = m.concatenatedNames(fileInd(mask));
-%                     
+                    
                     row = dataTipTextRow('Orig File Ind', fileInd, '%d');
                     h.DataTipTemplate.DataTipRows(end+1) = row;
                     row = dataTipTextRow('Orig Sample Ind', double(origInd), '%d');
@@ -845,6 +845,9 @@ classdef KilosortMetrics < handle
             end
             xlabel('time (sec)')
             ylabel('y position (um)')
+            
+            h = zoom;
+            h.Motion = 'horizontal';
         end
         
         function h = markExcisionBoundaries(m, shifts, varargin)

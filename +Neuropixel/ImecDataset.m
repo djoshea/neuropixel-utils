@@ -321,14 +321,14 @@ classdef ImecDataset < handle
         end
         
         function mat = readSyncBits_idx(df, bits, idx)
-            % mat is nTime x nBits
+            % mat is nBits x nTime to match readAP_idx which is nChannels x nTime
             if isstring(bits)
                 bits = df.lookupSyncBitByName(bits);
             end
             vec = df.readSync_idx(idx);
-            mat = false(numel(vec), numel(bits));
+            mat = false(numel(bits), numel(vec));
             for iB = 1:numel(bits)
-                mat(:, iB) = logical(bitget(vec, bits(iB)));
+                mat(iB, :) = logical(bitget(vec, bits(iB)));
             end
         end
     end
@@ -406,7 +406,7 @@ classdef ImecDataset < handle
             p.parse(varargin{:});
             
             sampleIdx = idxWindow(1):idxWindow(2);
-            mat = df.readAP_idx(sampleIdx);
+            mat = df.readAP_idx(sampleIdx); % C x T
             labels = df.channelNamesPadded;
             
             [channelInds, channelIds] = df.lookup_channelIds(p.Results.channels); %#ok<*PROPLC>
@@ -436,12 +436,13 @@ classdef ImecDataset < handle
                 colors = flipud(colors);
             end
             
-            % append sync bit info to plot in red
+            % append sync bit info to plot in purple
             syncBits = p.Results.syncBits;
             if ~isempty(syncBits)
                 syncBitMat = df.readSyncBits_idx(syncBits, sampleIdx);
-                mat = cat(1, mat, syncBitMat');
-                colors = cat(1, colors, repmat([1 0 0], size(syncBitMat, 1), 1));
+                mat = cat(1, mat, syncBitMat);
+                syncColor = [0.75 0 0.9];
+                colors = cat(1, colors, repmat(syncColor, size(syncBitMat, 1), 1));
                 labels = cat(1, labels, df.syncBitNames(syncBits));
                 normalizeMask = cat(1, normalizeMask, false(size(syncBitMat, 1), 1));
             end
@@ -956,6 +957,7 @@ end
             p = inputParser();
             p.addParameter('relative', false, @islogical);
             p.parse(varargin{:});
+            newFolder = char(newFolder);
 
             if ~exist(newFolder, 'dir')
                 Neuropixel.Utils.mkdirRecursive(newFolder);

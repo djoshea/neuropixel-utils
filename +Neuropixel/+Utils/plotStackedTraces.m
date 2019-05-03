@@ -32,7 +32,9 @@ if p.Results.normalizeEach
 else
     vals = data(:, cmask);
     normBy = quantile(abs(vals(:)), p.Results.quantile);
-    data(:, cmask) = data(:, cmask) ./ normBy;
+    if normBy ~= 0
+        data(:, cmask) = data(:, cmask) ./ normBy;
+    end
 end
 data(:, cmask) = data(:, cmask) * p.Results.gain;
 
