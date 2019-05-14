@@ -636,12 +636,14 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
             templates_stacked = Neuropixel.Utils.TensorUtils.reshapeByConcatenatingDims(templates, {[1 3], 2});
             data_stacked = cat(1, data, templates_stacked);
             
-            pmatbal(data_stacked);
-            C = ss.nChannels;
-            h = yline(0.5, '-', sprintf('snippet %d', snippet_ind), 'LabelVerticalAlignment', 'bottom');
+            Neuropixel.Utils.pmatbal(data_stacked, 'x', time);
+            
+            yline(0.5, '-', sprintf('snippet %d', snippet_ind), 'LabelVerticalAlignment', 'bottom');
             for iC = 1:size(templates, 3)
                 yline(ss.nChannels * iC + 0.5, 'k-', sprintf('cluster %u', cluster_ids(iC)), 'LabelVerticalAlignment', 'bottom');
             end
+            
+            
         end
     end
 end

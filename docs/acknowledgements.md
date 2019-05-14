@@ -28,6 +28,8 @@ I'd also like to acknowledge several authors whose Matlab File Exchange contribu
 
 * Jochen Lenz: [relativepath](https://www.mathworks.com/matlabcentral/fileexchange/3858-relativepath-m)
 
+* Chad A. Greene:  [cmocean](https://www.mathworks.com/matlabcentral/fileexchange/57773-cmocean-perceptually-uniform-colormaps), based on Kristen M. Thyng, Chad A. Greene, Robert D. Hetland, Heather M. Zimmerle, and Steven F. DiMarco. True colors of oceanography: Guidelines for effective and accurate colormap selection. _Oceanography_, September 2016. 
+
 ## Support
 
 If you have any issues using this code with your data, please look for any similar [existing Github issues](https://github.com/djoshea/neuropixel-utils/issues) or file a new issue there. Please don't email me straight away unless there's some need for confidentiality, as I'll most likely ask you to file a Github issue anyway. Across multiple repositiories, this policy helps me keep track of what needs to be fixed, and also helps other users who may have been encountering similar issues.
