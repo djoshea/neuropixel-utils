@@ -1,5 +1,5 @@
 classdef TrialSegmentationInfo < handle & matlab.mixin.Copyable
-    % simple utility for describing how to segment trials in KiloSort
+    % simple utility for describing how to segment trials in Kilosort
 
     properties
         fs % sampling rate (Hz)

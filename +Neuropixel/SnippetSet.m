@@ -47,10 +47,10 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
     methods
         function ss = SnippetSet(ds, type)
             if nargin > 0
-                if isa(ds, 'Neuropixel.KiloSortTrialSegmentedDataset')
+                if isa(ds, 'Neuropixel.KilosortTrialSegmentedDataset')
                     raw_dataset = ds.raw_dataset;
                     ks = ds.dataset;
-                elseif isa(ds, 'Neuropixel.KiloSortDataset')
+                elseif isa(ds, 'Neuropixel.KilosortDataset')
                     raw_dataset = ds.raw_dataset;
                     ks = ds;
                 elseif isa(ds, 'Neuropixel.ImecDataset')

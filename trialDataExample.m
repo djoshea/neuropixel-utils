@@ -5,7 +5,7 @@ kilosortDatasetPath = '/path/to/kilosort_output';
 channelMapFile '/path/to/neuropixel-utils/map_files/neuropixPhase3A_kilosortChanMap.mat');
 
 % load the kilosort dataset
-ds = KiloSort.Dataset(kilosortDatasetPath, channelMapFile);
+ds = Kilosort.Dataset(kilosortDatasetPath, channelMapFile);
 ds.load();
 
 % Figure out where trials start and stop
@@ -21,7 +21,7 @@ trial_ids = td.getParam('trialId');
 % segment the kilosort dataset into trials, with the final arrays matching
 % trial_ids (and missing trials being empty)
 % so seg will have numel(trial_ids) trials in it regardless of how many trials are found in the ImecDataFile
-seg = KiloSort.TrialSegmentedDataset(ds08, tsi, trial_ids);
+seg = Kilosort.TrialSegmentedDataset(ds08, tsi, trial_ids);
 
 % merge into trial data
 td = td.dropSpikeChannels();

@@ -1,10 +1,10 @@
 classdef KilosortMetrics < handle
-    % this class stores a set of computed information about a KiloSortDataset,
+    % this class stores a set of computed information about a KilosortDataset,
     % particularly regarding template shapes, depths, and spiking drift
     % Note that this code borrows heavily from the math in github.com/cortex-lab/spikes
     
     properties(Transient) % not saved with metrics
-        ks % Neuropixel.KiloSortDataset
+        ks % Neuropixel.KilosortDataset
     end
     
     properties(Dependent)
@@ -110,11 +110,11 @@ classdef KilosortMetrics < handle
             p.addParameter('distThreshLocalizedTemplate', 200, @isscalar);
             p.parse(varargin{:});
             
-            assert(isa(ks, 'Neuropixel.KiloSortDataset'));
-            assert(ks.isLoaded, 'KiloSortDataset is not loaded');
+            assert(isa(ks, 'Neuropixel.KilosortDataset'));
+            assert(ks.isLoaded, 'KilosortDataset is not loaded');
             
             nSteps = 8;
-            prog = Neuropixel.Utils.ProgressBar(nSteps, 'Computing metrics for KiloSort Dataset...\n');
+            prog = Neuropixel.Utils.ProgressBar(nSteps, 'Computing metrics for Kilosort Dataset...\n');
             m.ks = ks;
             
             m.fs = ks.fsAP;
@@ -301,7 +301,7 @@ classdef KilosortMetrics < handle
         end
         
         function assertHasKs(m)
-            assert(~isempty(m.ks), 'Must set .ks to KiloSortDataset');
+            assert(~isempty(m.ks), 'Must set .ks to KilosortDataset');
         end
     end
     

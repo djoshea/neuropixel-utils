@@ -1,5 +1,5 @@
-classdef KiloSortDataset < handle
-    % wrapper around a KiloSort dataset
+classdef KilosortDataset < handle
+    % wrapper around a Kilosort dataset
     % todo - load cluster ratings from cluster_groups.tsv
     % Note 1: in the context of this file, time refers to samples, 1-indexed
     % Note 2: this file will differ from raw_dataset in nChannelsSorted. Here, nChannelsSorted means the number of channels
@@ -298,7 +298,7 @@ classdef KiloSortDataset < handle
     end
 
     methods
-        function ds = KiloSortDataset(path, varargin)
+        function ds = KilosortDataset(path, varargin)
             if nargin == 0
                 return;
             end
@@ -331,7 +331,7 @@ classdef KiloSortDataset < handle
             end
             
             if isempty(ds.raw_dataset)
-                warning('No ImecDataset found in KiloSort path, specify imecDataset parameter directly');
+                warning('No ImecDataset found in Kilosort path, specify imecDataset parameter directly');
             end
            
             % these will pass thru to raw_dataset if provided
@@ -436,7 +436,7 @@ classdef KiloSortDataset < handle
             ds.hp_filtered = params.hp_filtered;
 
             p = ds.path;
-            prog = Neuropixel.Utils.ProgressBar(15, 'Loading KiloSort dataset: ');
+            prog = Neuropixel.Utils.ProgressBar(15, 'Loading Kilosort dataset: ');
 
             ds.amplitudes = read('amplitudes');
             ds.channel_ids = read('channel_map');
@@ -489,7 +489,7 @@ classdef KiloSortDataset < handle
             prog.finish()
 
             function out = read(file)
-                prog.increment('Loading KiloSort dataset: %s', file);
+                prog.increment('Loading Kilosort dataset: %s', file);
                 out = Neuropixel.readNPY(fullfile(p, [file '.npy']));
             end
             
@@ -537,7 +537,7 @@ classdef KiloSortDataset < handle
         end
 
         function seg = segmentIntoClusters(ds)
-            % generates a KiloSortTrialSegmentedDataset with only 1 trial.
+            % generates a KilosortTrialSegmentedDataset with only 1 trial.
             % Segments as though there is one all-inclusive trials, so that
             % clusters are split but not trials
             tsi = Neuropixel.TrialSegmentationInfo(1);
@@ -563,7 +563,7 @@ classdef KiloSortDataset < handle
             %   idxStart
             %   idxStop
 
-            seg = Neuropixel.KiloSortTrialSegmentedDataset(ds, tsi, trial_ids);
+            seg = Neuropixel.KilosortTrialSegmentedDataset(ds, tsi, trial_ids);
         end
         
         function channel_inds = channelNumsToChannelInds(ds, channels)
@@ -617,7 +617,7 @@ classdef KiloSortDataset < handle
              % % USAGE
              % wf = getWaveForms(gwfparams);
 
-             % Load .dat and KiloSort/Phy output
+             % Load .dat and Kilosort/Phy output
 
              p = inputParser();
              % specify one of spike_idx or spike_times and/or cluster_ids. spike_* take precedence
@@ -644,7 +644,7 @@ classdef KiloSortDataset < handle
              
              p.parse(varargin{:});
 
-             assert(ds.hasRawDataset, 'KiloSortDataset has no raw ImecDataset');
+             assert(ds.hasRawDataset, 'KilosortDataset has no raw ImecDataset');
              
              ds.checkLoaded();
              
@@ -654,7 +654,7 @@ classdef KiloSortDataset < handle
                  spike_times = p.Results.spike_times; %#ok<*PROPLC>
                  [tf, spike_idx] = ismember(spike_times, ds.spike_times);
                  if any(~tf)
-                     error('Not all spike times were found in KiloSortDataset');
+                     error('Not all spike times were found in KilosortDataset');
                  end
                  cluster_ids = ds.spike_clusters(spike_idx);
                  if isempty(unique_cluster_ids)

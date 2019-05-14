@@ -62,7 +62,7 @@ snippetSet.plotAtProbeLocations('alpha', 0.8);
 
 ![cluster_snippets_clean](images/cluster_snippets_clean.png "Cluster waveforms")
 
-## Extracting waveforms via KiloSortTrialSegmentedDataset
+## Extracting waveforms via KilosortTrialSegmentedDataset
 
 If you have already [segmented the data into trials](kilosort.md#segmenting-a-kilosort-dataset-into-trials), you might wish to extract these waveforms for specific trials or even specific time windows within a trial, e.g. to check for  behaviorally-triggered probe movement.
 

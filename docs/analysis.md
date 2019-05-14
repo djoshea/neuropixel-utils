@@ -48,7 +48,7 @@ Many properties are computed for each cluster, for each template (as multiple te
 
   KilosortMetrics with properties:
 
-                           ks: [1×1 Neuropixel.KiloSortDataset]
+                           ks: [1×1 Neuropixel.KilosortDataset]
                       nSpikes: 8181228
               nChannelsSorted: 371
                    nTemplates: 653

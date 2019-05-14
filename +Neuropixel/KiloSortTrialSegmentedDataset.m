@@ -1,4 +1,4 @@
-classdef KiloSortTrialSegmentedDataset < handle & matlab.mixin.Copyable
+classdef KilosortTrialSegmentedDataset < handle & matlab.mixin.Copyable
     
     % Properties that are copied over but not segmented into trials
     properties
@@ -70,7 +70,7 @@ classdef KiloSortTrialSegmentedDataset < handle & matlab.mixin.Copyable
     end
 
     methods
-        function seg = KiloSortTrialSegmentedDataset(dataset, tsi, trial_ids, varargin)
+        function seg = KilosortTrialSegmentedDataset(dataset, tsi, trial_ids, varargin)
             p = inputParser();
             p.addParameter('loadFeatures', true, @islogical);
             p.addParameter('loadSync', false, @islogical);
@@ -289,7 +289,7 @@ classdef KiloSortTrialSegmentedDataset < handle & matlab.mixin.Copyable
             % included
             
             p = inputParser();
-            % from KiloSortDataset.readAPSnippets
+            % from KilosortDataset.readAPSnippets
             p.addOptional('mask_cell', {}, @(x) isempty(x) || iscell(x));
             p.addParameter('cluster_ids', seg.cluster_ids, @isvector); % which clusters each column of mask_cell correspond to
             p.addParameter('channel_ids_by_cluster', [], @(x) isempty(x) || ismatrix(x)); % specify a subset of channels to extract
@@ -452,7 +452,7 @@ classdef KiloSortTrialSegmentedDataset < handle & matlab.mixin.Copyable
 
 %     methods(Static)
 %         function seg = emptyWithSize(nTrials, nUnits)
-%             seg = KiloSort.TrialSegmentedDataset;
+%             seg = Kilosort.TrialSegmentedDataset;
 %
 %             seg.trial_ids = nan(nTrials, 1);
 %             seg.trial_has_data = false(nTrials, 1);
@@ -483,7 +483,7 @@ classdef KiloSortTrialSegmentedDataset < handle & matlab.mixin.Copyable
 %             assert(all(nUnits == nUnits(1)), 'nUnits do not match');
 %             nUnits = nUnits(1);
 %
-%             dsmerge = KiloSort.TrialSegmentedDataset.emptyWithSize(nTrials, nUnits);
+%             dsmerge = Kilosort.TrialSegmentedDataset.emptyWithSize(nTrials, nUnits);
 %             dsmerge.dataset = varargin{1}.dataset;
 %             nMerge = numel(varargin);
 %

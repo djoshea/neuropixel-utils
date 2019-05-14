@@ -109,10 +109,10 @@ Zoomed in view of data inspection figure. Black are good channels, blue are refe
 >> Neuropixel.runKilosort2(imec);
 
 % Load the Kilosort2 results
->> ks = Neuropixel.KiloSortDataset();
+>> ks = Neuropixel.KilosortDataset();
 >> ks.load()
 
-KiloSortDataset with properties:
+KilosortDataset with properties:
 
                   path: '/data/kilosort/neuropixel_01'
            raw_dataset: [1×1 Neuropixel.ImecDataset]
@@ -178,11 +178,11 @@ KiloSortDataset with properties:
 % Each of seg's properties are now nTrials x ... cells containing the data
 % corresponding to that trial
 >> trial_ids = min(tsi.trialId):max(tsi.trialId);
->> seg = Neuropixel.KiloSortTrialSegmentedDataset(ks, tsi, trial_ids)
+>> seg = Neuropixel.KilosortTrialSegmentedDataset(ks, tsi, trial_ids)
 
-KiloSortTrialSegmentedDataset with properties:
+KilosortTrialSegmentedDataset with properties:
 
-                   dataset: [1×1 Neuropixel.KiloSortDataset]
+                   dataset: [1×1 Neuropixel.KilosortDataset]
                  trial_ids: [1072×1 uint32]
             trial_has_data: [1072×1 logical]
                trial_start: [1072×1 uint64]
@@ -211,7 +211,7 @@ KiloSortTrialSegmentedDataset with properties:
 
 KilosortMetrics with properties:
 
-                         ks: [1×1 Neuropixel.KiloSortDataset]
+                         ks: [1×1 Neuropixel.KilosortDataset]
                          fs: 30000
                  channelMap: [1×1 Neuropixel.ChannelMap]
                 channel_ids: [371×1 uint32]

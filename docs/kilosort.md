@@ -12,13 +12,13 @@ Neuropixel.runKilosort1(imec, ...);
 
 Or for Kilosort 2:
 ```matlab
-Neuropixel.runKiloSort2(imec, ...);
+Neuropixel.runKilosort2(imec, ...);
 ```
 
 By default, the standard configuration settings will be used. For Kilosort1, these are hardcoded based on `configFiles/StandardConfig_MOVEME.m`. For Kilosort2, the script `configFiles/configFile384.m` will be run to produce the `ops` struct, unless a different configuration file is set in the environment variable `KILOSORT_CONFIG_FILE`, which must be on the path. Default configuration settings can be overridden by passing in extra parameters, e.g.
 
 ```matlab
-Neuropixel.runKiloSort1(imec, 'Th', [4 10], 'GPU', false);
+Neuropixel.runKilosort1(imec, 'Th', [4 10], 'GPU', false);
 Neuropixel.runKilosort2(imec, 'minfr_goodchannels', 0.1);
 ```
 
@@ -33,12 +33,12 @@ ks.load();
 
 The constructor will optionally take an 'imecDataset' parameter providing the `Neuropixel.ImecDataset' instance if there is no `.imec.ap.bin` file in the Kilosort directory, and a 'channelMap' parameter in case the default is not correct. The results can then be loaded using `ks.load()`.
 
-The descriptions of each property can be found in the `+Neuropixel/KiloSortDataset.m` code, copied here for convenience, originally described in the (Phy documentation)[https://phy-contrib.readthedocs.io/en/latest/template-gui/]:
+The descriptions of each property can be found in the `+Neuropixel/KilosortDataset.m` code, copied here for convenience, originally described in the (Phy documentation)[https://phy-contrib.readthedocs.io/en/latest/template-gui/]:
 
 ```matlab
 >> ks
 
-KiloSortDataset with properties:
+KilosortDataset with properties:
 
                   path: '/data/kilosort/neuropixel_01'
            raw_dataset: [1×1 Neuropixel.ImecDataset]
@@ -228,28 +228,28 @@ function tsi = parseTrialInfoFromSync(syncRaw, fs, syncBitNames)
 end
 ```
 
-### KiloSortTrialSegmentedDataset
+### KilosortTrialSegmentedDataset
 
-Once you have the trial boundaries stored in your `TrialSegmentationInfo` instance, you can split the properties of the `KilosortDataset` into each trial, resulting in a `Neuropixel.KiloSortTrialSegmentedDataset` instance. To facilitate merging this into another data structure later, you will need to specify the ultimate `trialId` order you want the `KiloSortTrialSegmentedDataset` to have. For example, if you have a behavioral data structure, you can extract the list of trial ids from that so that your `KiloSortTrialSegmentedDataset` will have a matching trial sequence.
+Once you have the trial boundaries stored in your `TrialSegmentationInfo` instance, you can split the properties of the `KilosortDataset` into each trial, resulting in a `Neuropixel.KilosortTrialSegmentedDataset` instance. To facilitate merging this into another data structure later, you will need to specify the ultimate `trialId` order you want the `KilosortTrialSegmentedDataset` to have. For example, if you have a behavioral data structure, you can extract the list of trial ids from that so that your `KilosortTrialSegmentedDataset` will have a matching trial sequence.
 
 ```matlab
 trialIds = cat(1, behaviorStruct.trialId);
 ```
 
-Any trials not found in the `TrialSegmentationInfo` will simply be empty in the `KiloSortTrialSegmentedDataset`. If you simply want to preserve the trials in the order they are in `tsi`, you can simply use:
+Any trials not found in the `TrialSegmentationInfo` will simply be empty in the `KilosortTrialSegmentedDataset`. If you simply want to preserve the trials in the order they are in `tsi`, you can simply use:
 
 ```matlab
 trialIds = tsi.trialIds;
 ```
 
-You can then segment the KiloSortDataset using:
+You can then segment the KilosortDataset using:
 
 ```matlab
->> seg = Neuropixel.KiloSortTrialSegmentedDataset(ks, tsi, trial_ids)
+>> seg = Neuropixel.KilosortTrialSegmentedDataset(ks, tsi, trial_ids)
 
-KiloSortTrialSegmentedDataset with properties:
+KilosortTrialSegmentedDataset with properties:
 
-                   dataset: [1×1 Neuropixel.KiloSortDataset] % unsegmented KilosortDataset
+                   dataset: [1×1 Neuropixel.KilosortDataset] % unsegmented KilosortDataset
                  trial_ids: [nTrials × 1 uint32] % trial ids
             trial_has_data: [nTrials × 1 logical] % indicator if trial found in tsi
                trial_start: [nTrials × 1 uint64] % nTrials start sample idx copied from tsi
