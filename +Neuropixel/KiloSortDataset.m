@@ -18,6 +18,8 @@ classdef KiloSortDataset < handle
         apScaleToUv % multiply raw samples by this to get uV
         
         meta % ap metadata loaded
+        
+        concatenationInfo
     end
     
     % Computed properties
@@ -125,14 +127,6 @@ classdef KiloSortDataset < handle
         clusters_mua
         clusters_noise
         clusters_unsorted
-    end
-    
-    properties(Dependent)
-        nConcatenatedDatasets
-        concatenatedSamples
-        concatenatedStarts
-        concatenatedNames
-        concatenatedGains
     end
 
     methods % Dependent properties
@@ -293,51 +287,7 @@ classdef KiloSortDataset < handle
             c = ds.cluster_ids(ds.cluster_groups == "unsorted");
         end
         
-        function n = get.nConcatenatedDatasets(ds)
-            n = numel(ds.concatenatedSamples);
-        end
         
-        function v = get.concatenatedSamples(ds)
-            if ~isfield(ds.meta, 'concatenatedSamples')
-                if isempty(ds.raw_dataset)
-                    v = NaN;
-                else
-                    v = ds.raw_dataset.nSamplesAP;
-                end
-            else
-                v = Neuropixel.Utils.makecol(ds.meta.concatenatedSamples);
-            end
-        end
-        
-        function v = get.concatenatedStarts(ds)
-            if ~isfield(ds.meta, 'concatenatedSamples')
-                v = uint64(1);
-            else
-                cs = cumsum([uint64(1); ds.concatenatedSamples]);
-                v = cs(1:end-1);
-            end
-        end
-        
-        function v = get.concatenatedNames(ds)
-            if ~isfield(ds.meta, 'concatenated')
-                v = {ds.pathLeaf};
-            else
-                if contains(ds.meta.concatenated, ';')
-                    v = Neuropixel.Utils.makecol(strsplit(ds.meta.concatenated, ';'));
-                else
-                    v = Neuropixel.Utils.makecol(strsplit(ds.meta.concatenated, ':'));
-                end
-            end
-            v = string(v);
-        end
-        
-        function v = get.concatenatedGains(ds)
-            if ~isfield(ds.meta, 'concatenatedGains')
-                v = ds.apGain;
-            else
-                v = Neuropixel.Utils.makecol(ds.meta.concatenatedGains);
-            end
-        end
     end
 
     methods
@@ -373,6 +323,10 @@ classdef KiloSortDataset < handle
                 end
             end
             
+            if isempty(ds.raw_dataset)
+                warning('No ImecDataset found in KiloSort path, specify imecDataset parameter directly');
+            end
+           
             % these will pass thru to raw_dataset if provided
             ds.fsAP = p.Results.fsAP;
             ds.apScaleToUv = p.Results.apScaleToUv;
@@ -393,7 +347,10 @@ classdef KiloSortDataset < handle
             end
             ds.channelMap = channelMap;
             
-            ds.meta = ds.raw_dataset.readAPMeta();
+            if ~isempty(ds.raw_dataset)
+                ds.meta = ds.raw_dataset.readAPMeta();
+                ds.concatenationInfo = ds.raw_dataset.concatenationInfoAP;
+            end
         end
         
         function s = computeBasicStats(ds, varargin)
@@ -631,7 +588,7 @@ classdef KiloSortDataset < handle
         end
         
         function [fileInds, origSampleInds] = lookup_sampleIndexInConcatenatedFile(ds, inds)
-           [fileInds, origSampleInds] = Neuropixel.Utils.lookup_sampleIndexInConcatenatedFile(ds.concatenatedStarts, inds);
+           [fileInds, origSampleInds] = ds.concatenationInfo.lookup_sampleIndexInConcatenatedFile(inds);
         end
     end
     

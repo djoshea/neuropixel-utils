@@ -27,6 +27,9 @@ classdef ImecDataset < handle
         badChannels
 
         syncBitNames string;
+        
+        concatenationInfoAP
+        concatenationInfoLF
     end
 
     properties
@@ -162,6 +165,8 @@ classdef ImecDataset < handle
                 df.nSamplesAP = bytes / df.bytesPerSample / df.nChannels;
                 assert(round(df.nSamplesAP) == df.nSamplesAP, 'AP bin file size is not an integral number of samples');
             end
+            
+            df.concatenationInfoAP = Neuropixel.ConcatenationInfo(df, 'ap', meta);
 
             if df.hasLF
                 fid = df.openLFFile();
@@ -170,6 +175,8 @@ classdef ImecDataset < handle
                 fclose(fid);
                 df.nSamplesLF = bytes / df.bytesPerSample / df.nChannels;
                 assert(round(df.nSamplesAP) == df.nSamplesAP, 'LF bin file size is not an integral number of samples');
+                
+                df.concatenationInfoLF = Neuropixel.ConcatenationInfo(df, 'lf', meta);
             end
         end
 
@@ -356,7 +363,14 @@ classdef ImecDataset < handle
             p.parse(varargin{:});
             
             mm = df.memmapAP_full();
-            data = mm.Data.x(:, sampleIdx);
+            
+            if any(isnan(sampleIdx))
+                mask = ~isnan(sampleIdx);
+                data = single(mm.Data.x(:, sampleIdx)); % must be single to support NaNs
+                data = Neuropixel.Utils.TensorUtils.inflateMaskedTensor(data, 2, mask, NaN);
+            else
+                data = mm.Data.x(:, sampleIdx);
+            end
 
             if p.Results.applyScaling
                 data = single(data);
@@ -375,6 +389,12 @@ classdef ImecDataset < handle
             idxWindow = df.closestSampleAPForTime(timeWindowSec);
             sampleIdx = idxWindow(1):idxWindow(2);
             mat = readSyncBits_idx(bits, sampleIdx);
+        end
+        
+        function [mat, sourceInds] = readAP_viaTimeShiftSpec(df, timeShifts, varargin)
+            % read a matrix of AP data as requested by Neuropixel.TimeShiftSpec instance timeShifts
+            sourceInds = timeShifts.computeSourceIndices(df.nSamplesAP);
+            mat = df.readAP_idx(sourceInds, varargin{:});
         end
     end
     
@@ -395,7 +415,7 @@ classdef ImecDataset < handle
         function inspectAP_idxWindow(df, idxWindow, varargin)
             p = inputParser();
             p.addParameter('channels', df.mappedChannels, @isvector);
-            p.addParameter('invertChannels', true, @islogical);
+            p.addParameter('invertChannels', false, @islogical);
             p.addParameter('syncBits', df.syncBitsNamed, @isvector);
             p.addParameter('showLabels', true, @islogical);
             p.addParameter('gain', 0.95, @isscalar);
@@ -430,12 +450,6 @@ classdef ImecDataset < handle
             colors(bad & connected, 3) = 0; % bad --> red
             normalizeMask = true(size(mat, 1), 1);
             
-            if p.Results.invertChannels
-                mat = flipud(mat);
-                labels = flipud(labels);
-                colors = flipud(colors);
-            end
-            
             % append sync bit info to plot in purple
             syncBits = p.Results.syncBits;
             if ~isempty(syncBits)
@@ -457,7 +471,7 @@ classdef ImecDataset < handle
                 time = sampleIdx;
             end
             Neuropixel.Utils.plotStackedTraces(time, mat', 'colors', colors, 'labels', labels, ...
-                'gain', p.Results.gain, 'normalizeMask', normalizeMask, 'normalizeEach', false);
+                'gain', p.Results.gain, 'invertChannels', p.Results.invertChannels, 'normalizeMask', normalizeMask, 'normalizeEach', false);
             
             tsi = p.Results.tsi;
             if ~isempty(tsi)
@@ -522,32 +536,44 @@ classdef ImecDataset < handle
 
             p = inputParser();
             p.addParameter('source', 'ap', @ischar);
+            
+            % specify THIS (same channels every snippet)
+            p.addParameter('channel_ids', [], @ismatrix);
+            
+            % or THESE (different channels for each group of snippets sharing the same cluster_ids
             p.addParameter('channel_ids_by_cluster', [], @ismatrix);
-            p.addParameter('unique_cluster_ids', [], @isvector);
-            p.addParameter('cluster_ids', ones(numel(times), 1), @isvector);
+            p.addParameter('unique_cluster_ids', [], @(x) isempty(x) || isvector(x));
+            p.addParameter('cluster_ids', zeros(numel(times), 1), @isvector); % same length as numel(times), corresponding to which cluster was pulled out (e.g. as a waveform)
+            
             p.addParameter('car', false, @islogical); % subtract median over channels
             p.parse(varargin{:});
 
-            channel_ids_by_cluster = p.Results.channel_ids_by_cluster;
-            unique_cluster_ids = p.Results.unique_cluster_ids;
-            if isempty(unique_cluster_ids)
-                unique_cluster_ids = unique(p.Results.cluster_ids);
-            end
-            if isempty(channel_ids_by_cluster)
-                channel_ids_by_cluster = repmat(df.channelMap.channelIds, 1, numel(unique_cluster_ids));
-            end
-            if size(channel_ids_by_cluster, 1) == 1
-                % same channels each cluster, repmat column to make matrix
-                channel_ids_by_cluster = repmat(channel_ids_by_cluster, 1, numel(unique_cluster_ids));
-            end
-            assert(numel(unique_cluster_ids) == size(channel_ids_by_cluster, 2), ...
-                'unique_cluster_ids must have same number of clusters as columns in channel_ids_by_cluster');
-
-            cluster_ids = Neuropixel.Utils.makecol(p.Results.cluster_ids);
-            if isscalar(cluster_ids)
-                cluster_ids = repmat(cluster_ids, numel(times), 1);
+            if ~isempty(p.Results.channel_ids)
+                channel_ids_by_cluster = Neuropixel.Utils.makecol(p.Results.channel_ids);
+                unique_cluster_ids = uint32(0);
+                cluster_ids = zeros(numel(times), 1);
             else
-                assert(numel(cluster_ids) == numel(times), 'cluster_ids must have same length as requested times');
+                channel_ids_by_cluster = p.Results.channel_ids_by_cluster;
+                unique_cluster_ids = p.Results.unique_cluster_ids;
+                if isempty(unique_cluster_ids)
+                    unique_cluster_ids = unique(p.Results.cluster_ids);
+                end
+                if isempty(channel_ids_by_cluster)
+                    channel_ids_by_cluster = repmat(df.channelMap.channelIds, 1, numel(unique_cluster_ids));
+                end
+                if size(channel_ids_by_cluster, 1) == 1
+                    % same channels each cluster, repmat column to make matrix
+                    channel_ids_by_cluster = repmat(channel_ids_by_cluster, 1, numel(unique_cluster_ids));
+                end
+                assert(numel(unique_cluster_ids) == size(channel_ids_by_cluster, 2), ...
+                    'unique_cluster_ids must have same number of clusters as columns in channel_ids_by_cluster');
+
+                cluster_ids = Neuropixel.Utils.makecol(p.Results.cluster_ids);
+                if isscalar(cluster_ids)
+                    cluster_ids = repmat(cluster_ids, numel(times), 1);
+                else
+                    assert(numel(cluster_ids) == numel(times), 'cluster_ids must have same length as requested times');
+                end
             end
 
             [tf, cluster_ind] = ismember(cluster_ids, unique_cluster_ids);
@@ -573,13 +599,16 @@ classdef ImecDataset < handle
 
                 idx_start = times(iS)+window(1);
                 idx_stop = idx_start + nT - 1;
-
+                idx_request = idx_start:idx_stop;
+                mask_idx_okay = idx_request >= uint64(1) & idx_request <= size(mm.Data.x, 2);
+                idx_request = idx_request(mask_idx_okay);
+                
                 channel_idx = channel_ids_by_cluster(:, cluster_ind(iS)); % which channels for this spike
                 if p.Results.car
-                    extract = mm.Data.x(:, idx_start:idx_stop);
-                    out(:, :, iS) = extract(channel_idx, :) - median(extract, 1);
+                    extract = mm.Data.x(:, idx_request);
+                    out(:, mask_idx_okay, iS) = extract(channel_idx, :) - median(extract(df.goodChannelInds, :), 1);
                 else
-                    out(:, :, iS) = mm.Data.x(channel_idx, idx_start:idx_stop);
+                    out(:, mask_idx_okay, iS) = mm.Data.x(channel_idx, idx_request);
                 end
             end
             data_ch_by_time_by_snippet = out;

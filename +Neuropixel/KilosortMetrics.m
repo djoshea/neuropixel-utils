@@ -22,9 +22,7 @@ classdef KilosortMetrics < handle
         fs
         channelMap
         channel_ids
-        concatenatedSamples(:, 1) uint64
-        concatenatedStarts(:, 1) uint64
-        concatenatedNames(:, 1) string
+        concatenationInfo
         
         % per template properties
         
@@ -126,10 +124,8 @@ classdef KilosortMetrics < handle
             m.channelMap = ks.channelMap;
             m.channel_ids = ks.channel_ids;
             
-            m.concatenatedSamples = ks.concatenatedSamples;
-            m.concatenatedStarts = ks.concatenatedStarts;
-            m.concatenatedNames = ks.concatenatedNames;
-           
+            m.concatenationInfo = ks.concatenationInfo;
+            
             m.spike_times = ks.spike_times;
             
             % A. compute unwhitened templates
@@ -290,10 +286,6 @@ classdef KilosortMetrics < handle
         
         function n = get.maxTemplatesPerCluster(m)
             n = size(m.cluster_waveform, 3);
-        end
-        
-        function n = get.nConcatenatedFiles(m)
-            n = numel(m.concatenatedSamples);
         end
         
         function d = get.spike_depth(m)
@@ -600,10 +592,14 @@ classdef KilosortMetrics < handle
             p.addParameter('minSpikesDrift', 50, @isscalar);
             p.addParameter('tsi', [], @(x) isempty(x) || isa(x, 'Neuropixel.TrialSegmentationInfo')); % to mark trial boundaries
             p.addParameter('maskRegionsOutsideTrials', false, @islogical);
+            p.addParameter('markBoundaries', true, @islogical);
             p.addParameter('exciseRegionsOutsideTrials', false, @islogical);
             p.addParameter('xOffset', 0, @isscalar);
             p.addParameter('ampRange', [], @(x) isvector(x) || isempty(x));
             
+            p.addParameter('timeInSeconds', true, @islogical);
+            p.addParameter('sample_window', [], @(x) isempty(x) || isvector(x)); % subselect a window to plot
+
             p.parse(varargin{:});
             opt = p.Results.mode;
             segDepth = p.Results.segmentDepth;
@@ -614,6 +610,8 @@ classdef KilosortMetrics < handle
             spikeAmpQuantile = p.Results.spikeAmpQuantile;
             spikeAmpStdThresh = erfinv(spikeAmpQuantile);
             xOffset = double(p.Results.xOffset);
+            sample_window = p.Results.sample_window;
+            timeInSeconds = p.Results.timeInSeconds;
             
             % mask
             spike_times_samples = m.spike_times;
@@ -633,7 +631,17 @@ classdef KilosortMetrics < handle
             else
                 timeShifts = [];
             end
-            spikeTimes = double(spikeTimes) / m.ks.fsAP; % convert to seconds
+            
+            if ~isempty(sample_window)
+                mask_subselect = spikeTimes >= sample_window(1) & spikeTimes <= sample_window(2);
+                spikeTimes = spikeTimes(mask_subselect);
+                mask(mask) = mask_subselect;
+            end
+            
+            spikeTimesSeconds = double(spikeTimes) / m.fs;
+            if timeInSeconds
+                spikeTimes = spikeTimesSeconds; % convert to seconds
+            end
             spikeAmps = m.spike_amplitude(mask);
             spikeYpos = m.spike_depth(mask);
             
@@ -652,7 +660,10 @@ classdef KilosortMetrics < handle
                     d = segDepth*(iD-1);
                     tmp = spikeAmps(spikeYpos >= d & spikeYpos < d+segDepth);
                     I = spikeAmps > mean(tmp) + spikeAmpStdThresh*std(tmp) & spikeYpos >= d & spikeYpos < d+segDepth; % large spikes in current segment
-                    driftEvents = detectDriftEvents(spikeTimes(I), spikeYpos(I), strcmp(opt, 'show'));
+                    driftEvents = detectDriftEvents(spikeTimesSeconds(I), spikeYpos(I), strcmp(opt, 'show'));
+                    if ~timeInSeconds && ~isempty(driftEvents)
+                        driftEvents(:, 1) = driftEvents(:,1) * m.fs;
+                    end
                     driftEventsAll{iD} = driftEvents;
                     if strcmpi(opt, 'mark') && ~isempty(driftEvents)
                         plot(driftEvents(:,1) + xOffset, driftEvents(:,2), 'o', 'MarkerEdgeColor', 'none', 'MarkerFaceColor', 'r')
@@ -672,22 +683,34 @@ classdef KilosortMetrics < handle
             
             if ~isempty(tsi)
                 hold on;
-                tsi.markTrialTicks('time_shifts', timeShifts, 'xOffset', xOffset, 'side', 'bottom', 'Color', [0.2 0.2 1]);
+                tsi.markTrialTicks('sample_window', sample_window, ...
+                    'timeInSeconds', timeInSeconds, ...
+                    'time_shifts', timeShifts, 'xOffset', xOffset, 'side', 'bottom', 'Color', [0.2 0.2 1]);
             end
             
-            if p.Results.exciseRegionsOutsideTrials
-                m.markExcisionBoundaries(timeShifts, 'xOffset', xOffset);
+            if p.Results.markBoundaries
+                m.concatenationInfo.markExcisionBoundaries('sample_window', sample_window, ...
+                    'timeInSeconds', timeInSeconds, ...
+                    'time_shifts', timeShifts, 'xOffset', xOffset);
             end
-            m.markConcatenatedFileBoundaries('time_shifts', timeShifts, 'xOffset', xOffset);
+            
+            if p.Results.exciseRegionsOutsideTrials && p.Results.markBoundaries
+                m.markExcisionBoundaries(timeShifts, 'sample_window', sample_window, ...
+                    'timeInSeconds', timeInSeconds, ...
+                    'xOffset', xOffset);
+            end
+            m.concatenationInfo.markConcatenatedFileBoundaries('sample_window', sample_window, ...
+                'timeInSeconds', timeInSeconds, ...
+                'time_shifts', timeShifts, 'xOffset', xOffset);
             
             hold off;
             
             info.driftTimes = driftTimes;
             info.xMax = max(spikeTimes) + xOffset;
             
-            
             % driftEvents will contain a column of times, a column of depths, and a column of drift magnitudes
             function driftEvents = detectDriftEvents(spikeTimes, spikeDepths, doPlot)
+                % spikeTimes must be in seconds
                 if nargin < 3
                     doPlot = false;
                 end
@@ -695,7 +718,7 @@ classdef KilosortMetrics < handle
                 
                 D = 2; % um
                 bins = min(spikeDepths)-D:D:max(spikeDepths)+D;
-                h = histc(spikeDepths, bins);
+                h = histcounts(spikeDepths, bins);
                 
                 h = h(1:end-1); % last bin represents the scalar value bins(end), not an interval
                 bins = bins(1:end - 1) + D/2; % now it's the centre of each interval
@@ -769,7 +792,7 @@ classdef KilosortMetrics < handle
             p.addParameter('localizedOnly', true, @islogical);
             p.addParameter('nAmpBins', 20, @isscalar);
             p.addParameter('ampRange', [], @(x) isvector(x) || isempty(x));
-            
+            p.addParameter('timeInSeconds', true, @islogical);
             p.addParameter('time_shifts', [], @(x) isempty(x) || isa(x, 'Neuropixel.TimeShiftSpec'));
             p.addParameter('tsi', [], @(x) isempty(x) || isa(x, 'Neuropixel.TrialSegmentationInfo')); % to mark trial boundaries
             p.addParameter('xOffset', 0, @isscalar);
@@ -790,7 +813,10 @@ classdef KilosortMetrics < handle
             if ~isempty(timeShifts)
                 spikeTimes = timeShifts.shiftTimes(spikeTimes);
             end
-            spikeTimes = double(spikeTimes) / m.ks.fsAP; % convert to seconds
+            
+            if timeInSeconds
+                spikeTimes = double(spikeTimes) / m.ks.fsAP; % convert to seconds
+            end
             spikeClusters = m.spike_clusters(mask);
             spikeAmps = m.spike_amplitude(mask);
             spikeYpos = m.spike_depth(mask);
@@ -830,19 +856,21 @@ classdef KilosortMetrics < handle
                     end
                 end
                 
-                if numel(m.concatenatedStarts) > 1
+                if ~isempty(m.concatenationInfo) && m.concatenationInfo.nDatasets > 1
                     % show original file name and ind
                     [fileInd, origInd] = m.lookup_sampleIndexInConcatenatedFile(spikeTimesOrig(theseSpikes));
                     
-                    % grab associated file name
+                    % grab associated file name (too slow)
 %                     fileNames = strings(numel(spikeTimesOrig), 1);
 %                     mask = ~isnan(fileInd);
 %                     fileNames(mask) = m.concatenatedNames(fileInd(mask));
                     
-                    row = dataTipTextRow('Orig File Ind', fileInd, '%d');
-                    h.DataTipTemplate.DataTipRows(end+1) = row;
-                    row = dataTipTextRow('Orig Sample Ind', double(origInd), '%d');
-                    h.DataTipTemplate.DataTipRows(end+1) = row;
+                    if ~verLessThan('matlab', '9.6.0') % R2019a
+                        row = dataTipTextRow('Orig File Ind', fileInd, '%d');
+                        h.DataTipTemplate.DataTipRows(end+1) = row;
+                        row = dataTipTextRow('Orig Sample Ind', double(origInd), '%d');
+                        h.DataTipTemplate.DataTipRows(end+1) = row;
+                    end
                 end
                 
                 hold on;
@@ -853,47 +881,14 @@ classdef KilosortMetrics < handle
             h = zoom;
             h.Motion = 'horizontal';
         end
-        
-        function h = markExcisionBoundaries(m, shifts, varargin)
-            p = inputParser();
-            p.addParameter('xOffset', 0, @isscalar);
-            p.parse(varargin{:});
-            xOffset = p.Results.xOffset;
-            
-            starts = double(shifts.idxShiftStart(2:end)) / m.fs;
-            for iF = 1:numel(starts)
-                h = xline(starts(iF) + xOffset, '-', sprintf('Exc %d', iF), 'Color', [0.9 0.3 0.9], 'LineWidth', 1, 'Interpreter', 'none');
-%                 h.NodeChildren(1).NodeChildren(1).ColorData = uint8(255*[0.3 0.3 0.3 1]');
-                h.NodeChildren(1).NodeChildren(1).BackgroundColor = uint8(255*[1 1 1 0.5]');
-                hold on;
-                
-            end
-        end
-        
-        function h = markConcatenatedFileBoundaries(m, varargin)
-            p = inputParser();
-            p.addParameter('time_shifts', [], @(x) isempty(x) || isa(x, 'Neuropixel.TimeShiftSpec'));
-            p.addParameter('xOffset', 0, @isscalar);
-            p.parse(varargin{:});
-            xOffset = p.Results.xOffset;
-            
-            
-            timeShifts = p.Results.time_shifts;
-            catStarts = m.concatenatedStarts;
-            if ~isempty(timeShifts)
-                catStarts = timeShifts.shiftTimes(catStarts);
-            end
-            starts = double(catStarts) / m.fs;
-            for iF = 1:numel(starts)
-                h = xline(starts(iF) + xOffset, '-', m.concatenatedNames{iF}, 'Color', [0.3 0.3 0.9], 'LineWidth', 1, 'Interpreter', 'none');
-%                 h.NodeChildren(1).NodeChildren(1).ColorData = uint8(255*[0.3 0.3 0.3 1]');
-                h.NodeChildren(1).NodeChildren(1).BackgroundColor = uint8(255*[1 1 1 0.5]');
-                hold on;
-            end
-        end
-        
+
         function [fileInds, origSampleInds] = lookup_sampleIndexInConcatenatedFile(m, inds)
-           [fileInds, origSampleInds] = Neuropixel.Utils.lookup_sampleIndexInConcatenatedFile(m.concatenatedStarts, inds);
+            if ~isempty(m.concatenationInfo)
+                [fileInds, origSampleInds] = m.concatenationInfo.lookup_sampleIndexInSourceFiles(inds);
+            else
+                fileInds = ones(size(inds));
+                origSampleInds = inds;
+            end
         end
     end
     
