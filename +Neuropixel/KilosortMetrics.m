@@ -804,26 +804,30 @@ classdef KilosortMetrics < handle
             colorBins = linspace(ampRange(1), ampRange(2), nAmpBins);
             xOffset = p.Results.xOffset;
             
-            colors = gray(nAmpBins); colors = colors(end:-1:1, :); % first bin is smalles spikes, starts white
+            colors = gray(nAmpBins+1); 
+            colors = colors(end-1:-1:1, :); % first bin is smalles spikes, starts white
             for b = 1:nAmpBins-1
                 theseSpikes = spikeAmps>=colorBins(b) & spikeAmps<=colorBins(b+1);
 
                 h = plot(spikeTimes(theseSpikes) + xOffset, spikeYpos(theseSpikes), '.', 'Color', colors(b,:));
-                h.DataTipTemplate.DataTipRows(1).Label = 'Shifted Time';
-                h.DataTipTemplate.DataTipRows(2).Format = '%g sec';
-                h.DataTipTemplate.DataTipRows(2).Label = 'Probe Y';
-                h.DataTipTemplate.DataTipRows(2).Format = '%g um';
-                row = dataTipTextRow('Raw sample', double(spikeTimesOrig(theseSpikes)'), '%d');
-                h.DataTipTemplate.DataTipRows(end+1) = row;
-                row = dataTipTextRow('Cluster', double(spikeClusters(theseSpikes)'), '%d');
-                h.DataTipTemplate.DataTipRows(end+1) = row;
-                row = dataTipTextRow('Amplitude', double(spikeAmps(theseSpikes)'), '%.2f mV');
-                h.DataTipTemplate.DataTipRows(end+1) = row;
                 
-                if ~isempty(p.Results.tsi)
-                    [~, spikeTrialIds] = p.Results.tsi.segmentTimes(spikeTimesOrig(theseSpikes));
-                    row = dataTipTextRow('Trial Id', double(spikeTrialIds), '%d');
+                if ~verLessThan('matlab', '9.6.0') % R2019a
+                    h.DataTipTemplate.DataTipRows(1).Label = 'Shifted Time';
+                    h.DataTipTemplate.DataTipRows(2).Format = '%g sec';
+                    h.DataTipTemplate.DataTipRows(2).Label = 'Probe Y';
+                    h.DataTipTemplate.DataTipRows(2).Format = '%g um';
+                    row = dataTipTextRow('Raw sample', double(spikeTimesOrig(theseSpikes)'), '%d');
                     h.DataTipTemplate.DataTipRows(end+1) = row;
+                    row = dataTipTextRow('Cluster', double(spikeClusters(theseSpikes)'), '%d');
+                    h.DataTipTemplate.DataTipRows(end+1) = row;
+                    row = dataTipTextRow('Amplitude', double(spikeAmps(theseSpikes)'), '%.2f mV');
+                    h.DataTipTemplate.DataTipRows(end+1) = row;
+
+                    if ~isempty(p.Results.tsi)
+                        [~, spikeTrialIds] = p.Results.tsi.segmentTimes(spikeTimesOrig(theseSpikes));
+                        row = dataTipTextRow('Trial Id', double(spikeTrialIds), '%d');
+                        h.DataTipTemplate.DataTipRows(end+1) = row;
+                    end
                 end
                 
                 if numel(m.concatenatedStarts) > 1

@@ -34,10 +34,12 @@ classdef TimeShiftSpec < handle
         end
         
         function mat = as_matrix(spec)
+            % see from_matrix
             mat = cat(2, spec.idxStart, spec.idxStop, spec.idxShiftStart);
         end
         
         function str = as_string(spec)
+            % see from_string
             mat = spec.as_matrix();
             str = mat2str(mat);
         end
@@ -71,8 +73,15 @@ classdef TimeShiftSpec < handle
         
         function time_src = unshiftTimes(spec, times)
             % recover the original time that was mapped to times by shiftTimes
-            srcIdx = spec.computeSourceIndices();
-            [~, time_src] = ismember(times, srcIdx);
+            dur = spec.intervalDurations;
+            
+            time_src = zeros(size(times), 'like', times);
+            for iR = 1:spec.nIntervals
+                mask = times >= spec.idxShiftStart(iR) & times <= spec.idxShiftStart(iR) + dur(iR); % times in this interval
+                time_src(mask) = uint64(int64(times(mask)) - int64(spec.idxShiftStart(iR)) +  int64(spec.idxStart(iR)));
+            end
+%             srcIdx = spec.computeSourceIndices();
+%             [~, time_src] = ismember(times, srcIdx);
         end
         
         function constrainToNumSamples(spec, nSamplesSource)
@@ -107,9 +116,57 @@ classdef TimeShiftSpec < handle
                shiftIndices(to) = from;
             end
         end
+        
+        function h = markExcisionBoundaries(spec, varargin)
+            p = inputParser();
+            p.addParameter('sample_window', [], @(x) isempty(x) || isvector(x)); % set this to the x window being shown to avoid plotting hidden boundaries
+            p.addParameter('Color', [0.9 0.3 0.9], @isvector);
+            p.addParameter('LineWidth', 1, @isscalar);
+            p.addParameter('timeInSeconds', true, @islogical); % if true, x axis is seconds, if false, is samples 
+            p.addParameter('fs', 0, @(x) isempty(x) || isscalar(x));
+            p.addParameter('xOffset', 0, @isscalar);
+            p.addParameter('time_shifts', [], @(x) isempty(x) || isa(x, 'Neuropixel.TimeShiftSpec')); % applied on what is plotted, on top of this spec
+            p.parse(varargin{:});
+            xOffset = p.Results.xOffset;
+            
+            boundaries = double(spec.idxShiftStart(2:end));
+            time_shifts_plot = p.Results.time_shifts;
+            if ~isempty(time_shifts_plot)
+                boundaries = timeShiftSpec.shiftTimes(boundaries);
+            end
+            sample_window = p.Results.sample_window;
+            if ~isempty(sample_window)
+                mask = boundaries >= sample_window(1) & boundaries <= sample_window(2);
+            else
+                mask = true(size(boundaries));
+            end
+            if p.Results.timeInSeconds
+                boundaries = boundaries / p.Results.fs;
+            end
+            washolding = ishold();
+            for iF = 1:numel(boundaries)
+                if ~mask(iF), continue, end
+                h = xline(boundaries(iF) + xOffset, '-', sprintf('TimeShift %d', iF), 'Color', p.Results.Color, 'LineWidth', p.Results.LineWidth, 'Interpreter', 'none');
+                h.NodeChildren(1).NodeChildren(1).BackgroundColor = uint8(255*[1 1 1 0.5]');
+                hold on;
+            end
+            if ~washolding, hold off, end
+        end
     end
     
     methods(Static)
+        function spec = from_matrix(mat)
+            % mat is mat = cat(2, spec.idxStart, spec.idxStop, spec.idxShiftStart)
+            assert(size(mat, 2) == 3);
+            spec = Neuropixel.TimeShiftSpec(mat(:, 1), mat(:, 2), mat(:, 3));
+        end
+        
+        function spec = from_string(str)
+            % string is as generated from to_string, possibly multiple strings concatenated 
+            mat = str2num(str); %#ok<ST2NM>
+            spec = Neuropixel.TimeShiftSpec.from_matrix(mat);
+        end  
+        
         function spec = buildToExciseGaps(idxStart, idxStop)
             regionDurations = int64(idxStop) - int64(idxStart);
             regionUpdatedStarts = int64(idxStart);
@@ -123,6 +180,23 @@ classdef TimeShiftSpec < handle
         
         function spec = buildToConstrainSampleWindow(window)
             spec = Neuropixel.TimeShiftSpec(window(1), window(2), uint64(1));
+        end
+        
+        function spec = buildToVisualizeMultipleWindows(idxStart, idxStop, varargin)
+            p = inputParser();
+            p.addParameter('padding', 100, @isscalar);
+            p.parse(varargin{:});
+            
+            padding = p.Results.padding;
+            
+            regionDurations = int64(idxStop) - int64(idxStart);
+            regionUpdatedStarts = int64(idxStart);
+            regionUpdatedStarts(1) = 1;
+            for iR = 2:numel(idxStart)
+                regionUpdatedStarts(iR) = regionUpdatedStarts(iR-1) + regionDurations(iR-1) + padding;
+            end
+            
+            spec = Neuropixel.TimeShiftSpec(idxStart, idxStop, regionUpdatedStarts);
         end
     end
     

@@ -2,7 +2,7 @@ classdef KiloSortTrialSegmentedDataset < handle & matlab.mixin.Copyable
     
     % Properties that are copied over but not segmented into trials
     properties
-        dataset
+        dataset % KilosortDataset
 
         trial_ids(:, 1) uint32
 

@@ -1,51 +1,156 @@
-function plotStackedTraces(tvec, data_txc, varargin)
+function [out, transformInfo] = plotStackedTraces(tvec, data_txcxl, varargin)
+% data is time x channels x layers
 
 p = inputParser();
+p.addParameter('transformInfo', [], @(x) isempty(x) || isstruct(x));
+
 p.addParameter('colors', [], @(x) true);
 p.addParameter('normalizeEach', false, @islogical);
 p.addParameter('normalizeMask', [], @isvector);
 p.addParameter('quantile', 1, @isscalar);
 p.addParameter('lineArgs', {}, @iscell);
+p.addParameter('LineWidth', 2, @isscalar);
 p.addParameter('gain', 10, @isscalar);
 p.addParameter('labels', [], @(x) true);
+p.addParameter('channel_ids', [], @(x) true); % used for data tips, c x l or c x 1
+p.addParameter('invertChannels', false, @islogical);
+
+% common data tip for all traces
+% value is of size(data) (t x c x l) and singleton dimensions will be automatically expanded
+p.addParameter('dataTipLabel', 'overlay', @(x) isempty(x) || ischar(x) || isstring(x));
+p.addParameter('dataTipValues', [], @(x) true); 
+p.addParameter('dataTipFormat', '', @ischar);
+
+p.addParameter('showChannelDataTips', true, @islogical);
+p.addParameter('showOverlayDataTips', true, @islogical);
+
+p.addParameter('colorOverlayLabels', [], @(x) isempty(x) || isnumeric(x)); % a label matrix indexing into colorOverlapMap of size data_txc
+p.addParameter('colorOverlayMap', [], @(x) isempty(x) || ismatrix(x)); % a Nx3 colormap
+p.addParameter('colorOverlayDataTipLabel', 'overlay', @(x) isempty(x) || ischar(x) || isstring(x));
+p.addParameter('colorOverlayDataTipValues', [], @(x) true); % nlabels x 1
+p.addParameter('colorOverlayDataTipFormat', '', @ischar);
 p.parse(varargin{:});
 
-data = data_txc;
+showChannelDataTips = p.Results.showChannelDataTips;
+showOverlayDataTips = p.Results.showOverlayDataTips;
+
+data = data_txcxl;
+if isinteger(data)
+    data = single(data);
+end
 nTraces = size(data, 2);
+nLayers = size(data, 3);
 
 colors = p.Results.colors;
 if isempty(colors)
     colors = zeros(nTraces, 3);
 end
+if size(colors, 1) == 1
+    colors = repmat(colors, nTraces, 1);
+end
+
+tform = p.Results.transformInfo;
+if isempty(tform)
+    tform = struct();
+end
 
 % optionally keep a subset of channels intact
-cmask = p.Results.normalizeMask;
-if isempty(cmask)
-    cmask = true(size(data, 2), 1);
-end
-data(:, cmask) = data(:, cmask) - mean(data(:, cmask), 1, 'omitnan');
-
-
-if p.Results.normalizeEach
-    normBy = quantile(abs(data(:, cmask)), p.Results.quantile, 1);
-    data(:, cmask) = data(:, cmask) ./ normBy;
-else
-    vals = data(:, cmask);
-    normBy = quantile(abs(vals(:)), p.Results.quantile);
-    if normBy ~= 0
-        data(:, cmask) = data(:, cmask) ./ normBy;
+if ~isfield(tform, 'cmask')
+    if ~isempty(p.Results.normalizeMask)
+        tform.cmask = p.Results.normalizeMask;
+    else
+        tform.cmask = true(size(data, 2), 1);
     end
 end
-data(:, cmask) = data(:, cmask) * p.Results.gain;
+cmask = tform.cmask;
 
-offsets = nTraces-1:-1:0;
-data = data + offsets;
+if ~isfield(tform, 'bias')
+    tform.bias = - mean(data(:, cmask, :), 1, 'omitnan');
+end
+data(:, cmask, :) = data(:, cmask, :) + tform.bias;
+
+if ~isfield(tform, 'normBy')
+    if p.Results.normalizeEach
+        tform.normBy = quantile(abs(data(:, cmask, :)), p.Results.quantile, 1);
+    else
+        vals = data(:, cmask, :);
+        tform.normBy = quantile(abs(vals(:)), p.Results.quantile);
+    end
+end
+
+if isscalar(tform.normBy) && tform.normBy ~= 0
+    data(:, cmask, :) = data(:, cmask, :) ./ tform.normBy;
+elseif numel(tform.normBy) > 1
+    data(:, cmask & tform.normBy ~= 0, :) = data(:, cmask & tform.normBy ~= 0, :) ./ tform.normBy;
+end
+
+if ~isfield(tform, 'gain')
+    tform.gain = p.Results.gain; 
+end
+data(:, cmask, :) = data(:, cmask, :) * tform.gain;
+multipliers = nan(size(data, 1), 1);
+multipliers(cmask) = tform.normBy * tform.gain;
+
+if ~isfield(tform, 'offsets')
+    if p.Results.invertChannels % first is at bottom
+        tform.offsets = 0:nTraces-1;
+    else
+        tform.offsets = nTraces-1:-1:0; % default, first is at top
+    end
+end
+data = data + tform.offsets; % channels along sercond dimension
 
 washolding = ishold;
 labels = string(p.Results.labels);
 
+% possibly different channel_ids for each layer
+channel_ids = p.Results.channel_ids;
+if ~isempty(channel_ids)
+    if size(channel_ids, 2) == 1
+        channel_ids = repmat(channel_ids, 1, nLayers);
+    end
+    assert(size(channel_ids, 1) == nTraces);
+end
+
+hvec = gobjects(nTraces, nLayers);
+dataTipValue = p.Results.dataTipValues;
+if ~isempty(dataTipValue)
+    if size(dataTipValue, 1) == 1
+        dataTipValue = repmat(dataTipValue, size(data, 1), 1, 1);
+    end
+    if size(dataTipValue, 2) == 1
+        dataTipValue = repmat(dataTipValue, 1, size(data, 2), 1);
+    end
+    if size(dataTipValue, 3) == 1
+        dataTipValue = repmat(dataTipValue, 1, 1, size(data, 3));
+    end
+    if isempty(p.Results.dataTipFormat)
+        dtipfmatArg = {};
+    else
+        dtipfmatArg = {p.Results.dataTipFormat};
+    end
+end
+
 for iR = 1:nTraces
-    plot(tvec, data(:, iR), '-', 'Color', colors(iR, :), p.Results.lineArgs{:});
+    dmat = squeeze(data(:, iR, :));
+    if ~any(~isnan(dmat), 'all'), continue, end
+    hvec(iR, :) = plot(tvec, dmat, '-', 'Color', colors(iR, :), 'LineWidth', p.Results.LineWidth, p.Results.lineArgs{:});
+    
+    if ~verLessThan('matlab', '9.6.0') 
+        if ~isempty(channel_ids) && showChannelDataTips % R2019a 
+            for iL = 1:nLayers
+                nPoints = numel(hvec(iR, iL).XData);
+                hvec(iR, iL).DataTipTemplate.DataTipRows(end+1) = dataTipTextRow('channel', repmat(double(channel_ids(iR, iL)), nPoints, 1), '%d');
+            end
+        end
+        
+        if ~isempty(dataTipValue)
+            for iL = 1:nLayers
+                hvec(iR, iL).DataTipTemplate.DataTipRows(end+1) = dataTipTextRow(p.Results.dataTipLabel, double(dataTipValue(:, iR, iL)), dtipfmatArg{:});
+            end
+        end
+    end
+        
     hold on;
     
 %     if ~isempty(labels)
@@ -54,9 +159,74 @@ for iR = 1:nTraces
 %     end
 end
 
-if ~isempty(labels)
-    set(gca, 'YTick', fliplr(offsets), 'YTickLabels', flipud(labels));
+% do color overlays
+if ~isempty(p.Results.colorOverlayLabels)
+    labelMat = p.Results.colorOverlayLabels;
+    
+    dataTipLabel = p.Results.colorOverlayDataTipLabel;
+    dataTipValuesByLabel = p.Results.colorOverlayDataTipValues;
+    dataTipFormat = p.Results.colorOverlayDataTipFormat;
+    
+    assert(isequal(size(labelMat), size(data)));
+    maxLabel = max(labelMat(:));
+    
+    labelCmap = p.Results.colorOverlayMap;
+    if isempty(labelCmap)
+        labelCmap = Neuropixel.Utils.distinguishable_colors(maxLabel, {'k', 'w'});
+    end
+    
+    hLabel = cell(maxLabel, nLayers);
+    for iU = 1:maxLabel
+        mask = labelMat == iU;
+        if ~any(mask(:)), continue, end
+        dataMasked = data;
+        dataMasked(~mask) = NaN;
+        
+        for iL = 1:nLayers
+            t_mask = any(labelMat(:, :, iL) == iU, 2);
+            % dilate this time mask by one to the right, to preserve the NaNs in between valid regions
+            t_mask = imdilate(t_mask, [1; 1]);
+            ch_mask = any(labelMat(t_mask, :, iL) == iU, 1);
+            
+            hLabel{iU, iL} = plot(tvec(t_mask), dataMasked(t_mask, ch_mask, iL), '-', 'Color', labelCmap(iU, :), 'LineWidth', p.Results.LineWidth, p.Results.lineArgs{:});
+            
+            if ~verLessThan('matlab', '9.6.0') && showOverlayDataTips && ~isempty(dataTipValuesByLabel) % R2019a 
+                for iH = 1:numel(hLabel{iU, iL})
+                    nPoints = numel(hLabel{iU, iL}(iH).XData);
+                    label_this = repmat(dataTipValuesByLabel(iU), nPoints, 1);
+                    if isnumeric(label_this)
+                        label_this = double(label_this);
+                    end
+                    if isempty(dataTipFormat)
+                        fmatArg = {};
+                    else
+                        fmatArg = {dataTipFormat};
+                    end
+                    
+                    hLabel{iU, iL}(iH).DataTipTemplate.DataTipRows(end+1) = dataTipTextRow(dataTipLabel, label_this, fmatArg{:});
+                    channel_ids_this = channel_ids(ch_mask, iL);
+                    hLabel{iU, iL}(iH).DataTipTemplate.DataTipRows(end+1) = dataTipTextRow('channel', repmat(double(channel_ids_this(iH)), nPoints, 1), '%d');
+                end
+            end
+        end
+    end
+    
+else
+    hLabel = {};
 end
+
+if ~isempty(labels)
+    [sorted_offsets, sort_idx] = sort(offsets);
+    set(gca, 'YTick', sorted_offsets, 'YTickLabels', labels(sort_idx));
+end
+
+out.tvec = tvec;
+out.data = data;
+out.hLines = hvec;
+out.multipliers = multipliers;
+out.hLabel = hLabel;
+
+transformInfo = tform;
 
 axis tight;
 box off;

@@ -118,6 +118,10 @@ classdef TrialSegmentationInfo < handle & matlab.mixin.Copyable
             
             timeShifts = p.Results.time_shifts;
             ticks =  tsi.idxStart;
+            
+            if ~isempty(timeShifts)
+                ticks = timeShifts.shiftTimes(ticks);
+            end
             sample_window = p.Results.sample_window;
             if ~isempty(sample_window)
                 mask = ticks >= sample_window(1) & ticks <= sample_window(2);
@@ -125,9 +129,7 @@ classdef TrialSegmentationInfo < handle & matlab.mixin.Copyable
                 mask = true(size(ticks));
             end
             ticks = ticks(mask);
-            if ~isempty(timeShifts)
-                ticks = timeShifts.shiftTimes(ticks);
-            end
+            
             if p.Results.timeInSeconds
                 ticks = double(ticks) / tsi.fs;
             end

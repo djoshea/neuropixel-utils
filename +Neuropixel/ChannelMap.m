@@ -23,6 +23,8 @@ classdef ChannelMap
         connectedChannels
         referenceChannels
         
+        invertChannelsY % plot first channel at bottom? (if first channel has lower 
+        
         yspacing
         xspacing
         zspacing
@@ -133,6 +135,13 @@ classdef ChannelMap
         function zlim = get.zlim(map)
             zs = map.yspacing;
             zlim = [min(map.zcoords) - zs, maz(map.zcoords) + zs];
+        end
+        
+        function tf = get.invertChannelsY(map)
+            % bigger y coords are higher up on the probe. This is used when we want to plot stacked traces. If false, 
+            % channel 1 belongs at the top (has largest y coord). If true, channel 1 belongs at the bottom (has smallest y coord)
+            
+            tf = map.ycoords(1) < map.ycoords(end);
         end
         
         function [channelInds, channelIds] = lookup_channelIds(map, channelIds)

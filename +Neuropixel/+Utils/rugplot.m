@@ -78,7 +78,7 @@ function h = rugplot(ticks, varargin)
     
     %h = plot(x, y, '-', 'Color', p.Results.Color, 'LineWidth', 0.5);
     
-    if ~isempty(p.Results.dataTipTemplateRows)
+    if ~isempty(p.Results.dataTipTemplateRows) && ~verLessThan('matlab', '9.6.0')
         rows = p.Results.dataTipTemplateRows;
         for iR = 1:numel(rows)
             vals = Neuropixel.Utils.makerow(double(rows(iR).Value));
