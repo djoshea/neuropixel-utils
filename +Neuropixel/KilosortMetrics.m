@@ -27,7 +27,7 @@ classdef KilosortMetrics < handle
         % per template properties
         
         % nTemplates x nTimePoints x nTemplateChannels
-        template_unw single % unwhitened scaled templates
+        template_unw single % unwhitened, unscaled templates (i.e. in an arbitrary scale determined by raw * whitening_mat_inv)
         template_scaled single % unwhitened, scaled templates
         
         % nTemplates x nSpatialCoord
@@ -302,6 +302,19 @@ classdef KilosortMetrics < handle
         
         function assertHasKs(m)
             assert(~isempty(m.ks), 'Must set .ks to KiloSortDataset');
+        end
+    end
+    
+    methods % Convenience methods
+        function [channel_ids_unique, channel_ids_by_cluster] = gather_best_channels_multiple_clusters(m, cluster_ids, n_best_each)
+            if nargin < 3
+                n_best_each = 24;
+            end
+            
+            cluster_inds = m.lookup_clusterIds(cluster_ids);
+            
+            channel_ids_by_cluster = m.cluster_best_channels(cluster_inds, 1:n_best_each);
+            channel_ids_unique = unique(channel_ids_by_cluster(:));
         end
     end
     
@@ -647,7 +660,7 @@ classdef KilosortMetrics < handle
             
             if ~strcmpi(opt, 'show')
                 m.plotSpikesByAmplitude('spike_mask', mask, 'time_shifts', timeShifts, 'nAmpBins', p.Results.nAmpBins, ...
-                    'ampRange', p.Results.ampRange, ...
+                    'ampRange', p.Results.ampRange, 'timeInSeconds', timeInSeconds, ...
                     'localizedOnly', p.Results.localizedOnly, 'tsi', p.Results.tsi, 'xOffset', xOffset);
                 
                 ylim(m.channelMap.ylim);
@@ -805,11 +818,11 @@ classdef KilosortMetrics < handle
             if p.Results.localizedOnly
                 mask = mask & m.spike_is_localized;
             end
-
             timeShifts =p.Results.time_shifts;
             spikeTimes = m.spike_times(mask);
             spikeTimesOrig = spikeTimes;
-           
+            timeInSeconds = p.Results.timeInSeconds;
+            
             if ~isempty(timeShifts)
                 spikeTimes = timeShifts.shiftTimes(spikeTimes);
             end
@@ -1100,6 +1113,227 @@ classdef KilosortMetrics < handle
             
             Neuropixel.Utils.configureDataTipsFromUserData(gcf);
         end
+    end
+    
+    methods % Pairwise cluster comparison        
+        function [times1, times2, lags] = pairwiseClusterFindSpikesWithLag(m, cluster_ids, varargin)
+            % find spikes with a 
+            p = inputParser();
+            p.addParameter('lagWindowMs', [-5 5], @isvector); % in ms
+            p.addParameter('N', Inf, @isscalar);
+            p.addParameter('sortClosestToCentralLag', false, @isscalar);
+            p.parse(varargin{:});
+            lagWindow = p.Results.lagWindowMs / 1000 * m.fs; % convert to samples
+            
+            assert(numel(cluster_ids) == 2);            
+            [~, which_cluster] = ismember(m.spike_clusters, cluster_ids);
+
+            % now we want to find the set of pairs of spikes where spikes 
+            times1 = double(m.spike_times(which_cluster == 1));
+            times2 = double(m.spike_times(which_cluster == 2));
+           
+            lagCentral = (lagWindow(2) + lagWindow(1)) / 2;
+            lagRadius = (lagWindow(2) - lagWindow(1)) / 2;   
+            inds2 = rangesearch(times2 - lagCentral, times1, lagRadius);
+              
+            [inds2, inds1] = Neuropixel.Utils.TensorUtils.catWhich(2, inds2{:});
+            inds1 = inds1';
+            inds2 = inds2';
+            
+            times1 = times1(inds1);
+            times2 = times2(inds2);
+            lags = (times2 - times1) / m.fs * 1000;
+            
+            if p.Results.sortClosestToCentralLag
+                [~, sort_idx] = sort(abs(lags - lagCentral), 'ascend');
+                times1 = times1(sort_idx);
+                times2 = times2(sort_idx);
+                lags = lags(sort_idx);
+            end
+            
+            if ~isinf(p.Results.N)
+                select = 1:p.Results.N;
+                times1 = times1(select);
+                times2 = times2(select);
+                lags = lags(select);
+            end
+        end
+        
+        function [snippetSet, lags] = extractSnippets_pairwiseClusterFindSpikesWithLag(m, cluster_ids, varargin)
+            p = inputParser();
+            p.addParameter('lagWindowMs', [-5 5], @isvector);
+            p.addParameter('N', Inf, @isscalar);
+            p.addParameter('sortClosestToCentralLag', false, @isscalar);
+            p.addParameter('best_n_channels', 24, @iscalar);
+            p.KeepUnmatched = true;
+            p.parse(varargin{:});
+            
+            args = rmfield(p.Results, 'best_n_channels');
+            [times1, times2, lags] = pairwiseClusterFindSpikesWithLag(m, cluster_ids, args);
+            
+            window_width = max(int64(times2) - int64(times1)) + int64(m.nTemplateTimepoints);
+            window = [-window_width / 2, window_width / 2];
+            
+            times = (int64(times1) + int64(times2)) / int64(2);
+            
+            snippetSet = m.ks.readAPSnippsetSet_clusterIdSubset(times, window, cluster_ids, ...
+                'best_n_channels', p.Results.best_n_channels, p.Unmatched);
+        end
+            
+        function [timesByCluster, indsByCluster, windowWidth] = multiClusterFindSpikesWithinWindow(m, cluster_ids, varargin)
+            p = inputParser();
+            p.addParameter('window', 20, @isvector);
+            p.addParameter('N', Inf, @isscalar);
+            p.addParameter('sortSmallestWindow', true, @isscalar);
+            p.parse(varargin{:});
+            window = p.Results.window * m.fs; % convert to samples
+            nClusters = numel(cluster_ids);
+            
+            % take times for the first cluster and find times for all other clusters within +/- window
+            % which we will narrow down later
+            [~, which_cluster] = ismember(m.spike_clusters, cluster_ids);
+            times1 = double(m.spike_times(which_cluster == 1));
+            mask_other = which_cluster > 1;
+            indsOther = find(mask_other);
+            timesOther = double(m.spike_times(mask_other)); 
+            indsIntoTimesOtherNearest = rangesearch(timesOther, times1, window, 'SortIndices', false);
+                                    
+            valid = false(numel(times1), 1);
+            windowWidth = nan(numel(times1), 1);
+            indsByCluster = nan(numel(times1), nClusters);
+            indsByCluster(:, 1) = find(which_cluster == 1);
+            
+            for i = 1:numel(times1)
+                % find the smallest interval that includes times1(i) and one spike from every other cluster
+                % this is the set cover problem on the integers
+                
+                indsOtherThis = indsOther(indsIntoTimesOtherNearest{i});
+                whichClusterThis = which_cluster(indsOtherThis);
+                relTimesOtherThis = timesOther(indsIntoTimesOtherNearest{i}) - times1(i);
+                
+                [valid(i), tempInds, windowWidth(i)] = bestWindowCover(relTimesOtherThis, whichClusterThis);
+                indsByCluster(i, 2:end) = indsOtherThis(tempInds);
+            end 
+            
+            indsByCluster = indsByCluster(valid, :);
+            windowWidth = windowWidth(valid);
+            
+            if p.Results.sortSmallestWindow
+                [windowWidth, sortIdx] = sort(windowWidth, 'ascend');
+                indsByCluster = indsByCluster(sortIdx, :);
+            end
+            timesByCluster = m.spike_times(indsByCluster);
+            windowWidth = windowWidth / m.fs;
+            
+            function [valid, indsByCluster, windowWidth] = bestWindowCover(relativeTimes, whichCluster)
+                % given a set of nSpikes relative times between +/- window and cluster identities whichCluster
+                % return the ind from each cluster that fall within the smallest max - min window
+
+                
+                % offsets defines time windows running from offsets(i):offsets(i)+window-1
+                % indMat temporary assignment of this spike for a given cluster and a given window start
+                % deltaMat is the minimum window required to include that spike (absolute value)
+                offsets = [relativeTimes(relativeTimes < 0)', 0];
+                [indMat, deltaMat] = deal(nan(nClusters-1, numel(offsets)));
+                
+                for iS = 1:numel(relativeTimes)
+                    % update the indByStartByCluster using this spike if its better than what's there before
+                    t = relativeTimes(iS);
+                    c = whichCluster(iS) - 1;
+                    
+                    % this spike lies in the window if t >= offsets (the window start) and t <= offsets + window - 1 (window end)
+                    % and the minimum window width to contain it is abs(t)
+                    mask_update = t >= offsets & t < offsets + window & ~(deltaMat(c, :) < abs(t));
+                    deltaMat(c, mask_update) = abs(t);
+                    indMat(c, mask_update) = iS;
+                end
+                
+                % now pick the best window
+                [windowWidth, whichOffset] = min(max(deltaMat, [], 1, 'includenan')); 
+                if isnan(windowWidth)
+                    valid = false;
+                    indsByCluster = nan(nClusters, 1);
+                else
+                    valid = true;
+                    indsByCluster = indMat(:, whichOffset);
+                end
+            end
+        end
+        
+        function inspectSampleIdx_highlightClusterWaveforms(m, sampleIdx, cluster_ids, varargin)
+            p = inputParser();
+            p.addParameter('channel_ids', m.channelMap.channelIdsMapped, @isvector);
+            p.addParameter('channel_ids_by_cluster', [], @ismatrix); % specify this manually
+            p.addParameter('best_n_channels', 24, @isscalar); % or take the best n channels based on this clusters template when cluster_id is scalar
+
+            p.addParameter('invertChannels', true, @islogical);
+            p.addParameter('showLabels', true, @islogical);
+            p.addParameter('gain', 0.95, @isscalar);
+            p.addParameter('car', false, @islogical);
+            p.addParameter('downsample',1, @isscalar); 
+            p.addParameter('timeInSeconds', true, @islogical);
+            
+            p.addParameter('waveform_window', [-40 41], @isvector); % Number of samples before and after spiketime to include in waveform
+            p.addParameter('cluster_colormap', Neuropixel.Utils.distinguishable_colors(numel(cluster_ids)), @(x) ismatrix(x));
+            p.parse(varargin{:});
+            waveform_window = p.Results.waveform_window;
+
+            df = m.ks.raw_dataset;
+            sampleIdx = Neuropixel.Utils.makecol(sampleIdx);
+            mat = df.readAP_idx(sampleIdx); % C x T
+            
+            [channelInds, channelIds] = df.lookup_channelIds(p.Results.channel_ids); 
+            channelsHighlightByCluster = p.Results.channel_ids_by_cluster;
+            clusterInds = m.lookup_clusterIds(cluster_ids);
+            if isempty(channelsHighlightByCluster)
+                n_best = min(p.Results.best_n_channels, size(m.cluster_best_channels, 2));
+                channelsHighlightByCluster = m.cluster_best_channels(clusterInds, 1:n_best);
+            end
+            
+            mat = mat(channelInds, :);
+            labels = df.channelNamesPadded(channelInds);
+            
+            if p.Results.downsample > 1
+                mat = mat(:, 1:p.Results.downsample:end);
+                sampleIdx = sampleIdx(1:p.Results.downsample:end);
+            end
+            mat = double(mat);
+            if p.Results.car
+                mat = mat - median(mat, 1);
+            end
+
+            if ~p.Results.showLabels
+                labels = [];
+            end
+            
+            if p.Results.timeInSeconds
+                time = double(sampleIdx) / df.fsAP;
+            else
+                time = sampleIdx;
+            end
+            
+            % build overlay maps for each cluster
+            waveformOverlayLabels = zeros(size(mat));
+            for iC = 1:numel(cluster_ids)
+                channelsIdsHighlight = channelsHighlightByCluster(iC, :);
+                [tf, channelIndsHighlight] = ismember(channelsIdsHighlight, channelIds);
+                cinds = channelIndsHighlight(tf);
+                
+                % nTimes x 1
+                times = single(m.spike_times(m.spike_clusters == cluster_ids(iC)));
+                
+                % nSamples x nTimes --> nSamples
+                within_window = any(sampleIdx >= times' + waveform_window(1) & sampleIdx <= times' + waveform_window(2), 2);
+                
+                waveformOverlayLabels(cinds, within_window) = iC;
+            end
+            
+            out = Neuropixel.Utils.plotStackedTraces(time, mat', 'labels', labels, ...
+                'gain', p.Results.gain, 'invertChannels', p.Results.invertChannels, 'normalizeEach', false, ...
+                'colorOverlayLabels', waveformOverlayLabels', 'colorOverlayMap', p.Results.cluster_colormap); 
+        end
+
+        
     end
     
     methods(Static) % multi plotting to simulate concatenated files
