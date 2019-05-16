@@ -99,7 +99,9 @@ function rezFull = runKilosort2(imec, varargin)
     % drop features from rez, too large
     rez.cProj = [];
     rez.cProjPC = [];
-    rez.ops.gui = [];
+    if isfield(rez, 'ops') && isfield(rez.ops, 'gui')
+        rez.ops.gui = [];
+    end
 
     % save final results as rez
     fname = fullfile(ops.saveDir, 'rez.mat');

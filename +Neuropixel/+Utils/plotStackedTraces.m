@@ -9,7 +9,8 @@ p.addParameter('normalizeEach', false, @islogical);
 p.addParameter('normalizeMask', [], @isvector);
 p.addParameter('quantile', 1, @isscalar);
 p.addParameter('lineArgs', {}, @iscell);
-p.addParameter('LineWidth', 2, @isscalar);
+p.addParameter('LineWidth', 1, @isscalar);
+p.addParameter('LineOpacity', 1, @isscalar);
 p.addParameter('gain', 10, @isscalar);
 p.addParameter('labels', [], @(x) true);
 p.addParameter('channel_ids', [], @(x) true); % used for data tips, c x l or c x 1
@@ -134,7 +135,7 @@ end
 for iR = 1:nTraces
     dmat = squeeze(data(:, iR, :));
     if ~any(~isnan(dmat), 'all'), continue, end
-    hvec(iR, :) = plot(tvec, dmat, '-', 'Color', colors(iR, :), 'LineWidth', p.Results.LineWidth, p.Results.lineArgs{:});
+    hvec(iR, :) = plot(tvec, dmat, '-', 'Color', [colors(iR, :), p.Results.LineOpacity], 'LineWidth', p.Results.LineWidth, p.Results.lineArgs{:});
     
     if ~verLessThan('matlab', '9.6.0') 
         if ~isempty(channel_ids) && showChannelDataTips % R2019a 
@@ -216,7 +217,7 @@ else
 end
 
 if ~isempty(labels)
-    [sorted_offsets, sort_idx] = sort(offsets);
+    [sorted_offsets, sort_idx] = sort(tform.offsets);
     set(gca, 'YTick', sorted_offsets, 'YTickLabels', labels(sort_idx));
 end
 

@@ -416,6 +416,7 @@ classdef ImecDataset < handle
             p = inputParser();
             p.addParameter('channels', df.mappedChannels, @isvector);
             p.addParameter('invertChannels', false, @islogical);
+            p.addParameter('showSync', true, @isvector);
             p.addParameter('syncBits', df.syncBitsNamed, @isvector);
             p.addParameter('showLabels', true, @islogical);
             p.addParameter('gain', 0.95, @isscalar);
@@ -452,7 +453,7 @@ classdef ImecDataset < handle
             
             % append sync bit info to plot in purple
             syncBits = p.Results.syncBits;
-            if ~isempty(syncBits)
+            if ~isempty(syncBits) && p.Results.showSync
                 syncBitMat = df.readSyncBits_idx(syncBits, sampleIdx);
                 mat = cat(1, mat, syncBitMat);
                 syncColor = [0.75 0 0.9];
@@ -530,54 +531,45 @@ classdef ImecDataset < handle
     end
 
     methods(Hidden) % Read data at specified times
-        function [data_ch_by_time_by_snippet, cluster_ids, channel_ids_by_cluster, unique_cluster_ids] = readSnippetsRaw(df, times, window, varargin)
+        function [data_ch_by_time_by_snippet, cluster_ids, channel_ids_by_snippet] = readSnippetsRaw(df, times, window, varargin)
             % for each sample index in times, read the window times + window(1):window(2)
             % of samples around this time from some channels
 
             p = inputParser();
             p.addParameter('source', 'ap', @ischar);
             
-            % specify THIS (same channels every snippet)
-            p.addParameter('channel_ids', [], @ismatrix);
+            % specify one of THESE (same channels every snippet or nChannels x numel(times))
+            p.addParameter('channel_ids', [], @(x) isempty(x) || isvector(x));
+            p.addParameter('channel_ids_by_snippet', [], @ismatrix);
             
             % or THESE (different channels for each group of snippets sharing the same cluster_ids
             p.addParameter('channel_ids_by_cluster', [], @ismatrix);
-            p.addParameter('unique_cluster_ids', [], @(x) isempty(x) || isvector(x));
-            p.addParameter('cluster_ids', zeros(numel(times), 1), @isvector); % same length as numel(times), corresponding to which cluster was pulled out (e.g. as a waveform)
+            p.addParameter('cluster_ids', [], @isvector); % same length as numel(times), corresponding to which cluster was pulled out (e.g. as a waveform)
             
             p.addParameter('car', false, @islogical); % subtract median over channels
             p.parse(varargin{:});
 
-            if ~isempty(p.Results.channel_ids)
-                channel_ids_by_cluster = Neuropixel.Utils.makecol(p.Results.channel_ids);
-                unique_cluster_ids = uint32(0);
-                cluster_ids = zeros(numel(times), 1);
+            channel_ids = p.Results.channel_ids;
+            channel_ids_by_snippet = p.Results.channel_ids_by_snippet;
+            channel_ids_by_cluster = p.Results.channel_ids_by_cluster;
+            cluster_ids = p.Results.cluster_ids;
+                
+            if ~isempty(channel_ids)
+                channel_ids = Neuropixel.Utils.makecol(channel_ids);
+                channel_ids_by_snippet = repmat(channel_ids, 1, numel(times));
+                
+            elseif ~isempty(channel_ids_by_snippet)
+                assert(size(channel_ids_by_snippet, 2) == numel(times), 'channel_ids must be nChannels x numel(times)');
             else
-                channel_ids_by_cluster = p.Results.channel_ids_by_cluster;
-                unique_cluster_ids = p.Results.unique_cluster_ids;
-                if isempty(unique_cluster_ids)
-                    unique_cluster_ids = unique(p.Results.cluster_ids);
-                end
-                if isempty(channel_ids_by_cluster)
-                    channel_ids_by_cluster = repmat(df.channelMap.channelIds, 1, numel(unique_cluster_ids));
-                end
-                if size(channel_ids_by_cluster, 1) == 1
-                    % same channels each cluster, repmat column to make matrix
-                    channel_ids_by_cluster = repmat(channel_ids_by_cluster, 1, numel(unique_cluster_ids));
-                end
-                assert(numel(unique_cluster_ids) == size(channel_ids_by_cluster, 2), ...
-                    'unique_cluster_ids must have same number of clusters as columns in channel_ids_by_cluster');
-
-                cluster_ids = Neuropixel.Utils.makecol(p.Results.cluster_ids);
-                if isscalar(cluster_ids)
-                    cluster_ids = repmat(cluster_ids, numel(times), 1);
+                if ~isempty(channel_ids_by_cluster)
+                    assert(~isempty(cluster_ids), 'cluster_ids must be specified when channel_ids_by_cluster is used');
+                    unique_cluster_ids = unique(cluster_ids);
+                    [~, cluster_inds] = ismember(cluster_ids, unique_cluster_ids);
+                    channel_ids_by_snippet = channel_ids_by_cluster(:, cluster_inds);
                 else
-                    assert(numel(cluster_ids) == numel(times), 'cluster_ids must have same length as requested times');
+                    error('Specify either channel_ids or channel_ids_by_cluster');
                 end
             end
-
-            [tf, cluster_ind] = ismember(cluster_ids, unique_cluster_ids);
-            assert(all(tf), 'Some cluster_ids were not found in unique_cluster_ids');
 
             source = p.Results.source;
             switch source
@@ -588,14 +580,18 @@ classdef ImecDataset < handle
                 otherwise
                     error('Unknown source');
             end
-            nC = size(channel_ids_by_cluster, 1);
+            nC = size(channel_ids_by_snippet, 1);
             nS = numel(times);
             nT = numel(window(1):window(2));
             out = zeros(nC, nT, nS, 'int16');
 
-            prog = Neuropixel.Utils.ProgressBar(numel(times), 'Extracting %s snippets', upper(source));
+            if numel(times) > 10
+                prog = Neuropixel.Utils.ProgressBar(numel(times), 'Extracting %s snippets', upper(source));
+            else
+                prog = [];
+            end
             for iS = 1:numel(times)
-                prog.update(iS);
+                if ~isempty(prog), prog.update(iS); end
 
                 idx_start = times(iS)+window(1);
                 idx_stop = idx_start + nT - 1;
@@ -603,7 +599,7 @@ classdef ImecDataset < handle
                 mask_idx_okay = idx_request >= uint64(1) & idx_request <= size(mm.Data.x, 2);
                 idx_request = idx_request(mask_idx_okay);
                 
-                channel_idx = channel_ids_by_cluster(:, cluster_ind(iS)); % which channels for this spike
+                channel_idx = channel_ids_by_snippet(:, iS); % which channels for this spike
                 if p.Results.car
                     extract = mm.Data.x(:, idx_request);
                     out(:, mask_idx_okay, iS) = extract(channel_idx, :) - median(extract(df.goodChannelInds, :), 1);
@@ -612,32 +608,30 @@ classdef ImecDataset < handle
                 end
             end
             data_ch_by_time_by_snippet = out;
-            prog.finish();
+            if ~isempty(prog), prog.finish(); end
         end
     end
     
     methods  % Read data at specified times
         function snippet_set = readAPSnippetSet(df, times, window, varargin)
-            [data_ch_by_time_by_snippet, cluster_ids, channel_ids_by_cluster, unique_cluster_ids] = ...
+            [data_ch_by_time_by_snippet, cluster_ids, channel_ids_by_snippet] = ...
                 df.readSnippetsRaw(times, window, 'source', 'ap', varargin{:});
             snippet_set = Neuropixel.SnippetSet(df, 'ap');
             snippet_set.data = data_ch_by_time_by_snippet;
             snippet_set.sample_idx = times;
-            snippet_set.channel_ids_by_cluster = channel_ids_by_cluster;
+            snippet_set.channel_ids_by_snippet = channel_ids_by_snippet;
             snippet_set.cluster_ids = cluster_ids;
-            snippet_set.unique_cluster_ids = unique_cluster_ids;
             snippet_set.window = window;
         end
 
         function snippet_set = readLFSnippetSet(df, times, window, varargin)
-            [data_ch_by_time_by_snippet, cluster_ids, channel_ids_by_cluster, unique_cluster_ids] = ...
+            [data_ch_by_time_by_snippet, cluster_ids, channel_ids_by_snippet] = ...
                 df.readSnippetsRaw(times, window, 'source', 'lf', varargin{:});
             snippet_set = Neuropixel.SnippetSet(df, 'lf');
             snippet_set.data = data_ch_by_time_by_snippet;
             snippet_set.sample_idx = times;
-            snippet_set.channel_ids_by_cluster = channel_ids_by_cluster;
+            snippet_set.channel_ids_by_snippet = channel_ids_by_snippet;
             snippet_set.cluster_ids = cluster_ids;
-            snippet_set.unique_cluster_ids = unique_cluster_ids;
             snippet_set.window = window;
         end
 

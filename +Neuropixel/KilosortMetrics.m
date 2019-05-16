@@ -905,6 +905,115 @@ classdef KilosortMetrics < handle
         end
     end
     
+    methods % Cluster amplitudes vs. time
+        function h = plotClusterAmplitudeVsTime(m, cluster_ids, varargin)
+            [tf, which_cluster] = ismember(m.spike_clusters, cluster_ids);
+            spike_inds = find(tf);
+            which_cluster = which_cluster(tf);
+            value = m.spike_amplitude(tf);
+            
+            h = m.internal_plotSpikeVsTime(spike_inds, value, 'color', which_cluster, 'valueLabel', 'amplitude', ...
+                'valueFormat', '%.01f', 'valueUnits', 'uV', varargin{:}); %#ok<FNDSB>
+        end
+        
+        function h = internal_plotSpikeVsTime(m, spike_inds, spike_value, varargin)
+            p = inputParser();
+            p.addParameter('color', [], @(x) true); % can be N x 1 or single color / value to map into linear colormap
+            p.addParameter('size', 4^2, @isvector); % can be N x 1 or single size
+            p.addParameter('valueLabel', 'value', @ischar);
+            p.addParameter('valueFormat', '', @ischar);
+            p.addParameter('valueUnits', '', @ischar);
+            p.addParameter('timeInSeconds', false, @islogical);
+            p.addParameter('tsi', [], @(x) isempty(x) || isa(x, 'Neuropixel.TrialSegmentationInfo')); % to mark trial boundaries
+            p.addParameter('maskRegionsOutsideTrials', true, @islogical);
+            p.addParameter('exciseRegionsOutsideTrials', false, @islogical);
+            p.addParameter('showDataTips', true, @islogical);
+            p.parse(varargin{:});
+            
+            tsi = p.Results.tsi;
+            if ~isempty(tsi) && (p.Results.maskRegionsOutsideTrials || p.Results.exciseRegionsOutsideTrials)
+                mask = m.computeSpikeMaskWithinTrials(tsi);
+                spike_inds = spike_inds(mask);
+                spike_value = spike_value(mask);
+            end
+            spike_clusters =m.spike_clusters(spike_inds);
+            spike_times = m.spike_times(spike_inds);
+            
+            if p.Results.exciseRegionsOutsideTrials
+                timeShifts = tsi.computeShiftsExciseRegionsOutsideTrials();
+                spike_times = timeShifts.shiftTimes(spike_times);
+            end
+            if p.Results.timeInSeconds
+                spike_times = double(spike_times) / m.ks.fsAP; % convert to seconds
+            end
+            
+            color = p.Results.color;
+            size = p.Results.size;
+            
+            if isempty(color)
+                colorArg  = {};
+            else
+                colorArg = {color};
+            end
+            h = scatter(spike_times, spike_value, size, colorArg{:}, 'filled');
+            h.MarkerFaceAlpha = 0.4;
+            h.MarkerEdgeAlpha = 0.7;
+            
+            valueLabel = p.Results.valueLabel;
+            valueFormat = p.Results.valueFormat;
+            valueUnits = p.Results.valueUnits;
+            
+            useDataTips = p.Results.showDataTips && ~verLessThan('matlab', '9.6.0');
+            if useDataTips
+                h.DataTipTemplate.DataTipRows(2).Label = valueLabel;
+                if ~isempty(valueFormat) || ~isempty(valueUnits)
+                    if isempty(valueUnits)
+                        fmat = valueFormat;
+                    else
+                        fmat = [valueFormat ' ' valueUnits];
+                    end
+                    h.DataTipTemplate.DataTipRows(2).Format = fmat;
+                end
+
+                if p.Results.timeInSeconds
+                    h.DataTipTemplate.DataTipRows(1).Label = 'Time';
+                    h.DataTipTemplate.DataTipRows(1).Format = '%.03f sec';
+                else
+                    h.DataTipTemplate.DataTipRows(1).Label = 'Sample';
+                    h.DataTipTemplate.DataTipRows(1).Format = '%d';
+                end
+                
+                h.DataTipTemplate.DataTipRows(end+1) = dataTipTextRow('Cluster', double(spike_clusters), '%d');
+                h.DataTipTemplate.DataTipRows(end+1) = dataTipTextRow('Spike Ind', double(spike_inds), '%d');
+            end
+                
+            if p.Results.timeInSeconds
+                xlabel('time (sec)')
+            else
+                xlabel('time (samples)')
+            end
+            if isempty(valueUnits)
+                ylabel(valueLabel);
+            else
+                ylabel(sprintf('%s (%s)', valueLabel, valueUnits));
+            end
+            hold off;
+            box off;
+            axh = gca;
+            axh.Color = [0.92 0.92 0.95];
+            axh.GridColor = [1 1 1];
+            axh.GridAlpha = 1;
+            axh.MinorGridColor = [0.96 0.96 0.96];
+            axh.MinorGridAlpha = 1;
+            axh.MinorGridLineStyle = '-';
+            axh.XGrid = 'on';
+            axh.YGrid = 'on';
+            axh.TickDir = 'out';
+            set(gcf, 'InvertHardcopy', 'off');
+            axis tight;
+        end
+    end
+    
     methods % Plotting cluster waveforms
         
         function clusterInds = lookup_clusterIds(m, cluster_ids)
@@ -1115,7 +1224,26 @@ classdef KilosortMetrics < handle
         end
     end
     
-    methods % Pairwise cluster comparison        
+    methods % Pairwise cluster comparison  
+        function ss = inspect_spike_heatmap(m, spike_ind, varargin)
+            ss = m.ks.getWaveformsFromRawData('spike_idx', spike_ind, 'best_n_channels', 24, varargin{:});
+            ss.plotHeatmapWithTemplates(1);
+        end
+        
+        function ss = inspect_spike_overlay(m, spike_ind, varargin)
+            p = inputParser();
+            p.addParameter('overlay_all_clusters', false, @islogical);
+            p.KeepUnmatched = true;
+            p.parse(varargin{:})
+            ss = m.ks.getWaveformsFromRawData('spike_idx', spike_ind, 'best_n_channels', 24, p.Unmatched);
+
+            if p.Results.overlay_all_clusters
+                ss.overlay_cluster_ids = m.ks.cluster_ids;
+            end
+            
+            ss.plotStackedTraces('maskSnippet', 1, 'overlay_templates', true);
+        end
+        
         function [times1, times2, lags] = pairwiseClusterFindSpikesWithLag(m, cluster_ids, varargin)
             % find spikes with a 
             p = inputParser();
