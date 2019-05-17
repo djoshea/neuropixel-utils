@@ -996,7 +996,7 @@ classdef KilosortDataset < handle
                  end
              end
              
-             snippetSet = raw_dataset.readAPSnippetSet(times, window, 'channel_ids_by_cluster', channel_ids, 'car', p.Results.car);
+             snippetSet = raw_dataset.readAPSnippetSet(times, window, 'channel_ids', channel_ids, 'car', p.Results.car);
              snippetSet.ks = ds;
              
              if p.Results.subtractOtherClusters

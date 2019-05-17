@@ -95,17 +95,7 @@ function rezFull = runKilosort2(imec, varargin)
     rezToPhy(rez, ops.saveDir);
 
     fprintf('Kilosort2: Saving rez to rez.mat\n')
-    rezFull = rez;
-    % drop features from rez, too large
-    rez.cProj = [];
-    rez.cProjPC = [];
-    if isfield(rez, 'ops') && isfield(rez.ops, 'gui')
-        rez.ops.gui = [];
-    end
-
-    % save final results as rez
-    fname = fullfile(ops.saveDir, 'rez.mat');
-    save(fname, 'rez', '-v7.3');
+    exportRezToMat(rez, fullfile(ops.saveDir, 'rez.mat'));
 
 %     % mark templates that maybe should be split
 %     fprintf('Marking split candidates')

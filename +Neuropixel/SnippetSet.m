@@ -631,7 +631,7 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
             p.addParameter('timeInMilliseconds', false, @islogical);
             p.addParameter('reconstruct_cluster_ids', ss.overlay_cluster_ids, @isvector);
             p.addParameter('reconstruct_best_channels', 24, @isscalar);
-
+            p.addParameter('successive_residuals', false, @islogical);
             p.parse(varargin{:});
             
             if p.Results.timeInMilliseconds
@@ -656,7 +656,16 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
                 'cluster_ids', reconstruct_cluster_ids, ...
                 'best_n_channels', reconstruct_best_channels);
             
+            residual = data;
+            if p.Results.successive_residuals
+                for iT = 1:size(templates, 3)
+                    residual = residual - templates(:, :, iT);
+                    templates(:, :, iT) = residual;
+                end
+            end
             templates_stacked = Neuropixel.Utils.TensorUtils.reshapeByConcatenatingDims(templates, {[1 3], 2});
+            
+            
             data_stacked = cat(1, data, templates_stacked);
             
             Neuropixel.Utils.pmatbal(data_stacked, 'x', time);

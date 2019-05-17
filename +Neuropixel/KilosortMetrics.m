@@ -958,6 +958,9 @@ classdef KilosortMetrics < handle
             h = scatter(spike_times, spike_value, size, colorArg{:}, 'filled');
             h.MarkerFaceAlpha = 0.4;
             h.MarkerEdgeAlpha = 0.7;
+            if ~isempty(color)
+                colormap(Neuropixel.Utils.phy_cluster_colors());
+            end
             
             valueLabel = p.Results.valueLabel;
             valueFormat = p.Results.valueFormat;
@@ -1244,6 +1247,10 @@ classdef KilosortMetrics < handle
             ss.plotStackedTraces('maskSnippet', 1, 'overlay_templates', true);
         end
         
+        function ss = extractSnippets_clusterInWindow(m, cluster_id, filter_window, varargin)
+            ss = m.ks.getWaveformsFromRawData('cluster_ids', cluster_id, 'filter_window', filter_window, 'best_n_channels', 24, varargin{:});
+        end
+        
         function [times1, times2, lags] = pairwiseClusterFindSpikesWithLag(m, cluster_ids, varargin)
             % find spikes with a 
             p = inputParser();
@@ -1287,6 +1294,46 @@ classdef KilosortMetrics < handle
             end
         end
         
+        function [times1, times2, lags] = findSpikePairsWithAutoLag(m, cluster_id, varargin)
+            % find spike pairs that live in a certain bin on an autocorrelogram
+            p = inputParser();
+            p.addParameter('lagWindowMs', [0 5], @isvector); % in ms
+            p.addParameter('N', Inf, @isscalar);
+            p.addParameter('sortSmallestLag', false, @isscalar);
+            p.parse(varargin{:});
+            lagWindow = p.Results.lagWindowMs / 1000 * m.fs; % convert to samples
+            if isscalar(lagWindow)
+                lagWindow = [0 lagWindow];
+            end
+            
+            assert(numel(cluster_id) == 1);            
+            [~, which_cluster] = ismember(m.spike_clusters, cluster_id);
+
+            % now we want to find the set of pairs of spikes where spikes 
+            times = double(m.spike_times(which_cluster == 1));
+            dt = diff(times);
+            inds1 = find(dt >= lagWindow(1) & dt <= lagWindow(2));
+            inds2 = inds1 + 1;
+            
+            times1 = times(inds1);
+            times2 = times(inds2);
+            lags = (times2 - times1) / m.fs * 1000;
+            
+            if p.Results.sortSmallestLag
+                [~, sort_idx] = sort(abs(lags), 'ascend');
+                times1 = times1(sort_idx);
+                times2 = times2(sort_idx);
+                lags = lags(sort_idx);
+            end
+            
+            if ~isinf(p.Results.N)
+                select = 1:p.Results.N;
+                times1 = times1(select);
+                times2 = times2(select);
+                lags = lags(select);
+            end
+        end
+        
         function [snippetSet, lags] = extractSnippets_pairwiseClusterFindSpikesWithLag(m, cluster_ids, varargin)
             p = inputParser();
             p.addParameter('lagWindowMs', [-5 5], @isvector);
@@ -1297,7 +1344,7 @@ classdef KilosortMetrics < handle
             p.parse(varargin{:});
             
             args = rmfield(p.Results, 'best_n_channels');
-            [times1, times2, lags] = pairwiseClusterFindSpikesWithLag(m, cluster_ids, args);
+            [times1, times2, lags] = m.pairwiseClusterFindSpikesWithLag(cluster_ids, args);
             
             window_width = max(int64(times2) - int64(times1)) + int64(m.nTemplateTimepoints);
             window = [-window_width / 2, window_width / 2];
@@ -1305,6 +1352,27 @@ classdef KilosortMetrics < handle
             times = (int64(times1) + int64(times2)) / int64(2);
             
             snippetSet = m.ks.readAPSnippsetSet_clusterIdSubset(times, window, cluster_ids, ...
+                'best_n_channels', p.Results.best_n_channels, p.Unmatched);
+        end
+        
+        function [snippetSet, lags] = extractSnippets_clusterFindSpikesWithAutoLag(m, cluster_id, varargin)
+            p = inputParser();
+            p.addParameter('lagWindowMs', [0 5], @isvector);
+            p.addParameter('N', Inf, @isscalar);
+            p.addParameter('sortSmallestLag', false, @isscalar);
+            p.addParameter('best_n_channels', 24, @iscalar);
+            p.KeepUnmatched = true;
+            p.parse(varargin{:});
+            
+            dargs = rmfield(p.Results, 'best_n_channels');
+            [times1, times2, lags] = m.findSpikePairsWithAutoLag(cluster_id, args);
+            
+            window_width = max(int64(times2) - int64(times1)) + int64(m.nTemplateTimepoints);
+            window = [-window_width / 2, window_width / 2];
+            
+            times = (int64(times1) + int64(times2)) / int64(2);
+            
+            snippetSet = m.ks.readAPSnippsetSet_clusterIdSubset(times, window, cluster_id, ...
                 'best_n_channels', p.Results.best_n_channels, p.Unmatched);
         end
             
