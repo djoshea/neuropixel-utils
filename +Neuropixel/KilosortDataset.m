@@ -20,6 +20,8 @@ classdef KilosortDataset < handle
         meta % ap metadata loaded
         
         concatenationInfo
+        
+        isLoaded logical = false;
     end
     
     % Computed properties
@@ -29,16 +31,18 @@ classdef KilosortDataset < handle
 
     properties(Dependent)
         pathLeaf
-        isLoaded
         hasRawDataset
         nChannelsSorted
         nSpikes
         nClusters
         nTemplates
+        nTemplateRank
         nPCFeatures
         nFeaturesPerChannel
         nTemplateTimepoints
         templateTimeRelative
+        
+        nBatches
     end
     
     properties(SetAccess=protected)
@@ -91,12 +95,14 @@ classdef KilosortDataset < handle
         % spike_times.npy - [nSpikes, ] uint64 vector giving the spike time of each spike in samples. To convert to seconds, divide by sample_rate from params.py.
         spike_times(:, 1) uint64
 
-        % template_features.npy - [nSpikes, nTempFeatures] single matrix giving the magnitude of the projection of each spike onto nTempFeatures other features.
+        % template_features.npy - [nSpikes, nTemplateRank] single matrix giving the magnitude of the projection of each spike onto nTemplateRank other features.
         % Which other features is specified in template_feature_ind.npy
         template_features(:, :) single
 
-        % template_feature_ind.npy - [nTemplates, nTempFeatures] uint32 matrix specifying which templateFeatures are included in the template_features matrix.
+        % template_feature_ind.npy - [nTemplates, nTemplateRank] uint32 matrix specifying which templateFeatures are included in the template_features matrix.
         template_feature_ind(:, :) uint32
+        
+        template_sample_offset (1,1) uint64 % scalar value indicating what index into templates (time dim 2) the spike time occurs at
 
         % templates.npy - [nTemplates, nTemplateTimepoints, nTemplateChannels] single matrix giving the template shapes on the channels given in templates_ind.npy
         templates(:, :, :) single
@@ -116,11 +122,54 @@ classdef KilosortDataset < handle
         % spike_templates.npy until you do any merging or splitting.
         spike_clusters(:, 1) uint32
 
-        % cluster_groups - comma-separated value text file giving the "cluster group" of each cluster (noise, mua, good, unsorted)
+        % cluster_groups - "cluster group" of each cluster as set in Phy, defaulting to cluster_ks_label (noise, mua, good, unsorted)
         cluster_groups(:, 1) categorical
         
         % unique clusters in spike_clusters [nClusters]
         cluster_ids (:, 1) uint32
+    end
+    
+    properties % Secondary data, loaded from rez.mat for Kilosort2 only
+        ops struct % options used by Kilosort
+        
+        kilosort_version (1, :) uint32 % scalar or vector (leading digit is 1 or 2 for Kilosort1 or Kilosort2)
+        
+        % low-rank decomposition of templates into spatial and temporal components
+        W (:, :, :) double % [nTemplateTimepoints, nTemplates, nTemplateRank] - temporal decomposition of templates
+        
+        U (:, :, :) double % [nChannelsSorted, nTemplates, nTemplateRank] - spatial decomposition of templates
+
+        % batch information used in drift correction
+        batch_starts (:, 1) uint64 % [nBatches] timesteps where each batch begins (unsorted)
+        
+        batchwise_cc (:, :) single % (rez.ccb) [nBatches, nBatches] batch-wise cross-correlation in original data ordering
+        
+        batch_sort_order (:, 1) uint32 % (rez.iorig) [nBatches] sorted batch indices used in KS2
+        
+        % batchwise template data
+        W_batch (:, :, :, :) double % [nTemplateTimepoints, nTemplates, nTemplateRank, nBatches] - full spatial templates by batch
+        
+        % per-template svd of W_batch U*S --> W_batch_a, V --> W_batch_b
+        W_batch_US (:, :, :, :) double % [nTemplateTimepoints, nTemplateRank, nTemplatePCs, nTemplates] - reshaped from rez.W_a
+        W_batch_V (:, :, :) double % [nBatches, nTemplatePCs, nTemplates] % rez.W_b
+        
+        U_batch (:, :, :, :) double  % [nChannelsSorted, nTemplates, nTemplateRank, nBatches] - full temporal templates
+        
+        % per-template svd of U_batch U*S --> U_batch_a, V --> U_batch_b
+        U_batch_US (:, :, :, :) double % [nChannelsSorted, nTemplateRank, nTemplatePCs, nTemplates]
+        U_batch_V (:, :, :) double % [nBatches, nTemplatePCs, nTemplates]
+        
+        % good vs. mua label as assigned by Kilosort2 in cluster_KSLabel.tsv (good, mua)
+        cluster_ks_label(:, 1) categorical % [nClusters]
+        
+        cluster_est_contam_rate (:, 1) double % [nClusters]
+        
+        % optional split and merge meta information (only on djoshea branch of Kilosort2)
+        cluster_merge_count (:, 1) uint32        
+        cluster_split_src (:, 1) uint32
+        cluster_split_dst (:, 1) uint32
+        cluster_split_auc (:, 1) double
+
     end
     
     properties(Dependent)
@@ -133,10 +182,6 @@ classdef KilosortDataset < handle
     methods % Dependent properties
         function leaf = get.pathLeaf(ds)
             [~, leaf] = fileparts(ds.path);
-        end
-        
-        function tf = get.isLoaded(ds)
-            tf = ~isempty(ds.spike_times);
         end
         
         function tf = get.hasRawDataset(ds)
@@ -166,6 +211,14 @@ classdef KilosortDataset < handle
                 n = size(ds.pc_feature_ind, 1);
             end
         end
+        
+        function n = get.nTemplateRank(ds)
+            if isempty(ds.template_features)
+                n = NaN;
+            else
+                n = size(ds.template_features, 2);
+            end
+        end
 
         function n = get.nPCFeatures(ds)
             if isempty(ds.pc_features)
@@ -192,9 +245,11 @@ classdef KilosortDataset < handle
         end
         
         function tvec = get.templateTimeRelative(ds)
-            T = ds.nTemplateTimepoints;
-            tvec = int64(-floor(T/2)+1:-floor(T/2)+T); % assumes template occurs at left edge
-%             tvec = tvec - 19
+            T = int64(ds.nTemplateTimepoints);
+            off = int64(ds.template_sample_offset);
+            start = -off + int64(1);
+            stop = start + T - int64(1);
+            tvec = (start:stop)';
         end
         
         function n = get.nChannelsSorted(ds)
@@ -214,12 +269,8 @@ classdef KilosortDataset < handle
             end
         end
         
-        function sync = readSync(ds)
-            if isempty(ds.raw_dataset)
-                sync = zeros(0, 1, 'uint16');
-            else
-                sync = ds.raw_dataset.readSync();
-            end
+        function nBatches = get.nBatches(ds)
+            nBatches = numel(ds.batch_starts);
         end
         
         function fsAP = get.fsAP(ds)
@@ -254,15 +305,7 @@ classdef KilosortDataset < handle
                     apScaleToUv = ds.raw_dataset.apScaleToUv;
                 end
             else
-                apScaleToUv = ds.apScaleToUv;
-            end
-        end
-        
-        function sync = loadSync(ds, varargin)
-            if isempty(ds.raw_dataset)
-                sync = zeros(0, 1, 'uint16');
-            else
-                sync = ds.raw_dataset.readSync(varargin{:});
+                apScaleToUv = ds.apScaleToUv;k
             end
         end
         
@@ -293,10 +336,8 @@ classdef KilosortDataset < handle
         function c = get.clusters_unsorted(ds)
             c = ds.cluster_ids(ds.cluster_groups == "unsorted");
         end
-        
-        
     end
-
+   
     methods
         function ds = KilosortDataset(path, varargin)
             if nargin == 0
@@ -426,6 +467,7 @@ classdef KilosortDataset < handle
             if ds.isLoaded && ~reload
                 return;
             end
+            ks.isLoaded = false;
                 
             params = Neuropixel.readINI(fullfile(ds.path, 'params.py'));
             ds.dat_path = params.dat_path;
@@ -436,7 +478,15 @@ classdef KilosortDataset < handle
             ds.hp_filtered = params.hp_filtered;
 
             p = ds.path;
-            prog = Neuropixel.Utils.ProgressBar(15, 'Loading Kilosort dataset: ');
+            existp = @(file) exist(fullfile(p, file), 'file') > 0;
+            
+            hasRez = existp('rez.mat');
+            
+            nProg = 15;
+            if hasRez
+                nProg = nProg + 1;
+            end
+            prog = Neuropixel.Utils.ProgressBar(nProg, 'Loading Kilosort dataset: ');
 
             ds.amplitudes = read('amplitudes');
             ds.channel_ids = read('channel_map');
@@ -452,7 +502,10 @@ classdef KilosortDataset < handle
             ds.template_features = read('template_features');
             ds.template_feature_ind = read('template_feature_ind');
             ds.template_feature_ind = ds.template_feature_ind + ones(1, 'like', ds.template_feature_ind); % 0 indexed templates to 1 indexed templates
+            
             ds.templates = read('templates');
+            T = size(ds.templates, 2);
+            ds.template_sample_offset = uint64(ceil(T/2)); % phy templates are centered on the spike time, with one extra sample post (e.g. -41 : 41)
 
             ds.templates_ind = read('templates_ind');
             ds.templates_ind = ds.templates_ind + ones(1, 'like', ds.templates_ind); % convert plus zero indexed to 1 indexed channels
@@ -461,55 +514,149 @@ classdef KilosortDataset < handle
             ds.whitening_mat_inv = read('whitening_mat_inv');
             ds.spike_clusters = read('spike_clusters');
             
+            ds.cluster_ids = unique(ds.spike_clusters);
+            
+            % load KS cluster labels
+            ds.cluster_ks_label = repmat(categorical("unsorted"), numel(ds.cluster_ids), 1);
+            if existp('cluster_KSLabel.tsv')
+                tbl = readClusterMetaTSV('cluster_KSLabel.tsv', 'KSLabel', 'categorical');
+                [tf, ind] = ismember(tbl.cluster_id, ds.cluster_ids);
+                ds.cluster_ks_label(ind(tf)) = tbl{tf, 2};
+            end
+            
             % load cluster groups (mapping from cluster_ids to {good, mua, noise, unsorted})
             fnameSearch = {'cluster_groups.csv', 'cluster_group.tsv'};
             found = false;
             for iF = 1:numel(fnameSearch)
                 file = fnameSearch{iF};
-                if exist(fullfile(p, file), 'file')
-                    [ds.cluster_ids, ds.cluster_groups] = readClusterGroups(file);
+                if existp(file)
+                    tbl = readClusterMetaTSV(file, 'group', 'categorical');
                     found = true;
-                    break;
+                    
+                    ds.cluster_groups = repmat(categorical("unsorted"), numel(ds.cluster_ids), 1);
+                    [tf, ind] = ismember(tbl.cluster_id, ds.cluster_ids);
+                    ds.cluster_groups(ind(tf)) = tbl{tf, 2};
                 end
             end
             if ~found
                 % default to everything unsorted
-                warning('Could not find cluster group file');
-                ds.cluster_ids = unique(ds.spike_clusters);
-                ds.cluster_groups = repmat(categorical("unsorted"), numel(ds.cluster_ids), 1);
+                warning('Could not find cluster group file, defaulting to KS labels');
+                ds.cluster_groups = df.cluster_ks_labels;
+            end
+            
+            % 15 prog items to this point
+            
+            % load rez.mat
+            prog.increment('Loading rez.mat');
+            d = load('rez.mat', 'rez');
+            rez = d.rez;
+    
+            if isfield(rez, 'est_contam_rate')
+                ds.kilosort_version = 2;
             else
-                % not every cluster need be listed in the cluster_groups file 
-                % find the missing ones and include them as unsorted
-                missing = setdiff(unique(ds.spike_clusters), ds.cluster_ids);
-                [ds.cluster_ids, sortIdx] = sort(cat(1, ds.cluster_ids, missing));
-                ds.cluster_groups = cat(1, ds.cluster_groups, repmat(categorical("unsorted"), numel(missing), 1));
-                ds.cluster_groups = ds.cluster_groups(sortIdx);
+                ds.kilosort_version = 1;
+            end
+            
+            if ds.kilosort_version == 2
+                ops = rez.ops;
+                ds.W = rez.W;
+                ds.U = rez.U;
+                
+                % strip leading zeros off of ds.templates based on size of W
+                nTimeTempW = size(ds.W, 1);
+                nStrip = size(ds.templates, 2) - nTimeTempW;
+                if nStrip > 0
+                    ds.templates = ds.templates(:, nStrip+1:end, :);
+                    ds.template_sample_offset = ds.template_sample_offset - uint64(nStrip);
+                end
+                
+                nBatches  = ops.Nbatch;
+                NT  	= uint64(ops.NT);
+                ds.batch_starts = (uint64(1) : NT : (NT*uint64(nBatches) + uint64(1)))';
+                ds.batchwise_cc = rez.ccb;
+                ds.batch_sort_order = rez.iorig;
+                
+                % avoiding referencing the dependent properties in the constructor
+                % so we don't need to worry about what properties they reference
+                % that might not have been set yet
+                nTemplateRank = size(rez.WA, 3);
+                nTemplatePCs = size(rez.W_a, 2);
+                nTemplates = size(ds.templates, 1);
+                nTemplateTimepoints = size(ds.templates, 2);
+                nChannelsSorted = numel(ds.channel_ids);
+                
+                ds.W_batch = rez.WA; % [nTemplateTimepoints, nTemplates, nTemplateRank, nBatches]
+                ds.W_batch_US = reshape(rez.W_a, [nTemplateTimepoints, nTemplateRank, nTemplatePCs, nTemplates]);
+                ds.W_batch_V = rez.W_b;
+                
+                ds.U_batch = rez.UA;
+                ds.U_batch_US = reshape(rez.U_a, [nChannelsSorted, nTemplateRank, nTemplatePCs, nTemplates]);
+                ds.U_batch_V = rez.U_b;
+                
+                ds.cluster_est_contam_rate = getOr(rez, 'est_contam_rate');
+                ds.cluster_merge_count = getOr(rez, 'mergecount');
+                ds.cluster_split_src = getOr(rez, 'splitsrc');                
+                ds.cluster_split_dst = getOr(rez, 'splitdst');
+                ds.cluster_split_auc = getOr(rez, 'splitauc');
+            else
+                % TODO need to decide what to load for KS1
             end
                 
-            prog.finish()
-
+            prog.finish();
+            ds.isLoaded = true;
+            
+            function v = getOr(s, fld, def)
+                if isfield(s, fld)
+                    v = s.(fld);
+                elseif nargin > 2
+                    v = def;
+                else
+                    v = [];
+                end
+            end
+            
             function out = read(file)
                 prog.increment('Loading Kilosort dataset: %s', file);
                 out = Neuropixel.readNPY(fullfile(p, [file '.npy']));
             end
             
-            function [cluster_ids, cluster_groups] = readClusterGroups(file)
-                file = fullfile(p, file);
-                fid = fopen(file);
-                if fid == -1 
-                    error('Error opening %s', file);
-                end
-                data = textscan(fid, '%d %C', 'HeaderLines', 1);
-                
-                cluster_ids = data{1};
-                cluster_groups = data{2};
-                fclose(fid);
+            function tbl = readClusterMetaTSV(file, field, type)
+                opts = delimitedTextImportOptions("NumVariables", 2);
+                    % Specify range and delimiter
+                    opts.DataLines = [2, Inf];
+                    opts.Delimiter = "\t";
+
+                    % Specify column names and types
+                    opts.VariableNames = ["cluster_id", string(field)];
+                    opts.VariableTypes = ["uint32", string(type)];
+                    opts = setvaropts(opts, 2, "EmptyFieldRule", "auto");
+                    opts.ExtraColumnsRule = "ignore";
+                    opts.EmptyLineRule = "read";
+
+                    % Import the data
+                    tbl = readtable(fullfile(p,file), opts);
             end
         end
 
         function checkLoaded(ds)
             if isempty(ds.amplitudes)
                 ds.load();
+            end
+        end
+        
+        function sync = readSync(ds)
+            if isempty(ds.raw_dataset)
+                sync = zeros(0, 1, 'uint16');
+            else
+                sync = ds.raw_dataset.readSync();
+            end
+        end
+        
+        function sync = loadSync(ds, varargin)
+            if isempty(ds.raw_dataset)
+                sync = zeros(0, 1, 'uint16');
+            else
+                sync = ds.raw_dataset.readSync(varargin{:});
             end
         end
         
