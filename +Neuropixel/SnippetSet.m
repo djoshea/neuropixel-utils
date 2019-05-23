@@ -500,7 +500,7 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
             end
         end
        
-        function plotStackedTraces(ss, varargin)
+        function plotStackedTracesWithOverlays(ss, varargin)
             p = inputParser();
             p.addParameter('maskSnippets', ss.valid, @isvector);
             p.addParameter('showLabels', true, @islogical);
@@ -620,6 +620,63 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
                         dataTipArgs{:});
                 end
             end
+            axis off;
+            hold off;
+        end
+        
+        function plotStackedTracesColorClusters(ss, varargin)
+            p = inputParser();
+            p.addParameter('maskSnippets', ss.valid, @isvector);
+            p.addParameter('maxPerCluster', 50, @isscalar);
+            p.addParameter('showLabels', true, @islogical);
+            p.addParameter('gain', 1.95, @isscalar);
+            p.addParameter('timeInMilliseconds', false, @islogical);
+            p.addParameter('dark', false, @islogical);
+            p.addParameter('lineOpacity', 1, @isscalar);
+            p.parse(varargin{:});
+            
+            mask_snippets = p.Results.maskSnippets;
+            unique_cluster_ids = ss.unique_cluster_ids;
+            
+            maxPerCluster = p.Results.maxPerCluster;
+            if isfinite(maxPerCluster)
+                mask_inds = find(mask_snippets);
+                cluster_ids = ss.cluster_ids(mask_snippets);
+                [~, cluster_inds] = ismember(cluster_ids, unique_cluster_ids);
+                for iC = 1:numel(unique_cluster_ids)
+                    this_cluster = find(cluster_inds == iC);
+                    N = numel(this_cluster);
+                    if N > maxPerCluster
+                        drop = randsample(N, N - maxPerCluster, false);
+                        mask_snippets(mask_inds(this_cluster(drop))) = false;
+                    end
+                end
+            end
+                    
+            dark = p.Results.dark;
+            [bg, ~] = ss.setupFigureAxes(dark);
+            cluster_colormap = ss.generateOverlayColormap(1:numel(unique_cluster_ids), bg);
+            
+            % nCh x nSnippets
+            channel_ids_ch_by_snippet = ss.channel_ids_by_snippet(:, mask_snippets);
+            data = ss.data(:, :, mask_snippets, :);
+            data_txcxl = permute(data(:, :, :), [2 1 3]);
+            
+            cluster_ids = ss.cluster_ids(mask_snippets);
+            [~, cluster_inds] = ismember(cluster_ids, unique_cluster_ids);
+            traceColors = cluster_colormap(cluster_inds, :);
+           
+            if p.Results.timeInMilliseconds
+                time = ss.time_ms;
+            else
+                time = ss.time_samples;
+            end
+            
+            [~, transform] = Neuropixel.Utils.plotStackedTraces(time, data_txcxl, 'layerColors', traceColors, ...
+                'lineWidth', 0.5, 'lineOpacity', p.Results.lineOpacity, ...
+                'gain', p.Results.gain, 'invertChannels', ss.channelMap.invertChannelsY, 'normalizeEach', false, ...
+                'channel_ids', channel_ids_ch_by_snippet, 'showChannelDataTips', false);
+            
             axis off;
             hold off;
         end

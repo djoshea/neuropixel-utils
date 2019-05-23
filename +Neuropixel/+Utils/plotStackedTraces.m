@@ -4,7 +4,8 @@ function [out, transformInfo] = plotStackedTraces(tvec, data_txcxl, varargin)
 p = inputParser();
 p.addParameter('transformInfo', [], @(x) isempty(x) || isstruct(x));
 
-p.addParameter('colors', [], @(x) true);
+p.addParameter('colors', [], @(x) true); % over channels
+p.addParameter('layerColors', [], @(x) true); % over layers (specify one or the other)
 p.addParameter('normalizeEach', false, @islogical);
 p.addParameter('normalizeMask', [], @isvector);
 p.addParameter('quantile', 1, @isscalar);
@@ -42,12 +43,13 @@ end
 nTraces = size(data, 2);
 nLayers = size(data, 3);
 
-colors = p.Results.colors;
-if isempty(colors)
-    colors = zeros(nTraces, 3);
+traceColors = p.Results.colors;
+if ~isempty(traceColors) && size(traceColors, 1) == 1
+    traceColors = repmat(traceColors, nTraces, 1);
 end
-if size(colors, 1) == 1
-    colors = repmat(colors, nTraces, 1);
+layerColors = p.Results.layerColors; 
+if ~isempty(layerColors) && size(layerColors, 1) == 1
+    layerColors = repmat(layerColors, nLayers, 1);
 end
 
 tform = p.Results.transformInfo;
@@ -135,7 +137,17 @@ end
 for iR = 1:nTraces
     dmat = squeeze(data(:, iR, :));
     if ~any(~isnan(dmat), 'all'), continue, end
-    hvec(iR, :) = plot(tvec, dmat, '-', 'Color', [colors(iR, :), p.Results.LineOpacity], 'LineWidth', p.Results.LineWidth, p.Results.lineArgs{:});
+    hvec(iR, :) = plot(tvec, dmat, '-', 'Color', [0 0 0 p.Results.LineOpacity], 'LineWidth', p.Results.LineWidth, p.Results.lineArgs{:});
+    
+    if ~isempty(traceColors)
+        % color by trace
+        set(hvec(iR, :), 'Color', [traceColors(iR, :) p.Results.LineOpacity]);
+    else
+        % color by layers
+        for iL = 1:nLayers
+            hvec(iR, iL).Color = [layerColors(iL, :) p.Results.LineOpacity];
+        end
+    end
     
     if ~verLessThan('matlab', '9.6.0') 
         if ~isempty(channel_ids) && showChannelDataTips % R2019a 
