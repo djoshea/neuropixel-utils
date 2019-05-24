@@ -87,10 +87,6 @@ function rezFull = runKilosort2(imec, varargin)
     % final merges
     fprintf('Kilosort2: Merging clusters\n');
     rez = find_merges(rez, 1);
-    
-    if ops.markSplitsOnly
-        rez = remergeSplitTemplates(rez);
-    end
 
     % decide on cutoff
     fprintf('Kilosort2: Deciding on cutoff');
@@ -105,18 +101,9 @@ function rezFull = runKilosort2(imec, varargin)
     fprintf('Kilosort2: Saving rez to rez.mat\n')
     exportRezToMat(rez, fullfile(ops.saveDir, 'rez.mat'));
 
-%     % mark templates that maybe should be split
-%     fprintf('Marking split candidates')
-%     rez = markSplitCandidates(rez);
-%
-%     % merge templates that should be merged into new clusters
-%     rez = mergeTemplatesIntoClusters(rez);
-%
-%     % mark split candidates and merged clusters as "mua"
-%     rez = assignClusterGroups(rez);
-
     % remove temporary file
-    delete(ops.fproc);
+    fprintf('fproc = %s\n', ops.fproc);
+%     delete(ops.fproc);
 end
 
 function ops = defaultConfig() %#ok<STOUT>
