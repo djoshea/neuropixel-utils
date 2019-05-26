@@ -84,26 +84,31 @@ function rezFull = runKilosort2(imec, varargin)
     fprintf('Kilosort2: Final splits by amplitudes');
     rez = splitAllClusters(rez, 0);
     
+    % update batchwise templates for split clusters
+    fprintf('Kilosort2: Updating batchwise templates for splits');
+    rez = updateBatchedSplitTemplates(rez);
+    
     % final merges
     fprintf('Kilosort2: Merging clusters\n');
     rez = find_merges(rez, 1);
 
     % decide on cutoff
-    fprintf('Kilosort2: Deciding on cutoff');
+    fprintf('Kilosort2: Deciding on final spike cutoff');
     rez = set_cutoff(rez);
 
     fprintf('Kilosort2: Found %d / %d good units \n', nnz(rez.good>0), numel(rez.good));
 
     % write to Phy
-    fprintf('Kilosort2: Saving results for Phy\n')
+    fprintf('Kilosort2: Saving results for Phy\n');
     rezToPhy(rez, ops.saveDir);
 
-    fprintf('Kilosort2: Saving rez to rez.mat\n')
-    exportRezToMat(rez, fullfile(ops.saveDir, 'rez.mat'));
+    rezFile = fullfile(ops.saveDir, 'rez.mat');
+    fprintf('Kilosort2: Saving rez to %s\n', rezFile);
+    exportRezToMat(rez, rezFile);
 
     % remove temporary file
     fprintf('fproc = %s\n', ops.fproc);
-%     delete(ops.fproc);
+    delete(ops.fproc);
 end
 
 function ops = defaultConfig() %#ok<STOUT>
