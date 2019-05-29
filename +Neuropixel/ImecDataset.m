@@ -329,7 +329,7 @@ classdef ImecDataset < handle
         
         function mat = readSyncBits_idx(df, bits, idx)
             % mat is nBits x nTime to match readAP_idx which is nChannels x nTime
-            if isstring(bits)
+            if isstring(bits) || ischar(bits)
                 bits = df.lookupSyncBitByName(bits);
             end
             vec = df.readSync_idx(idx);
