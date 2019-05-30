@@ -3,6 +3,7 @@ classdef ChannelMap
 
     properties
         file 
+        name
         
         channelIdsMapped uint32
         connected logical
@@ -43,6 +44,7 @@ classdef ChannelMap
             
             d = load(fname);
             map.file = fname;
+            [~, map.name, ~] = fileparts(fname);
             map.channelIdsMapped = Neuropixel.Utils.makecol(d.chanMap);
             map.connected = Neuropixel.Utils.makecol(d.connected);
             map.shankInd = Neuropixel.Utils.makecol(d.shankInd);
