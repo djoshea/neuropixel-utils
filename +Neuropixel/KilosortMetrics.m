@@ -24,6 +24,9 @@ classdef KilosortMetrics < handle
         channel_ids
         concatenationInfo
         
+        % nChannelsSorted x nChannelsSorted
+        whitening_mat_inv(:, :) single
+        
         % per template properties
         
         % nTemplates x nTimePoints x nTemplateChannels
@@ -95,6 +98,28 @@ classdef KilosortMetrics < handle
         cluster_ttp single
     end
     
+    properties % batch-wise versions
+        % per template properties
+        
+        % nTemplates x nSpatialCoord x nBatches
+        template_centerOfMass_batchwise(:, :, :) single % x,y,z, coords for each template's center of mass
+        
+        % nTemplates x nBatches
+        template_waveform_batchwise(:, :) single % single, maximum amplitude waveform
+        template_amplitude_batchwise(:, :) single % in uV
+        
+        % per cluster properties
+        
+        % nClusters x nSpatialCoord x nBatches
+        cluster_centerOfMass_batchwise(:, :, :) single
+
+        % nClusters x nTimePoint x maxTemplatesPerCluster x nBatches
+        cluster_waveform_batchwise(:, :, :) single
+        
+        % nClusters x maxTemplatesPerCluster x nBatches
+        cluster_amplitude_batchwise single
+    end
+    
     properties(Dependent)
         template_depth % column 2 (y) of center of mass
         spike_depth % column 2 (y) of center of mass
@@ -135,6 +160,7 @@ classdef KilosortMetrics < handle
             templates = ks.templates;
             template_unw = zeros(size(templates, 1), size(templates, 2), ks.nChannelsSorted, 'like', templates);
             wmi = single(ks.whitening_mat_inv);
+            m.whitening_mat_inv = wmi;
             assert(size(wmi, 1) == size(template_unw, 3), 'dim 3 of templates must match whitening matrix inverse');
             for iT = 1:size(templates, 1)
                 whichChannels = ks.templates_ind(iT, :);
@@ -261,6 +287,56 @@ classdef KilosortMetrics < handle
             template_mask = ~isnan(m.template_ttp);
             m.cluster_ttp = (double(m.cluster_template_useCount(:, template_mask)) * m.template_ttp(template_mask)) ./ sum(m.cluster_template_useCount(:, template_mask), 2);
             
+%            % J. batch-wise templates
+%            all_nonempty = @(flds) all(arrayfun(@(fld) ~isempty(ks.(fld)), flds));
+%             
+%             if all_nonempty(["W_batch", "U_batch"])
+%                 template_unw = zeros(ks.nTemplates, ks.nTemplateTimepoints, ks.nChannelsSorted, ks.nBatches, 'like', templates);
+%             
+%                 templates = ks.W_batch;
+%            wmi = single(ks.whitening_mat_inv);
+%             assert(size(wmi, 1) == size(template_unw, 3), 'dim 3 of templates must match whitening matrix inverse');
+%             for iT = 1:size(templates, 1)
+%                 whichChannels = ks.templates_ind(iT, :);
+%                 template_unw(iT, :, whichChannels) = templates(iT, :, :);
+%             end
+%             sz = size(template_unw);
+%             m.template_unw = reshape(reshape(template_unw, sz(1)*sz(2), sz(3)) * wmi, sz);
+%             
+%             % for each channel i, list other channels in order of spatial proximity
+%             % nChannelsSorted x nChannelsSorted, include each channel in its own closest list
+%             closest_lookup = [ks.channel_ids, ks.channelMap.getClosestChannels(ks.nChannelsSorted-1, ks.channel_ids, ks.channel_ids)];
+%             m.template_best_channels = nan(ks.nClusters, ks.nChannelsSorted);
+%             for iT = 1:ks.nTemplates
+%                 [~, bestChannelInd] = max(range(m.template_unw(iT, :, :), 2));
+%                 m.template_best_channels(iT, :) = closest_lookup(bestChannelInd, :)';
+%             end
+%              
+%            
+%             
+%         % nTemplates x nTimePoints x nTemplateChannels x nBatches
+%         template_unw_batchwise single % unwhitened, unscaled templates (i.e. in an arbitrary scale determined by raw * whitening_mat_inv)
+%         template_scaled_batchwise single % unwhitened, scaled templates
+%         
+%         % nTemplates x nSpatialCoord x nBatches
+%         template_centerOfMass_batchwise( % single x,y,z, coords for each template's center of mass
+%         
+%         % nTemplates x nBatches
+%         template_waveform_batchwise(:, :) single % single, maximum amplitude waveform
+%         template_amplitude_batchwise(:, :) single % in uV
+%         
+%         % per cluster properties
+%         
+%         % nClusters x nSpatialCoord x nBatches
+%         cluster_centerOfMass_batchwise(:, :, :) single
+% 
+%         % nClusters x nTimePoint x maxTemplatesPerCluster x nBatches
+%         cluster_waveform_batchwise(:, :, :) single
+%         
+%         % nClusters x maxTemplatesPerCluster x nBatches
+%         cluster_amplitude_batchwise single
+            
+            
             prog.finish();
         end
         
@@ -306,6 +382,32 @@ classdef KilosortMetrics < handle
     end
     
     methods % Convenience methods
+        function data = build_batchwise_templates(m, template_inds, batch_inds, whitened, scaled)
+            % nTemplates x nTimePoints x nTemplateChannels x nBatches
+            nTemplates = numel(templates_inds);
+            nBatches = numel(batch_inds);
+            
+            if isempty(ks.W_batch) || isempty(ks.U_batch)
+                error('No batchwise information present in KilosortDataset');
+            end
+            
+            data = zeros(nTemplates, m.nTemplateTimepoints, m.nChannelsSorted, nBatches);
+            wmi = m.whitening_mat_inv;
+            for iT = 1:nTemplates
+                for iB = 1:nBatch
+                	W = m.ks.W_batch(:, template_inds(iT), :, batch_inds(iB));
+                    U = m.ks.U_batch(:, template_inds(iT), :, batch_inds(iB)); % nCh x 1 x 3 x 1
+                    
+                    for iP = 1:size(U, 3)
+                        wmisqueeze(U)
+                    template_unw(iT, :, iT) = 
+                    
+                    whichChannels = ks.templates_ind(iT, :);
+                    template_unw(iT, :, whichChannels) = m.templates(iT, :, :);
+                end
+            end
+        end
+        
         function [channel_ids_unique, channel_ids_by_cluster] = gather_best_channels_multiple_clusters(m, cluster_ids, n_best_each)
             if nargin < 3
                 n_best_each = 24;

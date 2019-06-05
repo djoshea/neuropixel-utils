@@ -43,6 +43,7 @@ classdef KilosortDataset < handle
         templateTimeRelative
         
         nBatches
+        nInvalidSpikes
     end
     
     properties(SetAccess=protected)
@@ -147,17 +148,17 @@ classdef KilosortDataset < handle
         batch_sort_order (:, 1) uint32 % (rez.iorig) [nBatches] sorted batch indices used in KS2
         
         % batchwise template data
-        W_batch (:, :, :, :) double % [nTemplateTimepoints, nTemplates, nTemplateRank, nBatches] - full spatial templates by batch
+        W_batch (:, :, :, :) single % [nTemplateTimepoints, nTemplates, nTemplateRank, nBatches] - full spatial templates by batch
         
         % per-template svd of W_batch U*S --> W_batch_a, V --> W_batch_b
-        W_batch_US (:, :, :, :) double % [nTemplateTimepoints, nTemplateRank, nTemplatePCs, nTemplates] - reshaped from rez.W_a
-        W_batch_V (:, :, :) double % [nBatches, nTemplatePCs, nTemplates] % rez.W_b
+        W_batch_US (:, :, :, :) single % [nTemplateTimepoints, nTemplateRank, nTemplatePCs, nTemplates] - reshaped from rez.W_a
+        W_batch_V (:, :, :) single % [nBatches, nTemplatePCs, nTemplates] % rez.W_b
         
-        U_batch (:, :, :, :) double  % [nChannelsSorted, nTemplates, nTemplateRank, nBatches] - full temporal templates
+        U_batch (:, :, :, :) single  % [nChannelsSorted, nTemplates, nTemplateRank, nBatches] - full temporal templates
         
         % per-template svd of U_batch U*S --> U_batch_a, V --> U_batch_b
-        U_batch_US (:, :, :, :) double % [nChannelsSorted, nTemplateRank, nTemplatePCs, nTemplates]
-        U_batch_V (:, :, :) double % [nBatches, nTemplatePCs, nTemplates]
+        U_batch_US (:, :, :, :) single % [nChannelsSorted, nTemplateRank, nTemplatePCs, nTemplates]
+        U_batch_V (:, :, :) single % [nBatches, nTemplatePCs, nTemplates]
         
         % good vs. mua label as assigned by Kilosort2 in cluster_KSLabel.tsv (good, mua)
         cluster_ks_label(:, 1) categorical % [nClusters]
@@ -169,7 +170,15 @@ classdef KilosortDataset < handle
         cluster_split_src (:, 1) uint32
         cluster_split_dst (:, 1) uint32
         cluster_split_auc (:, 1) double
+        cluster_split_candidate (:, 1) logical
+        cluster_orig_template (:, 1) uint32
 
+        % [nSpikesInvalid, ] uint64 vector giving the spike time of each spike in samples. To convert to seconds, divide by sample_rate from params.py.
+        invalid_spike_times(:, 1) uint64
+        
+        % [nSpikesInvalid, ] uint32 vector specifying the identity of the template that was used to extract each spike
+        invalid_spike_templates(:, 1) uint32
+        invalid_spike_clusters(:, 1) uint32
     end
     
     properties(Dependent)
@@ -193,6 +202,14 @@ classdef KilosortDataset < handle
                 n = NaN;
             else
                 n = size(ds.spike_times, 1);
+            end
+        end
+        
+        function n = get.nInvalidSpikes(ds)
+            if isempty(ds.invalid_spike_times)
+                n = NaN;
+            else
+                n = size(ds.invalid_spike_times, 1);
             end
         end
 
@@ -515,6 +532,7 @@ classdef KilosortDataset < handle
             ds.spike_clusters = read('spike_clusters');
             
             ds.cluster_ids = unique(ds.spike_clusters);
+            %ds.cluster_ids = (0:max(ds.spike_clusters))'; % this is important, since removed clusters still occupy a slice in several of the cluster rating matrices
             
             % load KS cluster labels
             ds.cluster_ks_label = repmat(categorical("unsorted"), numel(ds.cluster_ids), 1);
@@ -525,6 +543,7 @@ classdef KilosortDataset < handle
             end
             
             % load cluster groups (mapping from cluster_ids to {good, mua, noise, unsorted})
+            % important to lookup the cluster inds since we've uniquified spike_clusters
             fnameSearch = {'cluster_groups.csv', 'cluster_group.tsv'};
             found = false;
             for iF = 1:numel(fnameSearch)
@@ -541,67 +560,84 @@ classdef KilosortDataset < handle
             if ~found
                 % default to everything unsorted
                 warning('Could not find cluster group file, defaulting to KS labels');
-                ds.cluster_groups = df.cluster_ks_labels;
+                ds.cluster_groups = ds.cluster_ks_label;
             end
             
             % 15 prog items to this point
             
             % load rez.mat
-            prog.increment('Loading rez.mat');
-            d = load('rez.mat', 'rez');
-            rez = d.rez;
-    
-            if isfield(rez, 'est_contam_rate')
-                ds.kilosort_version = 2;
-            else
-                ds.kilosort_version = 1;
+            if hasRez
+                prog.increment('Loading rez.mat');
+                d = load(fullfile(p, 'rez.mat'));
+                rez = d.rez;
+
+                if isfield(rez, 'est_contam_rate')
+                    ds.kilosort_version = 2;
+                else
+                    ds.kilosort_version = 1;
+                end
+
+                if ds.kilosort_version == 2
+                    ops = rez.ops;
+                    ds.W = rez.W;
+                    ds.U = rez.U;
+
+                    % strip leading zeros off of ds.templates based on size of W
+                    nTimeTempW = size(ds.W, 1);
+                    nStrip = size(ds.templates, 2) - nTimeTempW;
+                    if nStrip > 0
+                        ds.templates = ds.templates(:, nStrip+1:end, :);
+                        ds.template_sample_offset = ds.template_sample_offset - uint64(nStrip);
+                    end
+
+                    nBatches  = ops.Nbatch;
+                    NT  	= uint64(ops.NT);
+                    ds.batch_starts = (uint64(1) : NT : (NT*uint64(nBatches) + uint64(1)))';
+                    ds.batchwise_cc = rez.ccb;
+                    ds.batch_sort_order = rez.iorig;
+
+                    % avoiding referencing the dependent properties in the constructor
+                    % so we don't need to worry about what properties they reference
+                    % that might not have been set yet
+                    nTemplateRank = size(rez.WA, 3);
+                    nTemplatePCs = size(rez.W_a, 2);
+                    nTemplates = size(ds.templates, 1);
+                    nTemplateTimepoints = size(ds.templates, 2);
+                    nChannelsSorted = numel(ds.channel_ids);
+
+                    ds.W_batch = single(rez.WA); % [nTemplateTimepoints, nTemplates, nTemplateRank, nBatches]
+                    ds.W_batch_US = reshape(single(rez.W_a), [nTemplateTimepoints, nTemplateRank, nTemplatePCs, nTemplates]);
+                    ds.W_batch_V = single(rez.W_b);
+
+                    ds.U_batch = single(rez.UA);
+                    ds.U_batch_US = reshape(single(rez.U_a), [nChannelsSorted, nTemplateRank, nTemplatePCs, nTemplates]);
+                    ds.U_batch_V = single(rez.U_b);
+
+                    ds.cluster_est_contam_rate = getOr(rez, 'est_contam_rate');
+                    ds.cluster_merge_count = getOr(rez, 'mergecount');
+                    ds.cluster_split_src = getOr(rez, 'splitsrc');                
+                    ds.cluster_split_dst = getOr(rez, 'splitdst');
+                    ds.cluster_split_auc = getOr(rez, 'splitauc');
+                    ds.cluster_split_candidate = getOr(rez, 'split_candidate');
+                    ds.cluster_orig_template = getOr(rez, 'cluster_split_orig_template');
+                    
+                    if isfield(rez, 'st3_cutoff_invalid')
+                        % include invalid spikeas
+                        ds.invalid_spike_times = rez.st3_cutoff_invalid(:, 1);
+                        cols = size(rez.st3_cutoff_invalid, 2);
+                        if cols > 5
+                            col = cols;
+                        else
+                            col = 2;
+                        end
+                        ds.invalid_spike_templates = rez.st3_cutoff_invalid(:, 2);
+                        ds.invalid_spike_clusters = rez.st3_cutoff_invalid(:, col);
+                    end
+                else
+                    % TODO need to decide what to load for KS1
+                end
             end
             
-            if ds.kilosort_version == 2
-                ops = rez.ops;
-                ds.W = rez.W;
-                ds.U = rez.U;
-                
-                % strip leading zeros off of ds.templates based on size of W
-                nTimeTempW = size(ds.W, 1);
-                nStrip = size(ds.templates, 2) - nTimeTempW;
-                if nStrip > 0
-                    ds.templates = ds.templates(:, nStrip+1:end, :);
-                    ds.template_sample_offset = ds.template_sample_offset - uint64(nStrip);
-                end
-                
-                nBatches  = ops.Nbatch;
-                NT  	= uint64(ops.NT);
-                ds.batch_starts = (uint64(1) : NT : (NT*uint64(nBatches) + uint64(1)))';
-                ds.batchwise_cc = rez.ccb;
-                ds.batch_sort_order = rez.iorig;
-                
-                % avoiding referencing the dependent properties in the constructor
-                % so we don't need to worry about what properties they reference
-                % that might not have been set yet
-                nTemplateRank = size(rez.WA, 3);
-                nTemplatePCs = size(rez.W_a, 2);
-                nTemplates = size(ds.templates, 1);
-                nTemplateTimepoints = size(ds.templates, 2);
-                nChannelsSorted = numel(ds.channel_ids);
-                
-                ds.W_batch = rez.WA; % [nTemplateTimepoints, nTemplates, nTemplateRank, nBatches]
-                ds.W_batch_US = reshape(rez.W_a, [nTemplateTimepoints, nTemplateRank, nTemplatePCs, nTemplates]);
-                ds.W_batch_V = rez.W_b;
-                
-                ds.U_batch = rez.UA;
-                ds.U_batch_US = reshape(rez.U_a, [nChannelsSorted, nTemplateRank, nTemplatePCs, nTemplates]);
-                ds.U_batch_V = rez.U_b;
-                
-                ds.cluster_est_contam_rate = getOr(rez, 'est_contam_rate');
-                ds.cluster_merge_count = getOr(rez, 'mergecount');
-                ds.cluster_split_src = getOr(rez, 'splitsrc');                
-                ds.cluster_split_dst = getOr(rez, 'splitdst');
-                ds.cluster_split_auc = getOr(rez, 'splitauc');
-            else
-                % TODO need to decide what to load for KS1
-            end
-                
             prog.finish();
             ds.isLoaded = true;
             
@@ -966,7 +1002,7 @@ classdef KilosortDataset < handle
             end
         end
         
-        function reconstruction = reconstructRawSnippetsFromTemplates(ds, times, window, varargin)
+        function [reconstruction, reconstructionMode] = reconstructRawSnippetsFromTemplates(ds, times, window, varargin)
             % generate the best reconstruction of each snippet using the amplitude-scaled templates 
             % this is the internal workhorse for reconstructSnippetSetFromTemplates
             
@@ -1013,6 +1049,24 @@ classdef KilosortDataset < handle
             reconstruction = zeros(nChannelsSorted, numel(relTvec_snippet), nTimes, 'single');
             
             prog = Neuropixel.Utils.ProgressBar(nTimes, 'Reconstructing templates around snippet times');
+            
+%             function template = getTemplate(template_ind, batch_ind, time_inds, ch_inds)
+%                 switch reconstructionMode
+%                     case 'batch_full'
+%                         Wi = ks.W_batch(time_inds, template_ind, :, batch_ind);
+%                         Ui = ks.U_batch(:, template_ind, :, batch_ind);
+% %                         Ui_unw = 
+%                         % whiten U
+%                         wmi = single(ks.whitening_mat_inv);
+%                         whichChannels = ks.templates_ind(iT, :);
+%                         template_unw(iT, :, whichChannels) = templates(iT, :, :);
+%             end
+%                         Ui = Neuropixel.Utils.TensorUtils.linearCombinationAlongDimension(Ui, 1, ks.whitening_mat_inv);
+% %                         Ui = Ui(
+%                     case 'templates'
+%                         tempplate = metrics.template_unw(template_ind, time_inds, ch_inds);
+%                 end
+%             end
             
             for iT = 1:nTimes
                 prog.update(iT);
