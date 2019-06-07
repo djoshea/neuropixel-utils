@@ -382,35 +382,6 @@ classdef KilosortMetrics < handle
     end
     
     methods % Convenience methods
-<<<<<<< HEAD
-        function data = build_batchwise_templates(m, template_inds, batch_inds, whitened, scaled)
-            % nTemplates x nTimePoints x nTemplateChannels x nBatches
-            nTemplates = numel(templates_inds);
-            nBatches = numel(batch_inds);
-            
-            if isempty(ks.W_batch) || isempty(ks.U_batch)
-                error('No batchwise information present in KilosortDataset');
-            end
-            
-            data = zeros(nTemplates, m.nTemplateTimepoints, m.nChannelsSorted, nBatches);
-            wmi = m.whitening_mat_inv;
-%             for iT = 1:nTemplates
-%                 for iB = 1:nBatch
-%                 	W = m.ks.W_batch(:, template_inds(iT), :, batch_inds(iB));
-%                     U = m.ks.U_batch(:, template_inds(iT), :, batch_inds(iB)); % nCh x 1 x 3 x 1
-%                     
-%                     for iP = 1:size(U, 3)
-%                         wmisqueeze(U)
-%                     template_unw(iT, :, iT) = 
-%                     
-%                     whichChannels = ks.templates_ind(iT, :);
-%                     template_unw(iT, :, whichChannels) = m.templates(iT, :, :);
-%                 end
-%             end
-        end
-        
-=======
->>>>>>> Batchwise template based reconstructions working
         function [channel_ids_unique, channel_ids_by_cluster] = gather_best_channels_multiple_clusters(m, cluster_ids, n_best_each)
             if nargin < 3
                 n_best_each = 24;
