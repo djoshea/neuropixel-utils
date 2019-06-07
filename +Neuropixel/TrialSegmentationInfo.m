@@ -67,6 +67,11 @@ classdef TrialSegmentationInfo < handle & matlab.mixin.Copyable
             p.addParameter('maxPauseSec', 20, @isscalar); % in samples
             p.parse(varargin{:});
             
+            if tsi.nTrials == 0
+                [idxStart, idxStop, trialStartStop] = deal(zeros(0, 1, 'uint64'));
+                return;
+            end
+            
             % find regions where there are no pauses greater than maxPauseSec
             maxPauseSamples = p.Results.maxPauseSec * tsi.fs;
             pauses = int64(tsi.idxStart(2:end)) - int64(tsi.idxStop(1:end-1));

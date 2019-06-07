@@ -170,11 +170,13 @@ classdef TimeShiftSpec < handle
         function spec = buildToExciseGaps(idxStart, idxStop)
             regionDurations = int64(idxStop) - int64(idxStart);
             regionUpdatedStarts = int64(idxStart);
-            regionUpdatedStarts(1) = 1;
-            for iR = 2:numel(idxStart)
-                regionUpdatedStarts(iR) = regionUpdatedStarts(iR-1) + regionDurations(iR-1);
+            if ~isempty(regionUpdatedStarts)
+                regionUpdatedStarts(1) = 1;
+                for iR = 2:numel(idxStart)
+                    regionUpdatedStarts(iR) = regionUpdatedStarts(iR-1) + regionDurations(iR-1);
+                end
             end
-            
+
             spec = Neuropixel.TimeShiftSpec(idxStart, idxStop, regionUpdatedStarts);
         end
         

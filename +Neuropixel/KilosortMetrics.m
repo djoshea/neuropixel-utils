@@ -393,19 +393,19 @@ classdef KilosortMetrics < handle
             
             data = zeros(nTemplates, m.nTemplateTimepoints, m.nChannelsSorted, nBatches);
             wmi = m.whitening_mat_inv;
-            for iT = 1:nTemplates
-                for iB = 1:nBatch
-                	W = m.ks.W_batch(:, template_inds(iT), :, batch_inds(iB));
-                    U = m.ks.U_batch(:, template_inds(iT), :, batch_inds(iB)); % nCh x 1 x 3 x 1
-                    
-                    for iP = 1:size(U, 3)
-                        wmisqueeze(U)
-                    template_unw(iT, :, iT) = 
-                    
-                    whichChannels = ks.templates_ind(iT, :);
-                    template_unw(iT, :, whichChannels) = m.templates(iT, :, :);
-                end
-            end
+%             for iT = 1:nTemplates
+%                 for iB = 1:nBatch
+%                 	W = m.ks.W_batch(:, template_inds(iT), :, batch_inds(iB));
+%                     U = m.ks.U_batch(:, template_inds(iT), :, batch_inds(iB)); % nCh x 1 x 3 x 1
+%                     
+%                     for iP = 1:size(U, 3)
+%                         wmisqueeze(U)
+%                     template_unw(iT, :, iT) = 
+%                     
+%                     whichChannels = ks.templates_ind(iT, :);
+%                     template_unw(iT, :, whichChannels) = m.templates(iT, :, :);
+%                 end
+%             end
         end
         
         function [channel_ids_unique, channel_ids_by_cluster] = gather_best_channels_multiple_clusters(m, cluster_ids, n_best_each)
@@ -830,7 +830,9 @@ classdef KilosortMetrics < handle
                     doPlot = false;
                 end
                 driftEvents = [];
-                
+                if isempty(spikeTimes)
+                    return;
+                end
                 D = 2; % um
                 bins = min(spikeDepths)-D:D:max(spikeDepths)+D;
                 h = histcounts(spikeDepths, bins);

@@ -166,6 +166,7 @@ classdef ConcatenationInfo < handle
             xOffset = p.Results.xOffset;
             sample_window = p.Results.sample_window;
             
+            timeInSeconds = p.Results.timeInSeconds;
             if isempty(ci.timeShifts)
                 return;
             end
@@ -187,8 +188,12 @@ classdef ConcatenationInfo < handle
                     sample_window_this(2) = window_origInd(2);
                 end
                 ci.timeShifts(iF).markExcisionBoundaries('sample_window', sample_window_this, 'xOffset', xOffset, ...
-                    'timeInSeconds', p.Results.timeInSeconds, 'fs', ci.fs);
-                xOffset = xOffset + ci.timeShifts(iF).nShiftedTimes;
+                    'timeInSeconds', timeInSeconds, 'fs', ci.fs);
+                if timeInSeconds
+                    xOffset = xOffset + ci.timeShifts(iF).nShiftedTimes / ci.fs;
+                else
+                    xOffset = xOffset + ci.timeShifts(iF).nShiftedTimes;
+                end
             end
         end
     end

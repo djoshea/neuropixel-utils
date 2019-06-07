@@ -1,4 +1,4 @@
-function rezFull = runKilosort2(imec, varargin)
+function rezFull = runKilosort2_modified(imec, varargin)
 
     p = inputParser();
     p.addParameter('saveDir', imec.pathRoot, @ischar);

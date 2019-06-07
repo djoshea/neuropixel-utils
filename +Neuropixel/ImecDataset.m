@@ -1280,12 +1280,25 @@ end
                 chunkExtraThis = [chunkExtra(1) 0];
             elseif iCh == 1
                 % first chunk
-                selectIdx = ((iCh-1)*(chunkSize) + 1) : ((iCh-1)*(chunkSize) + chunkSize + chunkExtra(2));
+                selectIdx = 1 : ((iCh-1)*(chunkSize) + chunkSize + chunkExtra(2));
                 chunkExtraThis = [0 chunkExtra(2)];
             else
                 % middle chunks
                 selectIdx = ((iCh-1)*(chunkSize) + 1 - chunkExtra(1)) : ((iCh-1)*(chunkSize) + chunkSize + chunkExtra(2));
                 chunkExtraThis = chunkExtra;
+            end
+            
+            % trim invalid samples
+            idxFirst = find(selectIdx >= 1, 1, 'first');
+            if idxFirst > 1
+                selectIdx = selectIdx(idxFirst:end);
+                chunkExtraThis(1) = max(0, chunkExtraThis(1) - (idxFirst-1));
+            end
+            idxLast = find(selectIdx <= dataSize, 1, 'last');
+            if idxLast <= numel(selectIdx)
+                nDrop = numel(selectIdx) - idxLast;
+                selectIdx = selectIdx(1:idxLast);
+                chunkExtraThis(2) = max(0, chunkExtraThis(2) - nDrop);
             end
             
             nSelected = numel(selectIdx);
@@ -1736,6 +1749,16 @@ end
                     
                     nChunks = ceil(outSize / chunkSize);
                     prog = Neuropixel.Utils.ProgressBar(nChunks, 'Copying %s file %d / %d: %s', mode, iF, nFiles, imecList{iF}.fileStem);
+                    
+                    testChunkSize = true;
+                    if testChunkSize
+                        nOut = nan(nChunks, 1);
+                        for iCh = 1:nChunks
+                            [~, keepIdx] = Neuropixel.ImecDataset.determineChunkIdx(outSize, iCh, nChunks, chunkSize, chunkExtra);
+                            nOut(iCh) = numel(keepIdx);
+                        end
+                        assert(sum(nOut) == outSize, 'Error with chunk selection');
+                    end
                     
                     for iCh = 1:nChunks
                         [idx, keepIdx] = Neuropixel.ImecDataset.determineChunkIdx(outSize, iCh, nChunks, chunkSize, chunkExtra);
