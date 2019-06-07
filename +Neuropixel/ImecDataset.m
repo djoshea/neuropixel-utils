@@ -554,21 +554,21 @@ classdef ImecDataset < handle
             channel_ids_by_cluster = p.Results.channel_ids_by_cluster;
             cluster_ids = p.Results.cluster_ids;
                 
-            if ~isempty(channel_ids)
+            if ~isempty(channel_ids_by_snippet)
+                assert(size(channel_ids_by_snippet, 2) == numel(times), 'channel_ids must be nChannels x numel(times)');
+                
+            elseif ~isempty(channel_ids_by_cluster)
+                assert(~isempty(cluster_ids), 'cluster_ids must be specified when channel_ids_by_cluster is used');
+                unique_cluster_ids = unique(cluster_ids);
+                [~, cluster_inds] = ismember(cluster_ids, unique_cluster_ids);
+                channel_ids_by_snippet = channel_ids_by_cluster(:, cluster_inds);
+                
+            elseif ~isempty(channel_ids)
                 channel_ids = Neuropixel.Utils.makecol(channel_ids);
                 channel_ids_by_snippet = repmat(channel_ids, 1, numel(times));
                 
-            elseif ~isempty(channel_ids_by_snippet)
-                assert(size(channel_ids_by_snippet, 2) == numel(times), 'channel_ids must be nChannels x numel(times)');
             else
-                if ~isempty(channel_ids_by_cluster)
-                    assert(~isempty(cluster_ids), 'cluster_ids must be specified when channel_ids_by_cluster is used');
-                    unique_cluster_ids = unique(cluster_ids);
-                    [~, cluster_inds] = ismember(cluster_ids, unique_cluster_ids);
-                    channel_ids_by_snippet = channel_ids_by_cluster(:, cluster_inds);
-                else
-                    error('Specify either channel_ids or channel_ids_by_cluster');
-                end
+                error('Specify either channel_ids or channel_ids_by_cluster');
             end
 
             source = p.Results.source;

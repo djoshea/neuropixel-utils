@@ -189,174 +189,174 @@ classdef KilosortDataset < handle
     end
 
     methods % Dependent properties
-        function leaf = get.pathLeaf(ds)
-            [~, leaf] = fileparts(ds.path);
+        function leaf = get.pathLeaf(ks)
+            [~, leaf] = fileparts(ks.path);
         end
         
-        function tf = get.hasRawDataset(ds)
-            tf = ~isempty(ds.raw_dataset);
+        function tf = get.hasRawDataset(ks)
+            tf = ~isempty(ks.raw_dataset);
         end
         
-        function n = get.nSpikes(ds)
-            if isempty(ds.spike_times)
+        function n = get.nSpikes(ks)
+            if isempty(ks.spike_times)
                 n = NaN;
             else
-                n = size(ds.spike_times, 1);
+                n = size(ks.spike_times, 1);
             end
         end
         
-        function n = get.nInvalidSpikes(ds)
-            if isempty(ds.invalid_spike_times)
+        function n = get.nInvalidSpikes(ks)
+            if isempty(ks.invalid_spike_times)
                 n = NaN;
             else
-                n = size(ds.invalid_spike_times, 1);
+                n = size(ks.invalid_spike_times, 1);
             end
         end
 
-        function n = get.nClusters(ds)
-            if isempty(ds.cluster_ids)
+        function n = get.nClusters(ks)
+            if isempty(ks.cluster_ids)
                 n = NaN;
             else
-                n = numel(ds.cluster_ids);
+                n = numel(ks.cluster_ids);
             end
         end
 
-        function n = get.nTemplates(ds)
-            if isempty(ds.pc_feature_ind)
+        function n = get.nTemplates(ks)
+            if isempty(ks.pc_feature_ind)
                 n = NaN;
             else
-                n = size(ds.pc_feature_ind, 1);
+                n = size(ks.pc_feature_ind, 1);
             end
         end
         
-        function n = get.nTemplateRank(ds)
-            if isempty(ds.template_features)
+        function n = get.nTemplateRank(ks)
+            if isempty(ks.template_features)
                 n = NaN;
             else
-                n = size(ds.template_features, 2);
+                n = size(ks.template_features, 2);
             end
         end
 
-        function n = get.nPCFeatures(ds)
-            if isempty(ds.pc_features)
+        function n = get.nPCFeatures(ks)
+            if isempty(ks.pc_features)
                 n = NaN;
             else
-                n = size(ds.pc_features, 3);
+                n = size(ks.pc_features, 3);
             end
         end
 
-        function n = get.nFeaturesPerChannel(ds)
-            if isempty(ds.pc_features)
+        function n = get.nFeaturesPerChannel(ks)
+            if isempty(ks.pc_features)
                 n = NaN;
             else
-                n = size(ds.pc_features, 2);
+                n = size(ks.pc_features, 2);
             end
         end
         
-        function n = get.nTemplateTimepoints(ds)
-            if isempty(ds.templates)
+        function n = get.nTemplateTimepoints(ks)
+            if isempty(ks.templates)
                 n = NaN;
             else
-                n = size(ds.templates, 2);
+                n = size(ks.templates, 2);
             end
         end
         
-        function tvec = get.templateTimeRelative(ds)
-            T = int64(ds.nTemplateTimepoints);
-            off = int64(ds.template_sample_offset);
+        function tvec = get.templateTimeRelative(ks)
+            T = int64(ks.nTemplateTimepoints);
+            off = int64(ks.template_sample_offset);
             start = -off + int64(1);
             stop = start + T - int64(1);
             tvec = (start:stop)';
         end
         
-        function n = get.nChannelsSorted(ds)
-            if isempty(ds.channel_ids)
+        function n = get.nChannelsSorted(ks)
+            if isempty(ks.channel_ids)
                 n = NaN;
             else
-                n = numel(ds.channel_ids);
+                n = numel(ks.channel_ids);
             end
         end
         
-        function map = get.channelMap(ds)
-            if ~isempty(ds.raw_dataset) && ~isempty(ds.raw_dataset.channelMap)
+        function map = get.channelMap(ks)
+            if ~isempty(ks.raw_dataset) && ~isempty(ks.raw_dataset.channelMap)
                 % pass thru to raw dataset
-                map = ds.raw_dataset.channelMap;
+                map = ks.raw_dataset.channelMap;
             else
-                map = ds.channelMap;
+                map = ks.channelMap;
             end
         end
         
-        function nBatches = get.nBatches(ds)
-            nBatches = numel(ds.batch_starts);
+        function nBatches = get.nBatches(ks)
+            nBatches = numel(ks.batch_starts);
         end
         
-        function fsAP = get.fsAP(ds)
-            if isempty(ds.fsAP)
-                if isempty(ds.raw_dataset)
+        function fsAP = get.fsAP(ks)
+            if isempty(ks.fsAP)
+                if isempty(ks.raw_dataset)
                     fsAP = NaN;
                 else
-                    fsAP = ds.raw_dataset.fsAP;
+                    fsAP = ks.raw_dataset.fsAP;
                 end
             else
-                fsAP = ds.fsAP;
+                fsAP = ks.fsAP;
             end
         end
         
-        function apGain = get.apGain(ds)
-            if isempty(ds.apGain)
-                if isempty(ds.raw_dataset)
+        function apGain = get.apGain(ks)
+            if isempty(ks.apGain)
+                if isempty(ks.raw_dataset)
                     apGain = NaN;
                 else
-                    apGain = ds.raw_dataset.apGain;
+                    apGain = ks.raw_dataset.apGain;
                 end
             else
-                apGain = ds.apGain;
+                apGain = ks.apGain;
             end
         end
         
-        function apScaleToUv = get.apScaleToUv(ds)
-            if isempty(ds.apScaleToUv)
-                if isempty(ds.raw_dataset)
+        function apScaleToUv = get.apScaleToUv(ks)
+            if isempty(ks.apScaleToUv)
+                if isempty(ks.raw_dataset)
                     apScaleToUv = NaN;
                 else
-                    apScaleToUv = ds.raw_dataset.apScaleToUv;
+                    apScaleToUv = ks.raw_dataset.apScaleToUv;
                 end
             else
-                apScaleToUv = ds.apScaleToUv;k
+                apScaleToUv = ks.apScaleToUv;k
             end
         end
         
-        function syncBitNames = get.syncBitNames(ds)
-            if isempty(ds.raw_dataset)
-                if isempty(ds.syncBitNames)
+        function syncBitNames = get.syncBitNames(ks)
+            if isempty(ks.raw_dataset)
+                if isempty(ks.syncBitNames)
                     syncBitNames = strings(16, 1);
                 else
-                    syncBitNames = string(ds.syncBitNames);
+                    syncBitNames = string(ks.syncBitNames);
                 end
             else
-                syncBitNames = string(ds.raw_dataset.syncBitNames);
+                syncBitNames = string(ks.raw_dataset.syncBitNames);
             end
         end
         
-        function c = get.clusters_good(ds)
-            c = ds.cluster_ids(ds.cluster_groups == "good");
+        function c = get.clusters_good(ks)
+            c = ks.cluster_ids(ks.cluster_groups == "good");
         end
         
-        function c = get.clusters_mua(ds)
-            c = ds.cluster_ids(ds.cluster_groups == "mua");
+        function c = get.clusters_mua(ks)
+            c = ks.cluster_ids(ks.cluster_groups == "mua");
         end
         
-        function c = get.clusters_noise(ds)
-            c = ds.cluster_ids(ds.cluster_groups == "noise");
+        function c = get.clusters_noise(ks)
+            c = ks.cluster_ids(ks.cluster_groups == "noise");
         end
         
-        function c = get.clusters_unsorted(ds)
-            c = ds.cluster_ids(ds.cluster_groups == "unsorted");
+        function c = get.clusters_unsorted(ks)
+            c = ks.cluster_ids(ks.cluster_groups == "unsorted");
         end
     end
    
     methods
-        function ds = KilosortDataset(path, varargin)
+        function ks = KilosortDataset(path, varargin)
             if nargin == 0
                 return;
             end
@@ -369,38 +369,38 @@ classdef KilosortDataset < handle
             p.parse(varargin{:});
             
             if isa(path, 'Neuropixel.ImecDataset')
-                ds.raw_dataset = path;
-                path = ds.raw_dataset.pathRoot;
+                ks.raw_dataset = path;
+                path = ks.raw_dataset.pathRoot;
             end
             
             assert(exist(path, 'dir') == 7, 'Path %s not found', path);
-            ds.path = path;
+            ks.path = path;
             
-            if isempty(ds.raw_dataset)
+            if isempty(ks.raw_dataset)
                 if isa(p.Results.imecDataset, 'Neuropixel.ImecDataset')
-                    ds.raw_dataset = p.Results.imecDataset;
+                    ks.raw_dataset = p.Results.imecDataset;
                 elseif ischar(p.Results.imecDataset) || isempty(p.Results.imecDataset)
                     raw_path = p.Results.imecDataset;
                     if isempty(raw_path), raw_path = path; end
                     if Neuropixel.ImecDataset.folderContainsDataset(raw_path)
-                        ds.raw_dataset = Neuropixel.ImecDataset(raw_path, 'channelMap', p.Results.channelMap);
+                        ks.raw_dataset = Neuropixel.ImecDataset(raw_path, 'channelMap', p.Results.channelMap);
                     end
                 end
             end
             
-            if isempty(ds.raw_dataset)
+            if isempty(ks.raw_dataset)
                 warning('No ImecDataset found in Kilosort path, specify imecDataset parameter directly');
             end
            
             % these will pass thru to raw_dataset if provided
-            ds.fsAP = p.Results.fsAP;
-            ds.apScaleToUv = p.Results.apScaleToUv;
+            ks.fsAP = p.Results.fsAP;
+            ks.apScaleToUv = p.Results.apScaleToUv;
             
             % manually specify some additional props
             channelMap = p.Results.channelMap;
             if isempty(channelMap)
-                if ~isempty(ds.raw_dataset)
-                    channelMap = ds.raw_dataset.channelMap;
+                if ~isempty(ks.raw_dataset)
+                    channelMap = ks.raw_dataset.channelMap;
                 end
                 if isempty(channelMap)
                     channelMap = Neuropixel.Utils.getDefaultChannelMapFile(true);
@@ -410,15 +410,15 @@ classdef KilosortDataset < handle
             if ischar(channelMap)
                 channelMap = Neuropixel.ChannelMap(channelMap);
             end
-            ds.channelMap = channelMap;
+            ks.channelMap = channelMap;
             
-            if ~isempty(ds.raw_dataset)
-                ds.meta = ds.raw_dataset.readAPMeta();
-                ds.concatenationInfo = ds.raw_dataset.concatenationInfoAP;
+            if ~isempty(ks.raw_dataset)
+                ks.meta = ks.raw_dataset.readAPMeta();
+                ks.concatenationInfo = ks.raw_dataset.concatenationInfoAP;
             end
         end
         
-        function s = computeBasicStats(ds, varargin)
+        function s = computeBasicStats(ks, varargin)
             % a way of computing basic statistics without fully loading
             % from disk. see printBasicStats
             
@@ -427,17 +427,17 @@ classdef KilosortDataset < handle
             p.parse(varargin{:});
 
             % can work without loading raw data, much faster
-            if ds.isLoaded
-                s.spike_clusters = ds.spike_clusters; %#ok<*PROP>
-                s.cluster_ids = ds.cluster_ids; 
-                s.offset = ds.offset;
-                s.sample_rate = ds.sample_rate;
-                s.spike_times = ds.spike_times;
+            if ks.isLoaded
+                s.spike_clusters = ks.spike_clusters; %#ok<*PROP>
+                s.cluster_ids = ks.cluster_ids; 
+                s.offset = ks.offset;
+                s.sample_rate = ks.sample_rate;
+                s.spike_times = ks.spike_times;
             else
                 % partial load
                 s.spike_clusters = read('spike_clusters');
                 s.cluster_ids = unique(s.spike_clusters);
-                params = Neuropixel.readINI(fullfile(ds.path, 'params.py'));
+                params = Neuropixel.readINI(fullfile(ks.path, 'params.py'));
                 s.sample_rate = params.sample_rate;
                 s.offset = params.offset;
                 s.spike_times = read('spike_times');
@@ -456,14 +456,14 @@ classdef KilosortDataset < handle
             s.nSpikesAboveThresh = nnz(ismember(s.spike_clusters, s.cluster_ids(s.clusterMask)));
             
             function out = read(file)
-                out = Neuropixel.readNPY(fullfile(ds.path, [file '.npy']));
+                out = Neuropixel.readNPY(fullfile(ks.path, [file '.npy']));
             end
         end
         
-        function s = printBasicStats(ds, varargin)
-            s = ds.computeBasicStats(varargin{:});
+        function s = printBasicStats(ks, varargin)
+            s = ks.computeBasicStats(varargin{:});
             
-            fprintf('%s: %.1f sec, %d (%d) spikes, %d (%d) clusters (with fr > %g Hz)\n', ds.pathLeaf, s.nSec, ...
+            fprintf('%s: %.1f sec, %d (%d) spikes, %d (%d) clusters (with fr > %g Hz)\n', ks.pathLeaf, s.nSec, ...
                 s.nSpikes, s.nSpikesAboveThresh, ...
                 s.nClusters, s.nClustersAboveThresh, s.thresh);
             
@@ -477,24 +477,24 @@ classdef KilosortDataset < handle
             grid on;
         end
 
-        function load(ds, reload)
+        function load(ks, reload)
             if nargin < 2
                 reload = false;
             end
-            if ds.isLoaded && ~reload
+            if ks.isLoaded && ~reload
                 return;
             end
             ks.isLoaded = false;
                 
-            params = Neuropixel.readINI(fullfile(ds.path, 'params.py'));
-            ds.dat_path = params.dat_path;
-            ds.n_channels_dat = params.n_channels_dat;
-            ds.dtype = params.dtype;
-            ds.offset = params.offset;
-            ds.sample_rate = params.sample_rate;
-            ds.hp_filtered = params.hp_filtered;
+            params = Neuropixel.readINI(fullfile(ks.path, 'params.py'));
+            ks.dat_path = params.dat_path;
+            ks.n_channels_dat = params.n_channels_dat;
+            ks.dtype = params.dtype;
+            ks.offset = params.offset;
+            ks.sample_rate = params.sample_rate;
+            ks.hp_filtered = params.hp_filtered;
 
-            p = ds.path;
+            p = ks.path;
             existp = @(file) exist(fullfile(p, file), 'file') > 0;
             
             hasRez = existp('rez.mat');
@@ -505,41 +505,41 @@ classdef KilosortDataset < handle
             end
             prog = Neuropixel.Utils.ProgressBar(nProg, 'Loading Kilosort dataset: ');
 
-            ds.amplitudes = read('amplitudes');
-            ds.channel_ids = read('channel_map');
-            ds.channel_ids = ds.channel_ids + ones(1, 'like', ds.channel_ids); % make channel map 1 indexed
-            ds.channel_positions = read('channel_positions');
-            ds.pc_features = read('pc_features');
-            ds.pc_feature_ind = read('pc_feature_ind');
-            ds.pc_feature_ind = ds.pc_feature_ind + ones(1, 'like', ds.pc_feature_ind); % convert plus zero indexed to 1 indexed channels
-            ds.similar_templates = read('similar_templates');
-            ds.spike_templates = read('spike_templates');
-            ds.spike_templates = ds.spike_templates + ones(1, 'like', ds.spike_templates);
-            ds.spike_times = read('spike_times');
-            ds.template_features = read('template_features');
-            ds.template_feature_ind = read('template_feature_ind');
-            ds.template_feature_ind = ds.template_feature_ind + ones(1, 'like', ds.template_feature_ind); % 0 indexed templates to 1 indexed templates
+            ks.amplitudes = read('amplitudes');
+            ks.channel_ids = read('channel_map');
+            ks.channel_ids = ks.channel_ids + ones(1, 'like', ks.channel_ids); % make channel map 1 indexed
+            ks.channel_positions = read('channel_positions');
+            ks.pc_features = read('pc_features');
+            ks.pc_feature_ind = read('pc_feature_ind');
+            ks.pc_feature_ind = ks.pc_feature_ind + ones(1, 'like', ks.pc_feature_ind); % convert plus zero indexed to 1 indexed channels
+            ks.similar_templates = read('similar_templates');
+            ks.spike_templates = read('spike_templates');
+            ks.spike_templates = ks.spike_templates + ones(1, 'like', ks.spike_templates);
+            ks.spike_times = read('spike_times');
+            ks.template_features = read('template_features');
+            ks.template_feature_ind = read('template_feature_ind');
+            ks.template_feature_ind = ks.template_feature_ind + ones(1, 'like', ks.template_feature_ind); % 0 indexed templates to 1 indexed templates
             
-            ds.templates = read('templates');
-            T = size(ds.templates, 2);
-            ds.template_sample_offset = uint64(ceil(T/2)); % phy templates are centered on the spike time, with one extra sample post (e.g. -41 : 41)
+            ks.templates = read('templates');
+            T = size(ks.templates, 2);
+            ks.template_sample_offset = uint64(floor(T/2)); % phy templates are centered on the spike time, with one extra sample post (e.g. -41 : 41)
 
-            ds.templates_ind = read('templates_ind');
-            ds.templates_ind = ds.templates_ind + ones(1, 'like', ds.templates_ind); % convert plus zero indexed to 1 indexed channels
+            ks.templates_ind = read('templates_ind');
+            ks.templates_ind = ks.templates_ind + ones(1, 'like', ks.templates_ind); % convert plus zero indexed to 1 indexed channels
 
-            ds.whitening_mat = read('whitening_mat');
-            ds.whitening_mat_inv = read('whitening_mat_inv');
-            ds.spike_clusters = read('spike_clusters');
+            ks.whitening_mat = read('whitening_mat');
+            ks.whitening_mat_inv = read('whitening_mat_inv');
+            ks.spike_clusters = read('spike_clusters');
             
-            ds.cluster_ids = unique(ds.spike_clusters);
-            %ds.cluster_ids = (0:max(ds.spike_clusters))'; % this is important, since removed clusters still occupy a slice in several of the cluster rating matrices
+            ks.cluster_ids = unique(ks.spike_clusters);
+            %ks.cluster_ids = (0:max(ks.spike_clusters))'; % this is important, since removed clusters still occupy a slice in several of the cluster rating matrices
             
             % load KS cluster labels
-            ds.cluster_ks_label = repmat(categorical("unsorted"), numel(ds.cluster_ids), 1);
+            ks.cluster_ks_label = repmat(categorical("unsorted"), numel(ks.cluster_ids), 1);
             if existp('cluster_KSLabel.tsv')
                 tbl = readClusterMetaTSV('cluster_KSLabel.tsv', 'KSLabel', 'categorical');
-                [tf, ind] = ismember(tbl.cluster_id, ds.cluster_ids);
-                ds.cluster_ks_label(ind(tf)) = tbl{tf, 2};
+                [tf, ind] = ismember(tbl.cluster_id, ks.cluster_ids);
+                ks.cluster_ks_label(ind(tf)) = tbl{tf, 2};
             end
             
             % load cluster groups (mapping from cluster_ids to {good, mua, noise, unsorted})
@@ -552,15 +552,15 @@ classdef KilosortDataset < handle
                     tbl = readClusterMetaTSV(file, 'group', 'categorical');
                     found = true;
                     
-                    ds.cluster_groups = repmat(categorical("unsorted"), numel(ds.cluster_ids), 1);
-                    [tf, ind] = ismember(tbl.cluster_id, ds.cluster_ids);
-                    ds.cluster_groups(ind(tf)) = tbl{tf, 2};
+                    ks.cluster_groups = repmat(categorical("unsorted"), numel(ks.cluster_ids), 1);
+                    [tf, ind] = ismember(tbl.cluster_id, ks.cluster_ids);
+                    ks.cluster_groups(ind(tf)) = tbl{tf, 2};
                 end
             end
             if ~found
                 % default to everything unsorted
                 warning('Could not find cluster group file, defaulting to KS labels');
-                ds.cluster_groups = ds.cluster_ks_label;
+                ks.cluster_groups = ks.cluster_ks_label;
             end
             
             % 15 prog items to this point
@@ -572,66 +572,66 @@ classdef KilosortDataset < handle
                 rez = d.rez;
 
                 if isfield(rez, 'est_contam_rate')
-                    ds.kilosort_version = 2;
+                    ks.kilosort_version = 2;
                 else
-                    ds.kilosort_version = 1;
+                    ks.kilosort_version = 1;
                 end
 
-                if ds.kilosort_version == 2
+                if ks.kilosort_version == 2
                     ops = rez.ops;
-                    ds.W = rez.W;
-                    ds.U = rez.U;
+                    ks.W = rez.W;
+                    ks.U = rez.U;
 
-                    % strip leading zeros off of ds.templates based on size of W
-                    nTimeTempW = size(ds.W, 1);
-                    nStrip = size(ds.templates, 2) - nTimeTempW;
+                    % strip leading zeros off of ks.templates based on size of W
+                    nTimeTempW = size(ks.W, 1);
+                    nStrip = size(ks.templates, 2) - nTimeTempW;
                     if nStrip > 0
-                        ds.templates = ds.templates(:, nStrip+1:end, :);
-                        ds.template_sample_offset = ds.template_sample_offset - uint64(nStrip);
+                        ks.templates = ks.templates(:, nStrip+1:end, :);
+                        ks.template_sample_offset = ks.template_sample_offset - uint64(nStrip);
                     end
 
                     nBatches  = ops.Nbatch;
                     NT  	= uint64(ops.NT);
-                    ds.batch_starts = (uint64(1) : NT : (NT*uint64(nBatches) + uint64(1)))';
-                    ds.batchwise_cc = rez.ccb;
-                    ds.batch_sort_order = rez.iorig;
+                    ks.batch_starts = (uint64(1) : NT : (NT*uint64(nBatches) + uint64(1)))';
+                    ks.batchwise_cc = rez.ccb;
+                    ks.batch_sort_order = rez.iorig;
 
                     % avoiding referencing the dependent properties in the constructor
                     % so we don't need to worry about what properties they reference
                     % that might not have been set yet
                     nTemplateRank = size(rez.WA, 3);
                     nTemplatePCs = size(rez.W_a, 2);
-                    nTemplates = size(ds.templates, 1);
-                    nTemplateTimepoints = size(ds.templates, 2);
-                    nChannelsSorted = numel(ds.channel_ids);
+                    nTemplates = size(ks.templates, 1);
+                    nTemplateTimepoints = size(ks.templates, 2);
+                    nChannelsSorted = numel(ks.channel_ids);
 
-                    ds.W_batch = single(rez.WA); % [nTemplateTimepoints, nTemplates, nTemplateRank, nBatches]
-                    ds.W_batch_US = reshape(single(rez.W_a), [nTemplateTimepoints, nTemplateRank, nTemplatePCs, nTemplates]);
-                    ds.W_batch_V = single(rez.W_b);
+                    ks.W_batch = single(rez.WA); % [nTemplateTimepoints, nTemplates, nTemplateRank, nBatches]
+                    ks.W_batch_US = reshape(single(rez.W_a), [nTemplateTimepoints, nTemplateRank, nTemplatePCs, nTemplates]);
+                    ks.W_batch_V = single(rez.W_b);
 
-                    ds.U_batch = single(rez.UA);
-                    ds.U_batch_US = reshape(single(rez.U_a), [nChannelsSorted, nTemplateRank, nTemplatePCs, nTemplates]);
-                    ds.U_batch_V = single(rez.U_b);
+                    ks.U_batch = single(rez.UA);
+                    ks.U_batch_US = reshape(single(rez.U_a), [nChannelsSorted, nTemplateRank, nTemplatePCs, nTemplates]);
+                    ks.U_batch_V = single(rez.U_b);
 
-                    ds.cluster_est_contam_rate = getOr(rez, 'est_contam_rate');
-                    ds.cluster_merge_count = getOr(rez, 'mergecount');
-                    ds.cluster_split_src = getOr(rez, 'splitsrc');                
-                    ds.cluster_split_dst = getOr(rez, 'splitdst');
-                    ds.cluster_split_auc = getOr(rez, 'splitauc');
-                    ds.cluster_split_candidate = getOr(rez, 'split_candidate');
-                    ds.cluster_orig_template = getOr(rez, 'cluster_split_orig_template');
+                    ks.cluster_est_contam_rate = getOr(rez, 'est_contam_rate');
+                    ks.cluster_merge_count = getOr(rez, 'mergecount');
+                    ks.cluster_split_src = getOr(rez, 'splitsrc');                
+                    ks.cluster_split_dst = getOr(rez, 'splitdst');
+                    ks.cluster_split_auc = getOr(rez, 'splitauc');
+                    ks.cluster_split_candidate = getOr(rez, 'split_candidate');
+                    ks.cluster_orig_template = getOr(rez, 'cluster_split_orig_template');
                     
                     if isfield(rez, 'st3_cutoff_invalid')
                         % include invalid spikeas
-                        ds.invalid_spike_times = rez.st3_cutoff_invalid(:, 1);
+                        ks.invalid_spike_times = rez.st3_cutoff_invalid(:, 1);
                         cols = size(rez.st3_cutoff_invalid, 2);
                         if cols > 5
                             col = cols;
                         else
                             col = 2;
                         end
-                        ds.invalid_spike_templates = rez.st3_cutoff_invalid(:, 2);
-                        ds.invalid_spike_clusters = rez.st3_cutoff_invalid(:, col);
+                        ks.invalid_spike_templates = rez.st3_cutoff_invalid(:, 2);
+                        ks.invalid_spike_clusters = rez.st3_cutoff_invalid(:, col);
                     end
                 else
                     % TODO need to decide what to load for KS1
@@ -639,7 +639,8 @@ classdef KilosortDataset < handle
             end
             
             prog.finish();
-            ds.isLoaded = true;
+            ks.metrics = []; % old metrics no longer valid
+            ks.isLoaded = true;
             
             function v = getOr(s, fld, def)
                 if isfield(s, fld)
@@ -674,52 +675,52 @@ classdef KilosortDataset < handle
             end
         end
 
-        function checkLoaded(ds)
-            if isempty(ds.amplitudes)
-                ds.load();
+        function checkLoaded(ks)
+            if isempty(ks.amplitudes)
+                ks.load();
             end
         end
         
-        function sync = readSync(ds)
-            if isempty(ds.raw_dataset)
+        function sync = readSync(ks)
+            if isempty(ks.raw_dataset)
                 sync = zeros(0, 1, 'uint16');
             else
-                sync = ds.raw_dataset.readSync();
+                sync = ks.raw_dataset.readSync();
             end
         end
         
-        function sync = loadSync(ds, varargin)
-            if isempty(ds.raw_dataset)
+        function sync = loadSync(ks, varargin)
+            if isempty(ks.raw_dataset)
                 sync = zeros(0, 1, 'uint16');
             else
-                sync = ds.raw_dataset.readSync(varargin{:});
+                sync = ks.raw_dataset.readSync(varargin{:});
             end
         end
         
-        function setSyncBitNames(ds, idx, names)
-            if ~isempty(ds.raw_dataset)
-                ds.raw_dataset.setSyncBitNames(idx, names);
+        function setSyncBitNames(ks, idx, names)
+            if ~isempty(ks.raw_dataset)
+                ks.raw_dataset.setSyncBitNames(idx, names);
             else
                 if isscalar(idx) && ischar(names)
-                    ds.syncBitNames{idx} = names;
+                    ks.syncBitNames{idx} = names;
                 else
                     assert(iscellstr(names)) %#ok<ISCLSTR>
-                    ds.syncBitNames(idx) = names;
+                    ks.syncBitNames(idx) = names;
                 end
             end
         end
         
-        function idx = lookupSyncBitByName(ds, names)
+        function idx = lookupSyncBitByName(ks, names)
             if ischar(names)
                 names = {names};
             end
             assert(iscellstr(names));
 
-            [tf, idx] = ismember(names, ds.syncBitNames);
+            [tf, idx] = ismember(names, ks.syncBitNames);
             idx(~tf) = NaN;
         end
 
-        function seg = segmentIntoClusters(ds)
+        function seg = segmentIntoClusters(ks)
             % generates a KilosortTrialSegmentedDataset with only 1 trial.
             % Segments as though there is one all-inclusive trials, so that
             % clusters are split but not trials
@@ -729,16 +730,16 @@ classdef KilosortDataset < handle
             tsi.conditionId = 0;
             tsi.idxStart = 1;
             
-            if ds.hasRawDataset
-                tsi.idxStop = ds.raw_dataset.nSamplesAP;
+            if ks.hasRawDataset
+                tsi.idxStop = ks.raw_dataset.nSamplesAP;
             else
-                tsi.idxStop = max(ds.spike_times) + 1;
+                tsi.idxStop = max(ks.spike_times) + 1;
             end
 
-            seg = ds.segmentIntoTrials(tsi, 0);
+            seg = ks.segmentIntoTrials(tsi, 0);
         end
 
-        function seg = segmentIntoTrials(ds, tsi, trial_ids)
+        function seg = segmentIntoTrials(ks, tsi, trial_ids)
 
             % trialInfo hs fields:
             %   trialId
@@ -746,44 +747,44 @@ classdef KilosortDataset < handle
             %   idxStart
             %   idxStop
 
-            seg = Neuropixel.KilosortTrialSegmentedDataset(ds, tsi, trial_ids);
+            seg = Neuropixel.KilosortTrialSegmentedDataset(ks, tsi, trial_ids);
         end
         
-        function channel_inds = channelNumsToChannelInds(ds, channels)
-            [~, channel_inds] = ismember(channels, ds.channel_ids);
+        function channel_inds = channelNumsToChannelInds(ks, channels)
+            [~, channel_inds] = ismember(channels, ks.channel_ids);
         end
         
-        function m = computeMetrics(ds, recompute)
-            if isempty(ds.metrics) || ~isvalid(ds.metrics) || (nargin >= 2 && recompute)
-                ds.load();
-                ds.metrics = Neuropixel.KilosortMetrics(ds);
+        function m = computeMetrics(ks, recompute)
+            if isempty(ks.metrics) || ~isvalid(ks.metrics) || (nargin >= 2 && recompute)
+                ks.load();
+                ks.metrics = Neuropixel.KilosortMetrics(ks);
             end
-            m = ds.metrics;
+            m = ks.metrics;
         end
         
-        function [clusterInds, cluster_ids] = lookup_clusterIds(ds, cluster_ids)
+        function [clusterInds, cluster_ids] = lookup_clusterIds(ks, cluster_ids)
             if islogical(cluster_ids)
-                cluster_ids = ds.cluster_ids(cluster_ids);
+                cluster_ids = ks.cluster_ids(cluster_ids);
              end
-            [tf, clusterInds] = ismember(cluster_ids, ds.cluster_ids);
-            assert(all(tf), 'Some cluster ids were not found in ds.clusterids');
+            [tf, clusterInds] = ismember(cluster_ids, ks.cluster_ids);
+            assert(all(tf), 'Some cluster ids were not found in ks.clusterids');
         end
         
-        function [channelInds, channelIds] = lookup_channelIds(ds, channelIds)
+        function [channelInds, channelIds] = lookup_channelIds(ks, channelIds)
              if islogical(channelIds)
-                channelIds = ds.channel_ids(channelIds);
+                channelIds = ks.channel_ids(channelIds);
              end
-            [tf, channelInds] = ismember(channelIds, ds.channel_ids);
+            [tf, channelInds] = ismember(channelIds, ks.channel_ids);
             assert(all(tf), 'Some channel ids not found');
         end
         
-        function [fileInds, origSampleInds] = lookup_sampleIndexInConcatenatedFile(ds, inds)
-           [fileInds, origSampleInds] = ds.concatenationInfo.lookup_sampleIndexInSourceFiles(inds);
+        function [fileInds, origSampleInds] = lookup_sampleIndexInConcatenatedFile(ks, inds)
+           [fileInds, origSampleInds] = ks.concatenationInfo.lookup_sampleIndexInSourceFiles(inds);
         end
     end
     
-    methods % Computed data  
-        function [snippetSet, reconstructionFromOtherClusters] = getWaveformsFromRawData(ds, varargin)
+    methods % Snippet set construction 
+        function [snippetSet, reconstructionFromOtherClusters] = getWaveformsFromRawData(ks, varargin)
              % Extracts individual spike waveforms from the raw datafile, for multiple
              % clusters. Returns the waveforms and their means within clusters.
              %
@@ -824,20 +825,20 @@ classdef KilosortDataset < handle
 
              p.addParameter('subtractOtherClusters', false, @islogical); % time consuming step to remove the contribution of the other clusters to a given snippet
              
-             p.addParameter('raw_dataset', ds.raw_dataset, @(x) true);
+             p.addParameter('raw_dataset', ks.raw_dataset, @(x) true);
 
              % other metadata set in snippetSet
              p.addParameter('trial_idx', [], @isvector);
              
              p.parse(varargin{:});
 
-             assert(ds.hasRawDataset, 'KilosortDataset has no raw ImecDataset');
+             assert(ks.hasRawDataset, 'KilosortDataset has no raw ImecDataset');
              
-             ds.checkLoaded();
+             ks.checkLoaded();
                
              if ~isempty(p.Results.spike_times)
                  spike_times = p.Results.spike_times; %#ok<*PROPLC>
-                 [tf, spike_idx] = ismember(spike_times, ds.spike_times);
+                 [tf, spike_idx] = ismember(spike_times, ks.spike_times);
                  if any(~tf)
                      error('Not all spike times were found in KilosortDataset');
                  end
@@ -845,17 +846,17 @@ classdef KilosortDataset < handle
 
              elseif ~isempty(p.Results.spike_idx)
                  spike_idx = p.Results.spike_idx;
-                 spike_times = ds.spike_times(spike_idx);
+                 spike_times = ks.spike_times(spike_idx);
                  
              elseif ~isempty(p.Results.cluster_ids)
                  clu = p.Results.cluster_ids;
 
                  if isscalar(clu)
-                     spike_idx = find(ds.spike_clusters == clu);
-                     spike_times = ds.spike_times(spike_idx);
+                     spike_idx = find(ks.spike_clusters == clu);
+                     spike_times = ks.spike_times(spike_idx);
                  else
-                     mask = ismember(ds.spike_cluster, clu);
-                     spike_times = ds.spike_times(mask);
+                     mask = ismember(ks.spike_cluster, clu);
+                     spike_times = ks.spike_times(mask);
                  end
              else
                  error('Must specify one of spike_times, spike_idx, or cluster_id');
@@ -867,7 +868,7 @@ classdef KilosortDataset < handle
              unique_cluster_ids = p.Results.cluster_ids; % allow caller to specify directly
 
              if ~isempty(unique_cluster_ids)
-                 mask = mask & ismember(ds.spike_clusters(spike_idx), unique_cluster_ids);
+                 mask = mask & ismember(ks.spike_clusters(spike_idx), unique_cluster_ids);
              end
              
              % filter by sample_window range
@@ -881,7 +882,7 @@ classdef KilosortDataset < handle
              spike_times = spike_times(mask);
              
              % fetch other info
-             cluster_ids = ds.spike_clusters(spike_idx);
+             cluster_ids = ks.spike_clusters(spike_idx);
              if isempty(unique_cluster_ids)
                  unique_cluster_ids = unique(cluster_ids);
              end
@@ -918,11 +919,11 @@ classdef KilosortDataset < handle
                           
              % figure out channels requested, one set for each cluster
              if ~isnan(p.Results.best_n_channels)
-                 metrics = ds.computeMetrics();
+                 metrics = ks.computeMetrics();
                  cluster_best_template_channels = metrics.cluster_best_channels;
                  
                  % okay to have multiple clusters
-                 [~, cluster_ind] = ismember(unique_cluster_ids, ds.cluster_ids);
+                 [~, cluster_ind] = ismember(unique_cluster_ids, ks.cluster_ids);
                  if any(cluster_ind == 0)
                      error('Some cluster idx not found in cluster_ids');
                  end
@@ -930,7 +931,7 @@ classdef KilosortDataset < handle
              elseif ~isempty(p.Results.channel_ids_by_cluster)
                  channel_ids_by_cluster = p.Results.channel_ids_by_cluster;
              else
-                 channel_ids_by_cluster = ds.channel_ids;
+                 channel_ids_by_cluster = ks.channel_ids;
              end
 
              % channel_ids is provided since raw data often has additional channels that we're not interested in
@@ -940,10 +941,10 @@ classdef KilosortDataset < handle
                  'cluster_ids', cluster_ids, ...
                  'car', p.Results.car);
              snippetSet.trial_idx = trial_idx;
-             snippetSet.ks = ds;
+             snippetSet.ks = ks;
              
              if p.Results.subtractOtherClusters
-                 reconstructionFromOtherClusters = ds.reconstructSnippetSetFromTemplates(snippetSet, ...
+                 reconstructionFromOtherClusters = ks.reconstructSnippetSetFromTemplates(snippetSet, ...
                      'excludeClusterFromOwnReconstruction', true);
                  snippetSet.data = snippetSet.data - reconstructionFromOtherClusters.data;
              end
@@ -954,55 +955,55 @@ classdef KilosortDataset < handle
              
         end
          
-        function snippetSet = readAPSnippetSet(ds, times, window, varargin)
-            snippetSet = ds.raw_dataset.readAPSnippetSet(times, window, ...
-                'channel_ids', ds.channel_ids, varargin{:});
-            snippetSet.ks = ds;
+        function snippetSet = readAPSnippetSet(ks, times, window, varargin)
+            snippetSet = ks.raw_dataset.readAPSnippetSet(times, window, ...
+                'channel_ids', ks.channel_ids, varargin{:});
+            snippetSet.ks = ks;
         end
         
-        function [spike_inds, template_start_ind, scaled_templates] = findSpikesOverlappingWithWindow(ds, sample_window, varargin)
+        function [spike_inds, template_start_ind, scaled_templates] = findSpikesOverlappingWithWindow(ks, sample_window, varargin)
             % spike_inds is nSpikes x 1 index into ks.spike_times indicating which spikes overlap with this window
             % template_start_ind indicates where each spike would begin wihtin sample_window
             % templates is nCh x nTemplateTimepoints x nSpikes
             p = inputParser();
-            p.addParameter('cluster_ids', ds.cluster_ids, @(x) isempty(x) || isvector(x));
-            p.addParameter('channel_ids', ds.channel_ids, @(x) isempty(x) || isvector(x)); % which channel_ids to construct templates into
+            p.addParameter('cluster_ids', ks.cluster_ids, @(x) isempty(x) || isvector(x));
+            p.addParameter('channel_ids', ks.channel_ids, @(x) isempty(x) || isvector(x)); % which channel_ids to construct templates into
             p.parse(varargin{:});
                  
              % find spikes that would lie within this window (with padding), 
-            relTvec_template = ds.templateTimeRelative;   
+            relTvec_template = ks.templateTimeRelative;   
             minT = sample_window(1) - int64(relTvec_template(end));
             maxT = sample_window(2) - int64(relTvec_template(1));
-            spike_inds = find(ds.spike_times >= minT & ds.spike_times <= maxT);      
+            spike_inds = find(ks.spike_times >= minT & ks.spike_times <= maxT);      
             
             % only those from clusters we wish to include
             cluster_ids = p.Results.cluster_ids;
-            spike_inds(~ismember(ds.spike_clusters(spike_inds), cluster_ids)) = [];
+            spike_inds(~ismember(ks.spike_clusters(spike_inds), cluster_ids)) = [];
             
             template_offset = find(relTvec_template == 0);
             % spike time - template_offset + int64(1) is sample index where start of template belongs
             % this above - sample_window(1) + 1 gives the index where the template should start in the sample_window
-            template_start_ind = int64(ds.spike_times(spike_inds)) - int64(template_offset) + int64(1) - int64(sample_window(1)) + int64(1);
+            template_start_ind = int64(ks.spike_times(spike_inds)) - int64(template_offset) + int64(1) - int64(sample_window(1)) + int64(1);
             
             channel_ids = p.Results.channel_ids;
             nChannels = numel(channel_ids);
-            [tf, channel_inds] = ismember(channel_ids, ds.channel_ids);
+            [tf, channel_inds] = ismember(channel_ids, ks.channel_ids);
             assert(all(tf), 'Some requestedchannels not found in channel_ids');
-            scaled_templates = nan(nChannels, ds.nTemplateTimepoints, numel(spike_inds));
+            scaled_templates = nan(nChannels, ks.nTemplateTimepoints, numel(spike_inds));
             
-            metrics = ds.computeMetrics();
+            metrics = ks.computeMetrics();
             templates_unw =  metrics.template_unw; % unwhitened templates, but not scaled and still in quantized units (not uV)
             
             for iS = 1:numel(spike_inds)
                 ind = spike_inds(iS);
-                amp = ds.amplitudes(ind) * ds.apScaleToUv;
+                amp = ks.amplitudes(ind) * ks.apScaleToUv;
 
                 % figure out time overlap and add to reconstruction
-                scaled_templates(:, :, iS)  = amp .* permute(templates_unw(ds.spike_templates(ind), :, channel_inds), [3 2 1]); % 1 x T x C --> C x T x 1
+                scaled_templates(:, :, iS)  = amp .* permute(templates_unw(ks.spike_templates(ind), :, channel_inds), [3 2 1]); % 1 x T x C --> C x T x 1
             end
         end
         
-        function [reconstruction, reconstructionMode] = reconstructRawSnippetsFromTemplates(ds, times, window, varargin)
+        function reconstruction = reconstructRawSnippetsFromTemplates(ks, times, window, varargin)
             % generate the best reconstruction of each snippet using the amplitude-scaled templates 
             % this is the internal workhorse for reconstructSnippetSetFromTemplates
             
@@ -1017,6 +1018,8 @@ classdef KilosortDataset < handle
             p.addParameter('exclude_cluster_ids_all_snippets', [], @(x) isempty(x) || isvector(x));
             p.addParameter('showPlots', false, @islogical);
             p.addParameter('rawData', [], @isnumeric); % for plotting only
+            
+            p.addParameter('use_batchwise_templates', ~isempty(ks.W_batch), @islogical);
             p.parse(varargin{:});
             showPlots = p.Results.showPlots;
             
@@ -1039,37 +1042,27 @@ classdef KilosortDataset < handle
             exclude_cluster_ids_all_snippets = p.Results.exclude_cluster_ids_all_snippets;
             
             % templates post-whitening is nTemplates x nTimepoints x nChannelsFull
-            metrics = ds.computeMetrics();
-            templates =  metrics.template_unw; % unwhitened templates, but not scaled and still in quantized units (not uV)
+            use_batchwise_templates = p.Results.use_batchwise_templates;
+            if use_batchwise_templates && (isempty(ks.W_batch) || isempty(ks.U_batch))
+                warning('Cannot use batchwise tempaltes as W_batch or U_batch was not loaded successfully from rez.mat');
+                use_batchwise_templates = false;
+            end
+            
+            if ~use_batchwise_templates
+                metrics = ks.computeMetrics();
+                templates =  metrics.template_unw; % unwhitened templates, but not scaled and still in quantized units (not uV)
+            end
               
-%             nTimeTemplates = size(templates, 2);
-              
-            relTvec_template = ds.templateTimeRelative;
+            relTvec_template = ks.templateTimeRelative;
             relTvec_snippet = int64(window(1):window(2));
-            reconstruction = zeros(nChannelsSorted, numel(relTvec_snippet), nTimes, 'single');
+            reconstruction = zeros(nChannelsSorted, numel(relTvec_snippet), nTimes, 'int16');
             
-            prog = Neuropixel.Utils.ProgressBar(nTimes, 'Reconstructing templates around snippet times');
-            
-%             function template = getTemplate(template_ind, batch_ind, time_inds, ch_inds)
-%                 switch reconstructionMode
-%                     case 'batch_full'
-%                         Wi = ks.W_batch(time_inds, template_ind, :, batch_ind);
-%                         Ui = ks.U_batch(:, template_ind, :, batch_ind);
-% %                         Ui_unw = 
-%                         % whiten U
-%                         wmi = single(ks.whitening_mat_inv);
-%                         whichChannels = ks.templates_ind(iT, :);
-%                         template_unw(iT, :, whichChannels) = templates(iT, :, :);
-%             end
-%                         Ui = Neuropixel.Utils.TensorUtils.linearCombinationAlongDimension(Ui, 1, ks.whitening_mat_inv);
-% %                         Ui = Ui(
-%                     case 'templates'
-%                         tempplate = metrics.template_unw(template_ind, time_inds, ch_inds);
-%                 end
-%             end
+            prog = Neuropixel.Utils.ProgressBar(nTimes, 'Reconstructing templates around snippet times'); 
             
             for iT = 1:nTimes
                 prog.update(iT);
+                
+                reconstruction_this = zeros(nChannelsSorted, numel(relTvec_snippet), 'single');
                 
                 % find spikes that would lie within this window (with padding), 
                 % excluding those from clusters we wish to exclude
@@ -1085,17 +1078,21 @@ classdef KilosortDataset < handle
                 end
                 exclude_this = union(exclude_this, exclude_cluster_ids_all_snippets);
                 
-                nearby_spike_inds = find(ds.spike_times >= minT & ds.spike_times <= maxT);      
-                %nearby_spike_inds = find(ds.spike_times == t);
+                nearby_spike_inds = find(ks.spike_times >= minT & ks.spike_times <= maxT);      
+                %nearby_spike_inds = find(ks.spike_times == t);
                 
-                nearby_spike_inds(ismember(ds.spike_clusters(nearby_spike_inds), exclude_this)) = [];
+                nearby_spike_inds(ismember(ks.spike_clusters(nearby_spike_inds), exclude_this)) = [];
+                
+                if use_batchwise_templates
+                    spike_batches = ks.compute_which_batch(ks.spike_times(nearby_spike_inds));
+                end
 
                 % figure out what channels we need to reconstruct onto
                 cluster_ids_this = cluster_ids(iT);
                 [~, cluster_ind_this] = ismember(cluster_ids_this, unique_cluster_ids);
                 assert(cluster_ind_this > 0, 'Cluster for times(%d) not found in unique_cluster_ids', iT);
                 channels_idx_this = channel_ids_by_snippet(:, iT);
-                [~, channel_ind_this] = ismember(channels_idx_this, ds.channel_ids);
+                [~, channel_ind_this] = ismember(channels_idx_this, ks.channel_ids);
                 assert(all(channel_ind_this) > 0, 'Some channels in channel_ids_by_cluster not found in channel_ids');
                 
                 if showPlots
@@ -1107,14 +1104,21 @@ classdef KilosortDataset < handle
                 % loop over the enarby sp
                 for iS = 1:numel(nearby_spike_inds)
                     ind = nearby_spike_inds(iS);
-                    amp = ds.amplitudes(ind);
+                    amp = ks.amplitudes(ind);
                     
                     % figure out time overlap and add to reconstruction
-                    tprime = int64(ds.spike_times(ind));
+                    tprime = int64(ks.spike_times(ind));
                     indFromTemplate = relTvec_template + tprime >= t + relTvec_snippet(1) & relTvec_template + tprime <= t + relTvec_snippet(end);
                     indInsert = relTvec_snippet + t >= relTvec_template(1) + tprime & relTvec_snippet + t <= relTvec_template(end) + tprime;
-                    insert = amp .* permute(templates(ds.spike_templates(ind), indFromTemplate, channel_ind_this), [3 2 1]);
-                    reconstruction(:, indInsert, iT) = reconstruction(:, indInsert, iT) + insert;
+                    
+                    if use_batchwise_templates
+                        template_this = ks.construct_batchwise_templates(ks.spike_templates(ind), 'batches', spike_batches(iS));
+                        template_this = template_this(:, indFromTemplate, channel_ind_this);
+                    else
+                        template_this = templates(ks.spike_templates(ind), indFromTemplate, channel_ind_this);
+                    end
+                    insert = amp .* permute(template_this, [3 2 1]);
+                    reconstruction_this(:, indInsert) = reconstruction_this(:, indInsert) + insert;
                     
                     if showPlots
                         if tprime == t
@@ -1122,7 +1126,7 @@ classdef KilosortDataset < handle
                         else
                             args = {};
                         end
-                        plot(relTvec_template + tprime-t, amp .* templates(ds.spike_templates(ind), :, channel_ind_this(1)), 'Color', [0.7 0.7 0.7], args{:});
+                        plot(relTvec_template(indInsert), amp .* template_this(:, :, 1), 'Color', [0.7 0.7 0.7], args{:});
                     end
                 end
                 
@@ -1131,11 +1135,13 @@ classdef KilosortDataset < handle
                     plot(relTvec_snippet, p.Results.rawData(1, :, iT) - int16(reconstruction(1, :, iT)), 'b--');
                     pause;
                 end
+                
+                reconstruction(:, :, iT) = int16(reconstruction_this);
             end
             prog.finish();
         end
             
-        function ssReconstruct = reconstructSnippetSetFromTemplates(ds, ss, varargin)
+        function ssReconstruct = reconstructSnippetSetFromTemplates(ks, ss, varargin)
             % used to build a snippet set consisting of all the templates inserted at all of the spike times
             % that overlap with the time windows present in ss (the source snippet set)
             % this is typically used to clean the snippet set by subtracting the inferred spike templates for a subset 
@@ -1152,13 +1158,13 @@ classdef KilosortDataset < handle
                 exclude_cluster_ids_each_snippet = [];
             end
             
-            reconstruction = ds.reconstructRawSnippetsFromTemplates(ss.sample_idx, ss.window, ...
+            reconstruction = ks.reconstructRawSnippetsFromTemplates(ss.sample_idx, ss.window, ...
                 'channel_ids_by_snippet', ss.channel_ids_by_snippet, 'unique_cluster_ids', ss.unique_cluster_ids, ...
                 'cluster_ids', ss.cluster_ids, 'exclude_cluster_ids_each_snippet', exclude_cluster_ids_each_snippet, ...
                 'exclude_cluster_ids_all_snippets', p.Results.exclude_cluster_ids, ...
                 'showPlots', p.Results.showPlots, 'rawData', ss.data);
             
-            ssReconstruct = Neuropixel.SnippetSet(ds);
+            ssReconstruct = Neuropixel.SnippetSet(ks);
             ssReconstruct.data = int16(reconstruction);
             ssReconstruct.sample_idx = ss.sample_idx;
             ssReconstruct.channel_ids_by_snippet = ss.channel_ids_by_snippet;
@@ -1166,7 +1172,7 @@ classdef KilosortDataset < handle
             ssReconstruct.window = ss.window;
         end
         
-        function snippetSet = readAPSnippsetSet_clusterIdSubset(ds, times, window, cluster_ids, varargin) 
+        function snippetSet = readAPSnippsetSet_clusterIdSubset(ks, times, window, cluster_ids, varargin) 
             % a utility used by several methods in KilosortMetrics. Extracts snippets at times in times, but sets the snippet set to 
             % overlay waveforms for specific cluster_ids of interest, and also selects only the channels for those clusters
              p = inputParser();
@@ -1179,7 +1185,7 @@ classdef KilosortDataset < handle
              p.addParameter('centerUsingFirstSamples', 20, @(x) isscalar(x) || islogical(x)); % subtract mean of each waveform's first n samples, don't do if false
              
              p.addParameter('subtractOtherClusters', false, @islogical); % time consuming step to remove the contribution of the other clusters (those not in cluster_ids) to a given snippet
-             p.addParameter('raw_dataset', ds.raw_dataset, @(x) true);
+             p.addParameter('raw_dataset', ks.raw_dataset, @(x) true);
 
              p.parse(varargin{:});
              
@@ -1192,16 +1198,16 @@ classdef KilosortDataset < handle
                  if isempty(p.Results.best_n_channels)
                     channel_ids = raw_dataset.goodChannels;
                  else
-                     m = ds.computeMetrics();
+                     m = ks.computeMetrics();
                      channel_ids = m.gather_best_channels_multiple_clusters(cluster_ids, p.Results.best_n_channels);
                  end
              end
              
              snippetSet = raw_dataset.readAPSnippetSet(times, window, 'channel_ids', channel_ids, 'car', p.Results.car);
-             snippetSet.ks = ds;
+             snippetSet.ks = ks;
              
              if p.Results.subtractOtherClusters
-                 reconstructionFromOtherClusters = ds.reconstructSnippetSetFromTemplates(snippetSet, ...
+                 reconstructionFromOtherClusters = ks.reconstructSnippetSetFromTemplates(snippetSet, ...
                      'exclude_cluster_ids', cluster_ids, ...
                      'excludeClusterFromOwnReconstruction', false);
                  snippetSet.data = snippetSet.data - reconstructionFromOtherClusters.data;
@@ -1215,5 +1221,60 @@ classdef KilosortDataset < handle
              snippetSet.overlay_cluster_ids = cluster_ids;
              
         end
+    end
+    
+    methods
+        function [batch_ind, sorted_batch_ind] = compute_which_batch(ks, sample_idx)
+            batch_ind = discretize(sample_idx, [ks.batch_starts; Inf]);
+            [~, batch_sorted_location] = ismember((1:ks.nBatches)', ks.batch_sort_order);
+            sorted_batch_ind = batch_sorted_location(batch_ind);
+        end
+        
+        function data = construct_batchwise_templates(ks, template_inds, varargin)
+            p = inputParser();
+            p.addParameter('batches', 1:ks.nBatches, @isvector);
+            p.addParameter('whitened', true, @islogical);
+            p.addParameter('scaleByBatchAmplitude', false, @islogical); % multiply by muA to scale according to batch, dont use if you plan to scale by amplitudes
+            p.parse(varargin{:});
+            batch_inds = p.Results.batches;
+            scaleByBatchAmplitude = p.Results.scaleByBatchAmplitude;
+            
+            % returns batch-wise templates for a set of templates
+            % nTemplates x nTimePoints x nTemplateChannels x nBatches
+            nTemplates = numel(template_inds);
+            nBatches = numel(batch_inds);
+            
+            if isempty(ks.W_batch) || isempty(ks.U_batch)
+                error('No batchwise information present in KilosortDataset');
+            end
+            
+            nTT = ks.nTemplateTimepoints;
+            nCh = ks.nChannelsSorted;
+            data = zeros(nTemplates, nTT, nCh, nBatches);
+            if p.Results.whitened
+                wmi = ks.whitening_mat_inv;
+            else
+                wmi = eye(size(ks.whitening_mat_inv));
+            end
+            
+            for iT = 1:nTemplates
+                for iB = 1:nBatches
+                    if scaleByBatchAmplitude
+                        amp = ks.muA(template_inds(iT), batch_inds(iB));
+                    else
+                        amp = 1;
+                    end
+                    
+                	W = ks.W_batch(:, template_inds(iT), :, batch_inds(iB)); % nTT x 1 x 3 x 1
+                    U = ks.U_batch(:, template_inds(iT), :, batch_inds(iB)); % nCh x 1 x 3 x 1
+                    
+                    for iP = 1:size(U, 3)
+                        this_pc = amp * W(:, :, iP, :) * (U(:, :, iP, :)' * wmi); % nTT x nCh
+                        data(iT, :, :, iB) = data(iT, :, :, iB) + reshape(this_pc, [1, nTT, nCh]);
+                    end
+                end
+            end
+        end
+        
     end
 end

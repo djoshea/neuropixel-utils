@@ -382,6 +382,7 @@ classdef KilosortMetrics < handle
     end
     
     methods % Convenience methods
+<<<<<<< HEAD
         function data = build_batchwise_templates(m, template_inds, batch_inds, whitened, scaled)
             % nTemplates x nTimePoints x nTemplateChannels x nBatches
             nTemplates = numel(templates_inds);
@@ -408,6 +409,8 @@ classdef KilosortMetrics < handle
 %             end
         end
         
+=======
+>>>>>>> Batchwise template based reconstructions working
         function [channel_ids_unique, channel_ids_by_cluster] = gather_best_channels_multiple_clusters(m, cluster_ids, n_best_each)
             if nargin < 3
                 n_best_each = 24;

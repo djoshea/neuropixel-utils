@@ -734,5 +734,76 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
             
             
         end
+        
+        function plotHeatmapWithReconstruction(ss, snippet_ind, varargin)
+            % plots one snippet as a heatmap with all of the overlapping clusters' reconstructed templates below
+            
+            default_cluster_reconstruct = ss.ks.cluster_ids;
+            hasClusterId = ~isempty(ss.cluster_ids);
+            if hasClusterId
+                this_cluster_id = ss.cluster_ids(snippet_ind);
+                default_cluster_reconstruct = setdiff(default_cluster_reconstruct, this_cluster_id);
+            end
+            
+            p = inputParser();
+            p.addParameter('timeInMilliseconds', false, @islogical);
+            p.addParameter('reconstruct_cluster_ids', default_cluster_reconstruct, @isvector);
+            p.addParameter('reconstruct_best_channels', ss.ks.nChannelsSorted, @isscalar);
+            p.parse(varargin{:});
+            
+            if p.Results.timeInMilliseconds
+                time = ss.time_ms;
+            else
+                time = ss.time_samples;
+            end
+            data = ss.data(:, :, snippet_ind, 1);
+            
+            reconstruct_cluster_ids = p.Results.reconstruct_cluster_ids;
+            if isempty(reconstruct_cluster_ids) && ~isempty(ss.ks)
+                % overlay all clusters if none specified
+                reconstruct_cluster_ids = ss.ks.cluster_ids;
+            end
+            reconstruct_best_channels = p.Results.reconstruct_best_channels;
+            
+            if hasClusterId
+                % build this cluster's tempalte
+                this_template = ss.buildTemplateReconstructions('maskSnippets', snippet_ind, ...
+                'cluster_ids', this_cluster_id, ...
+                'best_n_channels', reconstruct_best_channels);
+            end
+                
+            % build other clusters' templates
+            [templates, cluster_ids_recon] = ss.buildTemplateReconstructions('maskSnippets', snippet_ind, ...
+                'cluster_ids', reconstruct_cluster_ids, ...
+                'best_n_channels', reconstruct_best_channels);
+            reconstruction = sum(templates, 3);
+            
+            if hasClusterId
+                data_stacked = cat(1, data, this_template, reconstruction);
+            else
+                data_stacked = cat(1, data, reconstruction);
+            end
+            Neuropixel.Utils.pmatbal(data_stacked, 'x', time);
+            
+            if ~hasClusterId
+                labelMain = sprintf('snippet %d', snippet_ind);
+            else
+                labelMain = sprintf('snippet %d (cluster %d)', snippet_ind, ss.cluster_ids(snippet_ind));
+            end
+            yline(0.5, '-', labelMain, 'LabelVerticalAlignment', 'bottom');
+            
+            nOther = numel(unique(cluster_ids_recon));
+            if nOther > 15
+                other_clusters_str = sprintf('%d clusters', nOther);
+            else
+                other_clusters_str = strjoin(string(unique(cluster_ids_recon)), ',');
+            end
+            if hasClusterId
+                yline(ss.nChannels + 0.5, 'k-', sprintf('reconstruction cluster %d', this_cluster_id), 'LabelVerticalAlignment', 'bottom');
+                yline(ss.nChannels*2 + 0.5, 'k-', sprintf('reconstruction other clusters (%s)', other_clusters_str), 'LabelVerticalAlignment', 'bottom');
+            else
+                yline(ss.nChannels + 0.5, 'k-', sprintf('reconstruction all clusters (%s)', other_clusters_str), 'LabelVerticalAlignment', 'bottom');
+            end
+        end
     end
 end
