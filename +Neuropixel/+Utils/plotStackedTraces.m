@@ -91,6 +91,8 @@ if ~isfield(tform, 'gain')
     tform.gain = p.Results.gain; 
 end
 data(:, cmask, :) = data(:, cmask, :) * tform.gain;
+data(:, ~cmask, :) = data(:, ~cmask, :) * 0.95; % this keeps logical bits from touching
+
 multipliers = nan(size(data, 1), 1);
 multipliers(cmask) = tform.normBy * tform.gain;
 

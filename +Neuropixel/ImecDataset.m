@@ -426,6 +426,9 @@ classdef ImecDataset < handle
             p.addParameter('tsi', [], @(x) isempty(x) || isa(x, 'Neuropixel.TrialSegmentationInfo')); % to mark trial boundaries
             p.parse(varargin{:});
             
+            if numel(idxWindow) > 2
+                idxWindow = [idxWindow(1), idxWindow(end)];
+            end
             sampleIdx = idxWindow(1):idxWindow(2);
             mat = df.readAP_idx(sampleIdx); % C x T
             labels = df.channelNamesPadded;
@@ -1385,7 +1388,7 @@ end
                                     return
                                 end
                                 file = apFiles{1};
-                                warning('Multiple AP files found in dir, choosing %s', file);
+                                warning('Multiple AP files found in dir %s, choosing %s', path, file);
                             else
                                 file = apFiles{1};
                             end

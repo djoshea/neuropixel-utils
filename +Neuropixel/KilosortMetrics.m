@@ -957,7 +957,7 @@ classdef KilosortMetrics < handle
 %                     fileNames(mask) = m.concatenatedNames(fileInd(mask));
                     
                     if ~verLessThan('matlab', '9.6.0') % R2019a
-                        row = dataTipTextRow('Orig File Ind', fileInd, '%d');
+                        row = dataTipTextRow('Orig File Ind', double(fileInd), '%d');
                         h.DataTipTemplate.DataTipRows(end+1) = row;
                         row = dataTipTextRow('Orig Sample Ind', double(origInd), '%d');
                         h.DataTipTemplate.DataTipRows(end+1) = row;

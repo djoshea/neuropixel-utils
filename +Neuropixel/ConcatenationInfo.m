@@ -99,7 +99,7 @@ classdef ConcatenationInfo < handle
            % convert from a time index in this file to which of the concatenated files that index came from
            % factoring in the time shifts that were used to excise regions from those individual files before concatenating
 
-           [fileInds, origSampleInds] = deal(nan(size(inds)));
+           [fileInds, origSampleInds] = deal(zeros(size(inds), 'uint64'));
            starts = ci.startIdx;
            stops = ci.stopIdx;
 
