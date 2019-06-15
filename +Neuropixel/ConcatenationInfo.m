@@ -42,7 +42,7 @@ classdef ConcatenationInfo < handle
                 if ~isempty(timeShiftStrings)
                     % expecting mat2str serialized [1 2 3;4 5 6] type arrays, joined by ;
                     matches = string(regexp(timeShiftStrings, '\s*(\[[\d ;,]*])\s*;?\s*', 'tokens'))';
-                    ci.timeShifts = arrayfun(@(str) Neuropixel.TimeShiftSpec.from_string(str), matches);
+                    ci.timeShifts = arrayfun(@(str, nSamples) Neuropixel.TimeShiftSpec.from_string(str, nSamples), matches, ci.samplesPreShift);
                 end
                 
                 namescat = getor(meta, 'concatenated', []);

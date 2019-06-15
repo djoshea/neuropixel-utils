@@ -23,8 +23,12 @@ function valStr = convertVal(val)
         end
         
     elseif isstring(val)
-        valStrCell = cellstr(val);
-        valStr = ['{' strjoin(valStrCell, ',') '}'];
+        if isscalar(val)
+            valStr = "'" + strtrim(val) + "'";
+        else
+            valStrCell = cellstr(val);
+            valStr = ['{' strjoin(valStrCell, ',') '}'];
+        end
         
     elseif iscell(val)
         valStrCell = cellfun(@convertVal, val(:), 'UniformOutput', false);

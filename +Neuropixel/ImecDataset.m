@@ -1622,7 +1622,7 @@ end
                 
                 if ~isempty(timeShiftsAP) && isConcatenation
                     % log time shifts by file in meta
-                    meta.concatenatedTimeShifts = strjoin(arrayfun(@(shift) shift.as_string(), timeShiftsAP, 'UniformOutput', false), '; ');
+                    meta.concatenatedTimeShifts = strjoin(arrayfun(@(shift) shift.as_string(), timeShiftsAP), '; ');
                 end
 
                 % compute union of badChannels

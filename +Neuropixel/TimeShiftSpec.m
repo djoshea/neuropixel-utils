@@ -41,11 +41,15 @@ classdef TimeShiftSpec < handle
         function str = as_string(spec)
             % see from_string
             mat = spec.as_matrix();
-            str = mat2str(mat);
+            if isempty(mat)
+                str = "[]";
+            else
+                str = string(mat2str(mat));
+            end
         end
         
         function dur = get.intervalDurations(spec)
-            dur = uint64(int64(spec.idxStop) - int64(spec.idxStart));
+            dur = uint64(int64(spec.idxStop) - int64(spec.idxStart)) + uint64(1);
         end
         
         function n = get.nIntervals(spec)
@@ -155,16 +159,28 @@ classdef TimeShiftSpec < handle
     end
     
     methods(Static)
-        function spec = from_matrix(mat)
-            % mat is mat = cat(2, spec.idxStart, spec.idxStop, spec.idxShiftStart)
-            assert(size(mat, 2) == 3);
-            spec = Neuropixel.TimeShiftSpec(mat(:, 1), mat(:, 2), mat(:, 3));
+        function spec = non_shift(nSamples)
+            spec = Neuropixel.TimeShiftSpec(1, nSamples, 1);
         end
         
-        function spec = from_string(str)
+        function spec = from_matrix(mat, nSamplesFull)
+            % mat is mat = cat(2, spec.idxStart, spec.idxStop, spec.idxShiftStart)
+            if isempty(mat)
+                spec = Neuropixel.TimeShiftSpec.non_shift(nSamplesFull);
+            else
+                assert(size(mat, 2) == 3);
+                spec = Neuropixel.TimeShiftSpec(mat(:, 1), mat(:, 2), mat(:, 3));
+            end
+        end
+        
+        function spec = from_string(str, nSamplesFull)
             % string is as generated from to_string, possibly multiple strings concatenated 
-            mat = str2num(str); %#ok<ST2NM>
-            spec = Neuropixel.TimeShiftSpec.from_matrix(mat);
+            if isempty(str)
+                spec = Neuropixel.TimeShiftSpec.non_shift(nSamplesFull);
+            else
+                mat = str2num(str); %#ok<ST2NM>
+                spec = Neuropixel.TimeShiftSpec.from_matrix(mat, nSamplesFull);
+            end
         end  
         
         function spec = buildToExciseGaps(idxStart, idxStop)
