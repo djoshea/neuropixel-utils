@@ -195,7 +195,7 @@ classdef KilosortTrialSegmentedDataset < handle & matlab.mixin.Copyable
                 local_trial_ind_each_time(~mask_in_trial_ids) = NaN;
             end
         end
-
+        
         function n = get.nTrials(seg)
             n = numel(seg.trial_ids);
         end
@@ -309,11 +309,7 @@ classdef KilosortTrialSegmentedDataset < handle & matlab.mixin.Copyable
             
             % lookup cluster_ids from
             cluster_ids = p.Results.cluster_ids;
-            [tf, cluster_ind] = ismember(cluster_ids, seg.cluster_ids);
-            if any(~tf)
-                error('Some cluster_ids were not found in dataset');
-            end
-
+            [cluster_ind, cluster_ids] = seg.lookup_clusterIds(cluster_ids);
             nClu = numel(cluster_ids);
             
             % specify all spikes of clusters if no mask provided

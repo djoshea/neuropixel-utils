@@ -923,7 +923,7 @@ classdef KilosortDataset < handle
                  cluster_best_template_channels = metrics.cluster_best_channels;
                  
                  % okay to have multiple clusters
-                 [~, cluster_ind] = ismember(unique_cluster_ids, ks.cluster_ids);
+                 [~, cluster_ind] = ismember(unique_cluster_ids, metrics.cluster_ids);
                  if any(cluster_ind == 0)
                      error('Some cluster idx not found in cluster_ids');
                  end
@@ -938,7 +938,7 @@ classdef KilosortDataset < handle
              window = p.Results.window;
              snippetSet = p.Results.raw_dataset.readAPSnippetSet(spike_times, ...
                  window, 'channel_ids_by_cluster', channel_ids_by_cluster, ...
-                 'cluster_ids', cluster_ids, ...
+                 'unique_cluster_ids', unique_cluster_ids, 'cluster_ids_by_snippet', cluster_ids, ...
                  'car', p.Results.car);
              snippetSet.trial_idx = trial_idx;
              snippetSet.ks = ks;
@@ -1057,7 +1057,11 @@ classdef KilosortDataset < handle
             relTvec_snippet = int64(window(1):window(2));
             reconstruction = zeros(nChannelsSorted, numel(relTvec_snippet), nTimes, 'int16');
             
-            prog = Neuropixel.Utils.ProgressBar(nTimes, 'Reconstructing templates around snippet times'); 
+            if exist('ProgressBar', 'class') == 8
+                prog = ProgressBar(nTimes, 'Reconstructing templates around snippet times'); 
+            else
+                prog = Neuropixel.Utils.ProgressBar(nTimes, 'Reconstructing templates around snippet times'); 
+            end
             
             for iT = 1:nTimes
                 prog.update(iT);

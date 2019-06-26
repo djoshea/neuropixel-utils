@@ -198,7 +198,7 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
     end
     
     methods % plotting
-        function hdata = plotAtProbeLocations(ss, varargin)
+        function [hdata, settings] = plotAtProbeLocations(ss, varargin)
             p = inputParser();
             % specify one of these 
             p.addParameter('cluster_ids', [], @(x) isempty(x) || isvector(x));
@@ -210,9 +210,10 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
             
             p.addParameter('maxPerCluster', Inf, @isscalar);
             
-            p.addParameter('xmag', 1.5, @isscalar);
-            p.addParameter('ymag', 1.5, @isscalar);
-           
+            p.addParameter('xmag', 0.8, @isscalar);
+            p.addParameter('ymag', 0.8, @isscalar);
+            p.addParameter('gain', NaN, @isscalar);
+            
             p.addParameter('showIndividual', true, @islogical); 
             p.addParameter('showMean', false, @islogical);
             p.addParameter('meanPlotArgs', {'LineWidth', 3}, @iscell);
@@ -221,6 +222,9 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
             p.addParameter('showChannelLabels', true, @islogical);
             p.addParameter('labelArgs', {}, @iscell);
             p.addParameter('alpha', 0.4, @isscalar);
+            
+            p.addParameter('xlim', [], @(x) true);
+            p.addParameter('ylim', [], @(x) true);
             
             p.addParameter('colormap', get(groot, 'DefaultAxesColorOrder'), @(x) true);
             p.KeepUnmatched = false;
@@ -243,6 +247,7 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
             % center and scale each channel
             if ~any(maskSnippets)
                 warning('No snippets for these clusters');
+                axis off;
                 return;
             end
             
@@ -251,11 +256,16 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
             else
                 data = ss.data(p.Results.maskChannels, p.Results.maskTime, maskSnippets);
             end
-            data = data - mean(data(:, :), 2); %#ok<*PROPLC>
-            data = data ./ (max(data(:)) - min(data(:))) * yspacing * ymag;
+            data = data - mean(data, 2); %#ok<*PROPLC>
             
-            cluster_ids = ss.cluster_ids(maskSnippets);
-            unique_cluster_ids = unique(cluster_ids);
+            gain = p.Results.gain;
+            if isnan(gain)
+                minmax = quantile(data, [0.025 0.975], 'all');
+                gain = yspacing * ymag ./ (minmax(2) - minmax(1));
+            end
+            data = data .* gain;
+            
+            unique_cluster_ids = unique(ss.cluster_ids(maskSnippets));
             nUniqueClusters = numel(unique_cluster_ids);
             
             holding = ishold;
@@ -270,17 +280,19 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
             end
             
             for iClu = 1:nUniqueClusters
-                this_cluster_ids = unique_cluster_ids(iClu);
-                this_snippet_mask = cluster_ids == this_cluster_ids;
-                %[~, this_cluster_ind] = ismember(this_cluster_ids, ss.unique_cluster_ids);
+                this_cluster_id = unique_cluster_ids(iClu);
                 
+                % data is already sliced using maskSnippets, so we have a subset (size of nnz(maskSnippets)) and full mask (size of nSnippets)
+                this_snippet_mask_subset = ss.cluster_ids(maskSnippets) == this_cluster_id;
                 if isfinite(p.Results.maxPerCluster)
-                    idxKeep = find(this_snippet_mask, p.Results.maxPerCluster, 'first');
-                    this_snippet_mask(idxKeep(end)+1:end) = false;
+                    idxKeep = find(this_snippet_mask_subset, p.Results.maxPerCluster, 'first');
+                    this_snippet_mask_subset(idxKeep(end)+1:end) = false;
                 end
+                this_snippet_mask_full = maskSnippets;
+                this_snippet_mask_full(~this_snippet_mask_subset) = false;
                 
                 % assume that all snippets for this cluster use the same channels
-                this_channel_ids = ss.channel_ids_by_snippet(:, this_snippet_mask);
+                this_channel_ids = ss.channel_ids_by_snippet(:, this_snippet_mask_full);
                 this_channel_ids = this_channel_ids(:, 1);
                 this_channel_ids = this_channel_ids(p.Results.maskChannels);
                 
@@ -293,21 +305,21 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
                 cmapIdx = mod(iClu-1, size(cmap, 1))+1;
                 
                 for iC = 1:nChannels
-                    dmat = Neuropixel.Utils.TensorUtils.squeezeDims(data(iC, :, this_snippet_mask), 1) + yc(iC);
+                    dmat = Neuropixel.Utils.TensorUtils.squeezeDims(data(iC, :, this_snippet_mask_subset), 1) + yc(iC);
                         
                     if p.Results.showIndividual
                         handlesIndiv{iC, iClu} = plot(tvec + xc(iC), dmat, 'Color', [cmap(cmapIdx, :), p.Results.alpha], ...
-                            p.Results.plotArgs{:});
+                            'AlignVertexCenters', true, p.Results.plotArgs{:});
                         Neuropixel.Utils.hideInLegend(handlesIndiv{iC, iClu});
                         hold on;
                     end
                     if p.Results.showMean
                         handlesMean(iC, iClu) = plot(tvec + xc(iC), mean(dmat, 2), 'Color', cmap(cmapIdx, :), ...
-                            p.Results.meanPlotArgs{:});
+                            'AlignVertexCenters', true, p.Results.meanPlotArgs{:});
                         hold on;
                     end
                     if iC == 1 
-                        Neuropixel.Utils.showFirstInLegend(handlesMean(iC, iClu), sprintf('cluster %d', this_cluster_ids));
+                        Neuropixel.Utils.showFirstInLegend(handlesMean(iC, iClu), sprintf('cluster %d', this_cluster_id));
                     else
                         Neuropixel.Utils.hideInLegend(handlesMean(iC, iClu));
                     end
@@ -334,10 +346,22 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
             end
             axis off;
             axis tight;
+            if ~isempty(p.Results.xlim)
+                xlim(p.Results.xlim);
+            end
+            if ~isempty(p.Results.ylim)
+                ylim(p.Results.ylim);
+            end
             box off;
             
             hdata.waveforms = handlesIndiv;
             hdata.waveformMeans = handlesMean;
+            
+            settings.ymag = ymag;
+            settings.xmag = xmag;
+            settings.gain = gain;
+            settings.xlim = xlim();
+            settings.ylim = ylim();
         end
         
         function [bg, traceColor] = setupFigureAxes(~, dark)
@@ -511,8 +535,8 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
             p.addParameter('dark', false, @islogical);
             p.addParameter('lineOpacity', 1, @isscalar);
             p.addParameter('showChannelDataTips', false, @islogical);
-            p.addParameter('showOverlayDataTips', true, @islogical);
-            p.addParameter('showTemplateDataTips', true, @islogical);
+            p.addParameter('showOverlayDataTips', false, @islogical);
+            p.addParameter('showTemplateDataTips', false, @islogical);
             
             p.addParameter('overlay_waveforms', false, @islogical);
             p.addParameter('overlay_templates', false, @islogical);
