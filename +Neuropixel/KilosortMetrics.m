@@ -517,11 +517,10 @@ classdef KilosortMetrics < handle
             p.parse(varargin{:});
             
             mask = p.Results.spike_mask;
+            if isempty(mask), mask = true(m.nSpikes, 1); end
             tsi = p.Results.tsi;
             if ~isempty(tsi) && (p.Results.maskRegionsOutsideTrials || p.Results.exciseRegionsOutsideTrials)
-                mask = m.computeSpikeMaskWithinTrials(tsi);
-            else
-                mask = true(numel(m.spike_times), 1);
+                mask = mask & m.computeSpikeMaskWithinTrials(tsi);
             end
             if p.Results.localizedOnly
                 mask = mask & m.spike_is_localized;
@@ -675,7 +674,11 @@ classdef KilosortMetrics < handle
             p.addParameter('spikeAmpQuantile', 0.966, @isscalar); % consider only spikes larger than quantile fo amplitude
             p.addParameter('segmentDepth', 800, @isscalar); % um to segment probe into
             p.addParameter('nAmpBins', 20, @isscalar);
+            
+            p.addParameter('spike_mask', [], @(x) isempty(x) || isvector(x));
+            p.addParameter('cluster_ids', [], @isvector);
             p.addParameter('localizedOnly', true, @islogical);
+            
             p.addParameter('driftThreshold', 6, @isscalar); % um
             p.addParameter('driftTimeWindow', 10, @isscalar); % in seconds
             p.addParameter('minSpikesDrift', 50, @isscalar);
@@ -703,14 +706,16 @@ classdef KilosortMetrics < handle
             timeInSeconds = p.Results.timeInSeconds;
             
             % mask
-            spike_times_samples = m.spike_times;
+            mask = p.Results.spike_mask;
+            if isempty(mask), mask = true(m.nSpikes, 1); end
             if ~isempty(tsi) && (p.Results.maskRegionsOutsideTrials || p.Results.exciseRegionsOutsideTrials)
-                mask = m.computeSpikeMaskWithinTrials(tsi);
-            else
-                mask = true(numel(spike_times_samples), 1);
+                mask = mask & m.computeSpikeMaskWithinTrials(tsi);
             end
             if p.Results.localizedOnly
                 mask = mask & m.spike_is_localized;
+            end
+            if ~isempty(p.Results.cluster_ids)
+                mask = mask & ismember(m.spike_clusters, p.Results.cluster_ids);
             end
             
             spikeTimes = m.spike_times(mask);
