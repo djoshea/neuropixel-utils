@@ -43,7 +43,7 @@ classdef KilosortDataset < handle
         templateTimeRelative
         
         nBatches
-        nInvalidSpikes
+        nSpikesCutoff
     end
     
     properties(SetAccess=protected)
@@ -174,11 +174,19 @@ classdef KilosortDataset < handle
         cluster_orig_template (:, 1) uint32
 
         % [nSpikesInvalid, ] uint64 vector giving the spike time of each spike in samples. To convert to seconds, divide by sample_rate from params.py.
-        invalid_spike_times(:, 1) uint64
+        cutoff_spike_times(:, 1) uint64
         
-        % [nSpikesInvalid, ] uint32 vector specifying the identity of the template that was used to extract each spike
-        invalid_spike_templates(:, 1) uint32
-        invalid_spike_clusters(:, 1) uint32
+        cutoff_amplitudes(:, 1) double
+        
+        % [nSpikesCutoff, ] uint32 vector specifying the identity of the template that was used to extract each spike 
+        cutoff_spike_templates(:, 1) uint32
+        cutoff_spike_clusters(:, 1) uint32
+        
+         % [nSpikesCutoff, nFeaturesPerChannel, nPCFeatures] single matrix giving the PC values for each spike (from .cProjPC_cutoff_invalid)
+        cutoff_pc_features(:, :, :) uint32
+        
+        % [nTemplates, nTemplateTimepoints, nTemplateChannels] single matrix giving the template shapes on the channels given in templates_ind (from .cProj_cutoff_invalid)
+        cutoff_template_features(:, :) single
     end
     
     properties(Dependent)
@@ -205,11 +213,11 @@ classdef KilosortDataset < handle
             end
         end
         
-        function n = get.nInvalidSpikes(ks)
-            if isempty(ks.invalid_spike_times)
+        function n = get.nSpikesCutoff(ks)
+            if isempty(ks.cutoff_spike_times)
                 n = NaN;
             else
-                n = size(ks.invalid_spike_times, 1);
+                n = size(ks.cutoff_spike_times, 1);
             end
         end
 
@@ -623,15 +631,23 @@ classdef KilosortDataset < handle
                     
                     if isfield(rez, 'st3_cutoff_invalid')
                         % include invalid spikeas
-                        ks.invalid_spike_times = rez.st3_cutoff_invalid(:, 1);
+                        cutoff_spike_times = rez.st3_cutoff_invalid(:, 1);
+                        [~, isort] = sort(cutoff_spike_times);
                         cols = size(rez.st3_cutoff_invalid, 2);
                         if cols > 5
                             col = cols;
                         else
                             col = 2;
                         end
-                        ks.invalid_spike_templates = rez.st3_cutoff_invalid(:, 2);
-                        ks.invalid_spike_clusters = rez.st3_cutoff_invalid(:, col);
+                        
+                        ks.cutoff_spike_times = cutoff_spike_times(isort);
+                        ks.cutoff_spike_templates = rez.st3_cutoff_invalid(isort, 2);
+                        ks.cutoff_spike_templates = ks.cutoff_spike_templates + ones(1, 'like', ks.spike_templates); % 0 indexed templates to 1 indexed templates
+                        ks.cutoff_amplitudes = rez.st3_cutoff_invalid(isort, 3);
+                        ks.cutoff_spike_clusters = uint32(rez.st3_cutoff_invalid(isort, col) - 1); % rez.st3_cutoff is 1 indexed, cluster ids are 0 indexed
+                    
+                        ks.cutoff_pc_features = read('pc_features_cutoff');
+                        ks.cutoff_template_features = read('template_features_cutoff');
                     end
                 else
                     % TODO need to decide what to load for KS1
