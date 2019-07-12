@@ -1,4 +1,4 @@
-function cmap = phy_cluster_colors()
+function cmap = phy_cluster_colors(N)
 
 % copied from phy.utils._color.ColorSelector
 cmap = [    8, 146, 252; ...
@@ -15,5 +15,11 @@ cmap = [    8, 146, 252; ...
           95, 188, 122; ...
           129, 173, 190; ...
           231, 107, 119] / 255;
-      
+  
+if nargin > 0
+    nmap = size(cmap, 1);
+    if nmap < N
+        cmap = repmat(cmap, ceil(N / nmap), 1);
+    end
+    cmap = cmap(1:N, :);  
 end

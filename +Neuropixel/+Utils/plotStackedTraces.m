@@ -12,7 +12,7 @@ p.addParameter('quantile', 1, @isscalar);
 p.addParameter('lineArgs', {}, @iscell);
 p.addParameter('LineWidth', 1, @isscalar);
 p.addParameter('LineOpacity', 1, @isscalar);
-p.addParameter('gain', 10, @isscalar);
+p.addParameter('gain', 1, @isscalar);
 p.addParameter('labels', [], @(x) true);
 p.addParameter('channel_ids', [], @(x) true); % used for data tips, c x l or c x 1
 p.addParameter('invertChannels', false, @islogical);
@@ -50,6 +50,15 @@ end
 layerColors = p.Results.layerColors; 
 if ~isempty(layerColors) && size(layerColors, 1) == 1
     layerColors = repmat(layerColors, nLayers, 1);
+end
+
+if isempty(traceColors) && isempty(layerColors)
+    if nLayers > 1
+        %layerColors = Neuropixel.Utils.phy_cluster_colors(nLayers);
+        layerColors = Neuropixel.Utils.linspecer(nLayers);
+    else
+        traceColors = repmat([0 0 0], nTraces, 1);
+    end
 end
 
 tform = p.Results.transformInfo;
@@ -93,7 +102,7 @@ end
 data(:, cmask, :) = data(:, cmask, :) * tform.gain;
 data(:, ~cmask, :) = data(:, ~cmask, :) * 0.95; % this keeps logical bits from touching
 
-multipliers = nan(size(data, 1), 1);
+multipliers = nan(size(data, 2), 1);
 multipliers(cmask) = tform.normBy * tform.gain;
 
 if ~isfield(tform, 'offsets')
