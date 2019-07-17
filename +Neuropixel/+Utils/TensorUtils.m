@@ -838,18 +838,23 @@ classdef TensorUtils
             
             outSz = Neuropixel.Utils.TensorUtils.expandScalarSize(outSz);
             
+            szInnerArgs = num2cell(szT);
+            szInnerArgs{dim} = [];
+            
             % must be sorted to preserve order in accumarray
             if size(subsExp, 2) > 1
                 [subsSorted,subSortIdx] = sortrows(subsExp,[2,1]);
             else
                 [subsSorted,subSortIdx] = sort(subsExp);
             end
-            out = accumarray(subsSorted, t(subSortIdx), outSz, @(x) {x}, zeros(0, 1, 'like', t));
-            
-            % reshape out{:} back to tensors 
-            szInnerArgs = num2cell(szT);
-            szInnerArgs{dim} = [];
-            out = cellfun(@(x) reshape(x, szInnerArgs{:}), out, 'UniformOutput', false);
+            if isempty(subsSorted)
+                % accumarray won't return a cell if it never evaluates the function handle
+                out = repmat({zeros(szInnerArgs{:}, 'like', t)}, outSz);
+            else
+                out = accumarray(subsSorted, t(subSortIdx), outSz, @(x) {x}, zeros(0, 1, 'like', t));
+                % reshape out{:} back to tensors 
+                out = cellfun(@(x) reshape(x, szInnerArgs{:}), out, 'UniformOutput', false);
+            end
         end
         
         function out = splitAlongDimensionByIndex(t, dim, which, outSz)

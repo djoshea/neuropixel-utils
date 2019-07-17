@@ -21,7 +21,7 @@ classdef KilosortMetrics < handle
         % copied over from ks
         fs
         channelMap
-        channel_ids
+        channel_ids_sorted
         concatenationInfo
         
         % nChannelsSorted x nChannelsSorted
@@ -147,7 +147,7 @@ classdef KilosortMetrics < handle
             m.spike_clusters = ks.spike_clusters;
             m.cluster_ids = ks.cluster_ids;
             m.channelMap = ks.channelMap;
-            m.channel_ids = ks.channel_ids;
+            m.channel_ids_sorted = ks.channel_ids_sorted;
             
             m.concatenationInfo = ks.concatenationInfo;
             
@@ -171,7 +171,7 @@ classdef KilosortMetrics < handle
             
             % for each channel i, list other channels in order of spatial proximity
             % nChannelsSorted x nChannelsSorted, include each channel in its own closest list
-            closest_lookup = [ks.channel_ids, ks.channelMap.getClosestChannels(ks.nChannelsSorted-1, ks.channel_ids, ks.channel_ids)];
+            closest_lookup = [ks.channel_ids_sorted, ks.channelMap.getClosestChannels(ks.nChannelsSorted-1, ks.channel_ids_sorted, ks.channel_ids_sorted)];
             m.template_best_channels = nan(ks.nClusters, ks.nChannelsSorted);
             for iT = 1:ks.nTemplates
                 [~, bestChannelInd] = max(range(m.template_unw(iT, :, :), 2));
@@ -187,7 +187,7 @@ classdef KilosortMetrics < handle
             templateUnscaledAmps(templateUnscaledAmps < threshAmp) = 0;
             
             %   2. compute template channel positions (nTemplates x nCh x nSpatialDim)
-            templateChannelPos = reshape(ks.channel_positions(ks.templates_ind(:), :), [size(ks.templates_ind), size(ks.channel_positions, 2)]);
+            templateChannelPos = reshape(ks.channel_positions_sorted(ks.templates_ind(:), :), [size(ks.templates_ind), size(ks.channel_positions_sorted, 2)]);
             
             %   3. compute template center of mass
             m.template_centerOfMass = Neuropixel.Utils.TensorUtils.squeezeDims(sum(templateUnscaledAmps .* templateChannelPos, 2) ./ ...
@@ -203,7 +203,7 @@ classdef KilosortMetrics < handle
                 if nnz(maskCh) < 2
                     m.template_is_localized(iT) = true;
                 else
-                    distMat = pdist(ks.channel_positions(maskCh, :));
+                    distMat = pdist(ks.channel_positions_sorted(maskCh, :));
                     m.template_is_localized(iT) = max(distMat(:)) < p.Results.distThreshLocalizedTemplate;
                 end
             end
@@ -241,7 +241,7 @@ classdef KilosortMetrics < handle
             
             %   2. compute center of mass. (spikeFeatureChannelPos is nSpikes x nCh x nSpatialDim)
             spike_pcfeat_chind = ks.pc_feature_ind(ks.spike_templates, :);
-            spikeFeatureChannelPos = reshape(ks.channel_positions(spike_pcfeat_chind(:), :), [size(spike_pcfeat_chind), size(ks.channel_positions, 2)]);
+            spikeFeatureChannelPos = reshape(ks.channel_positions_sorted(spike_pcfeat_chind(:), :), [size(spike_pcfeat_chind), size(ks.channel_positions_sorted, 2)]);
             m.spike_centerOfMass = Neuropixel.Utils.TensorUtils.squeezeDims(sum(pc1weight .* spikeFeatureChannelPos, 2) ./ ...
                 sum(pc1weight, 2), 2);
             
@@ -305,7 +305,7 @@ classdef KilosortMetrics < handle
 %             
 %             % for each channel i, list other channels in order of spatial proximity
 %             % nChannelsSorted x nChannelsSorted, include each channel in its own closest list
-%             closest_lookup = [ks.channel_ids, ks.channelMap.getClosestChannels(ks.nChannelsSorted-1, ks.channel_ids, ks.channel_ids)];
+%             closest_lookup = [ks.channel_ids_sorted, ks.channelMap.getClosestChannels(ks.nChannelsSorted-1, ks.channel_ids_sorted, ks.channel_ids_sorted)];
 %             m.template_best_channels = nan(ks.nClusters, ks.nChannelsSorted);
 %             for iT = 1:ks.nTemplates
 %                 [~, bestChannelInd] = max(range(m.template_unw(iT, :, :), 2));
@@ -1107,9 +1107,15 @@ classdef KilosortMetrics < handle
             assert(all(tf), 'Some cluster ids were not found in ds.clusterids');
         end
         
-        function clusterInds = lookup_channelIds(m, channel_ids)
-            [tf, clusterInds] = ismember(channel_ids, m.channel_ids);
-            assert(all(tf(:)), 'Some cluster ids were not found in ds.clusterids');
+        function sortedChannelInds = lookup_sortedChannelIds(m, channel_ids)
+            % lookup channel inds into the subset of sorted channels passed to kilosort
+            [tf, sortedChannelInds] = ismember(channel_ids, m.channel_ids_sorted);
+            assert(all(tf(:)), 'Some cluster ids were not found in m.cluster_ids');
+        end
+        
+        function [channelInds, channel_ids] = lookup_channelIds(m, channel_ids)
+            % lookup channel Inds in the full channelMap, not just sorted channels
+            [channelInds, channel_ids] = m.channelMap.lookup_channelIds(channel_ids);
         end
         
         function plotClusterImage(m, cluster_ids, varargin)
@@ -1155,7 +1161,7 @@ classdef KilosortMetrics < handle
             else
                 channel_ids_by_template = m.template_best_channels(templateInds, :);
             end
-            channel_ind_by_template = m.lookup_channelIds(channel_ids_by_template);
+            channel_ind_by_template = m.lookup_sortedChannelIds(channel_ids_by_template);
             
             yspacing = m.channelMap.yspacing;
             xspacing = m.channelMap.xspacing;
@@ -1224,7 +1230,7 @@ classdef KilosortMetrics < handle
             p.addParameter('labelArgs', {}, @iscell);
             p.parse(varargin{:});
             
-            channelInds = m.lookup_channelIds(p.Results.channel_ids);
+            channelInds = m.lookup_fullChannelIds(p.Results.channel_ids);
             xc = m.channelMap.xcoords(channelInds);
             yc = m.channelMap.ycoords(channelInds);
             plot(xc, yc, '.', 'Marker', 's', 'MarkerEdgeColor', 'none', ...

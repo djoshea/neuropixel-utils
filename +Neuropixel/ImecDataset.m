@@ -30,6 +30,8 @@ classdef ImecDataset < handle
         
         concatenationInfoAP
         concatenationInfoLF
+        
+        sourceDatasets % optional list of concatenated ImecDatasets that sourced the data for this file (via concatenationInfoAP)
     end
 
     properties
@@ -98,6 +100,7 @@ classdef ImecDataset < handle
             p = inputParser();
             p.addParameter('channelMap', [], @(x) true);
             p.addParameter('syncBitNames', [], @(x) isempty(x) || isstring(x) || iscellstr(x));
+            p.addParameter('sourceDatasets', [], @(x) true);
             p.parse(varargin{:})
 
             fileOrFileStem = char(fileOrFileStem);
@@ -124,6 +127,11 @@ classdef ImecDataset < handle
 
             if ~isempty(p.Results.syncBitNames)
                 imec.setSyncBitNames(1:numel(p.Results.syncBitNames), p.Resuls.syncBitNames);
+            end
+            
+            if ~isempty(p.Results.sourceDatasets)
+                assert(isa(p.Results.sourceDatasets, 'Neuropixel.ImecDataset'));
+                imec.sourceDatasets = p.Results.sourceDatasets;
             end
         end
 
@@ -189,6 +197,11 @@ classdef ImecDataset < handle
                 names = string(names);
                 imec.syncBitNames(idx) = names;
             end
+        end
+        
+        function setSourceDatasets(imec, imecList)
+            assert(isempty(imecList) || isa(imecList, 'Neuropixel.ImecDataset'));
+            imec.sourceDatasets = imecList;
         end
 
         function idx = lookupSyncBitByName(imec, names, ignoreNotFound)
@@ -360,16 +373,25 @@ classdef ImecDataset < handle
         function data = readAP_idx(imec, sampleIdx, varargin)
             p = inputParser();
             p.addParameter('applyScaling', true, @islogical); % convert to uV before processing
+            p.addParameter('fromSourceDatasets', false, @islogical);
             p.parse(varargin{:});
             
-            mm = imec.memmapAP_full();
+            fromSource = p.Results.fromSourceDatasets;
             
-            if any(isnan(sampleIdx))
-                mask = ~isnan(sampleIdx);
-                data = single(mm.Data.x(:, sampleIdx)); % must be single to support NaNs
-                data = Neuropixel.Utils.TensorUtils.inflateMaskedTensor(data, 2, mask, NaN);
+            if ~fromSource
+                mm = imec.memmapAP_full();
+            
+                if any(isnan(sampleIdx))
+                    mask = ~isnan(sampleIdx);
+                    data = single(mm.Data.x(:, sampleIdx)); % must be single to support NaNs
+                    data = Neuropixel.Utils.TensorUtils.inflateMaskedTensor(data, 2, mask, NaN);
+                else
+                    data = mm.Data.x(:, sampleIdx);
+                end
             else
-                data = mm.Data.x(:, sampleIdx);
+                mmSet = imec.memmap_sourceAP_full();
+                [sourceFileInds, sourceSampleInds] = imec.concatenationInfoAP.lookup_sampleIndexInSourceFiles(sampleIdx);
+                data = Neuropixel.ImecDataset.multi_mmap_extract_sample_idx(mmSet, sourceFileInds, sourceSampleInds);
             end
 
             if p.Results.applyScaling
@@ -404,7 +426,7 @@ classdef ImecDataset < handle
                 channelIds = imec.channelIdx(channelIds);
              end
             [tf, channelInds] = ismember(channelIds, imec.channelIds);
-            assert(all(tf), 'Some channel ids not found');
+            assert(all(tf, 'all'), 'Some channel ids not found');
         end
         
         function inspectAP_timeWindow(imec, timeWindowSec, varargin)
@@ -423,6 +445,7 @@ classdef ImecDataset < handle
             p.addParameter('showLabels', true, @islogical);
             p.addParameter('gain', 0.95, @isscalar);
             p.addParameter('car', false, @islogical);
+            p.addParameter('fromSourceDatasets', false, @islogical);
             p.addParameter('downsample',1, @isscalar); 
             p.addParameter('timeInSeconds', false, @islogical);
             p.addParameter('tsi', [], @(x) isempty(x) || isa(x, 'Neuropixel.TrialSegmentationInfo')); % to mark trial boundaries
@@ -432,7 +455,7 @@ classdef ImecDataset < handle
                 idxWindow = [idxWindow(1), idxWindow(end)];
             end
             sampleIdx = idxWindow(1):idxWindow(2);
-            mat = imec.readAP_idx(sampleIdx); % C x T
+            mat = imec.readAP_idx(sampleIdx, 'fromSourceDatasets', p.Results.fromSourceDatasets); % C x T
             labels = imec.channelNamesPadded;
             
             [channelInds, channelIds] = imec.lookup_channelIds(p.Results.channels); %#ok<*PROPLC>
@@ -544,6 +567,48 @@ classdef ImecDataset < handle
                 mm = memmapfile(imec.pathSync, 'Format', {'int16', [1 imec.nSamplesAP], 'x'});
             end
         end
+        
+        % refer back to the source datasets
+        function mmSet = memmap_sourceAP_full(imec, varargin)
+            assert(~isempty(imec.sourceDatasets));
+            nSources = numel(imec.sourceDatasets);
+            mmSet = cell(nSources, 1);
+            for iF = 1:nSources
+                mmSet{iF} = imec.sourceDatasets(iF).memmapAP_full(varargin{:});
+            end
+        end
+        
+        % refer back to the source datasets
+        function mmSet = memmap_sourceLF_full(imec, varargin)
+            assert(~isempty(imec.sourceDatasets));
+            nSources = numel(imec.sourceDatasets);
+            mmSet = cell(nSources, 1);
+            for iF = 1:nSources
+                mmSet{iF} = imec.sourceDatasets(iF).memmapLF_full(varargin{:});
+            end
+        end
+    end
+    
+    methods(Static)
+        function out = multi_mmap_extract_sample_idx(mmSet, fileInds, origSampleInds, chInds)
+            % given [fileInds, origSampleInds] as returned by ConcatenationInfo/lookup_sampleIndexInSourceFiles
+            % extract those samples from the set of memory mapped files in mmSet (returned by memmap**_all)
+            
+            nCh = mmSet{1}.Format{2}(1);
+            assert(numel(fileInds) == numel(origSampleInds));
+            nSamplesOut = numel(origSampleInds);
+            cls = mmSet{1}.Format{1};
+            out = zeros(nCh, nSamplesOut, cls);
+            nFiles = numel(mmSet);
+            
+            if nargin < 4
+                chInds = 1:nCh;
+            end
+            for iF = 1:nFiles
+                mask = fileInds == iF;
+                out(:, mask) = mmSet{iF}.Data.x(chInds, origSampleInds(mask));
+            end
+        end
     end
 
     methods(Hidden) % Read data at specified times
@@ -553,6 +618,7 @@ classdef ImecDataset < handle
 
             p = inputParser();
             p.addParameter('source', 'ap', @ischar);
+            p.addParameter('fromSourceDatasets', false, @islogical);
             
             % specify one of THESE (same channels every snippet or nChannels x numel(times))
             p.addParameter('channel_ids', [], @(x) isempty(x) || isvector(x));
@@ -562,7 +628,6 @@ classdef ImecDataset < handle
             p.addParameter('channel_ids_by_cluster', [], @ismatrix);
             p.addParameter('unique_cluster_ids', [], @isvector);
             p.addParameter('cluster_ids_by_snippet', [], @isvector); % same length as numel(times), corresponding to which cluster was pulled out (e.g. as a waveform)
-            
             
             p.addParameter('car', false, @islogical); % subtract median over channels
             p.parse(varargin{:});
@@ -589,17 +654,34 @@ classdef ImecDataset < handle
             else
                 error('Specify either channel_ids or channel_ids_by_cluster');
             end
+            
+            channel_inds_by_snippet = imec.lookup_channelIds(channel_ids_by_snippet);
 
             source = p.Results.source;
+            fromSourceDatasets = p.Results.fromSourceDatasets;
             switch source
                 case 'ap'
-                    mm = imec.memmapAP_full();
+                    nSamples = imec.nSamplesAP;
+                    if ~fromSourceDatasets
+                        mm = imec.memmapAP_full();
+                    else
+                        mmSet = imec.memmap_sourceAP_full();
+                        concatInfo = imec.concatenationInfoAP;
+                    end
                 case 'lf'
-                    mm = imec.memmapLF_full();
+                    nSamples = imec.nSamplesLF;
+                    if ~fromSourceDatasets
+                        mm = imec.memmapLF_full();
+                    else
+                        mmSet = imec.memmap_sourceLF_full();
+                        concatInfo = imec.concatenationInfoLF;
+                    end 
                 otherwise
                     error('Unknown source');
             end
+            times = Neuropixel.Utils.makecol(uint64(times));
             nC = size(channel_ids_by_snippet, 1);
+            nC_all = imec.nChannels;
             nS = numel(times);
             nT = numel(window(1):window(2));
             out = zeros(nC, nT, nS, 'int16');
@@ -613,23 +695,85 @@ classdef ImecDataset < handle
             else
                 prog = [];
             end
-            for iS = 1:numel(times)
-                if ~isempty(prog), prog.update(iS); end
-
-                idx_start = times(iS)+window(1);
-                idx_stop = idx_start + nT - 1;
-                idx_request = idx_start:idx_stop;
-                mask_idx_okay = idx_request >= uint64(1) & idx_request <= size(mm.Data.x, 2);
-                idx_request = idx_request(mask_idx_okay);
+            
+            good_ch_inds = imec.goodChannelInds;
+            idx_request = int64(times') + int64(window(1):window(2))'; % nWindow x nTimes indices
+            mask_idx_okay = idx_request >= int64(1) & idx_request <= nSamples;
+            idx_request(~mask_idx_okay) = 1; % we'll clear out later
                 
-                channel_idx = channel_ids_by_snippet(:, iS); % which channels for this spike
-                if p.Results.car
-                    extract = mm.Data.x(:, idx_request);
-                    out(:, mask_idx_okay, iS) = extract(channel_idx, :) - median(extract(imec.goodChannelInds, :), 1);
+%             allAtOnce = true;
+%             % two versions of the algorithm, one loops over snippets, one does all indexing at one time
+%             if ~allAtOnce
+%                 if ~fromSourceDatasets
+%                     for iS = 1:numel(times)
+%                         if mod(iS, 20) == 0 && ~isempty(prog), prog.update(iS); end
+% 
+%                         extract_all_ch = mm.Data.x(:, idx_request(:, iS));
+%                         if p.Results.car
+%                             ar = median(extract_all_ch(good_ch_inds, :), 1);
+%                             out(:, :, iS) = extract_all_ch(channel_inds_by_snippet(:, iS), :) - ar; % which channels for this spike
+%                         else
+%                             out(:, :, iS) = extract_all_ch(channel_inds_by_snippet(:, iS), :);
+%                         end
+%                     end
+% 
+%                 else
+%                     [sourceFileInds, sourceSampleInds] = concatInfo.lookup_sampleIndexInSourceFiles(idx_request);
+%                     for iS = 1:numel(times)
+%                         if mod(iS, 20) == 0 && ~isempty(prog), prog.update(iS); end
+%                         extract_all_ch = Neuropixel.ImecDataset.multi_mmap_extract_sample_idx(mmSet, sourceFileInds(:, iS), sourceSampleInds(:, iS));
+%                         if p.Results.car
+%                             ar = median(extract_all_ch(good_ch_inds, :), 1);
+%                             out(:, :, iS) = extract_all_ch(channel_inds_by_snippet(:, iS), :) - ar; % which channels for this spike
+%                         else
+%                             out(:, :, iS) = extract_all_ch(channel_inds_by_snippet(:, iS), :);
+%                         end
+%                     end
+%                 end
+%             else
+%                 if ~fromSourceDatasets
+%                     extract_all_ch = reshape(mm.Data.x(:, idx_request(:)), [nC_all nT, nS]);
+%                 else
+%                     [sourceFileInds, sourceSampleInds] = concatInfo.lookup_sampleIndexInSourceFiles(idx_request);
+%                     extract_all_ch = reshape(Neuropixel.ImecDataset.multi_mmap_extract_sample_idx(mmSet, ...
+%                         sourceFileInds(:), sourceSampleInds(:)), [nC_all nT nS]);
+%                 end
+%                 if p.Results.car
+%                     ar = median(extract_all_ch(good_ch_inds, :, :), 1);
+%                 else
+%                     ar = zeros([1 nT nS], 'like', extract_all_ch);
+%                 end
+%                 for iS = 1:numel(times)
+%                     if mod(iS, 20) == 0 && ~isempty(prog), prog.update(iS); end
+%                     out(:, :, iS) = extract_all_ch(channel_inds_by_snippet(:, iS), :, iS) - ar(1, :, iS); % which channels for this spike
+%                 end
+%             end
+            
+            nPerGroup = 50; 
+            nGroups = ceil(nS / nPerGroup);
+            for iGroup = 1:nGroups
+                idxS = nPerGroup*(iGroup-1) + 1 : min(nS,  nPerGroup*iGroup);
+                nS_this = numel(idxS);
+                idx_request_this = idx_request(:, idxS);
+                if ~fromSourceDatasets
+                    extract_all_ch = reshape(mm.Data.x(:, idx_request_this(:)), [nC_all nT, nS_this]);
                 else
-                    out(:, mask_idx_okay, iS) = mm.Data.x(channel_idx, idx_request);
+                    [sourceFileInds, sourceSampleInds] = concatInfo.lookup_sampleIndexInSourceFiles(idx_request_this);
+                    extract_all_ch = reshape(Neuropixel.ImecDataset.multi_mmap_extract_sample_idx(mmSet, ...
+                        sourceFileInds(:), sourceSampleInds(:)), [nC_all nT nS_this]);
                 end
+                if p.Results.car
+                    ar = median(extract_all_ch(good_ch_inds, :, :), 1);
+                else
+                    ar = zeros([1 nT nS], 'like', extract_all_ch);
+                end
+                for iiS = 1:nS_this
+                    out(:, :, idxS(iiS)) = extract_all_ch(channel_inds_by_snippet(:, idxS(iiS)), :, iiS) - ar(1, :, iiS); % which channels for this spike
+                end
+                prog.increment(nPerGroup);
             end
+            
+            out(:, ~mask_idx_okay(:)) = 0;
             data_ch_by_time_by_snippet = out;
             if ~isempty(prog), prog.finish(); end
         end
@@ -1455,10 +1599,10 @@ end
                 switch type
                     case 'ap'
                         candidates = Neuropixel.ImecDataset.listAPFilesInDir(parent);
-                        
+                        bin_ext = '.imec.ap.bin';
                     case 'lf'
                         candidates = Neuropixel.ImecDataset.listLFFilesInDir(parent);
-                        
+                        bin_ext = '.imec.lf.bin';
                     otherwise
                         error('Unknown type %s');
                 end
@@ -1467,7 +1611,13 @@ end
                 if ~any(mask)
                     error('No %s matches for %s* exist', type, fileOrFileStem);
                 elseif nnz(mask) > 1
-                    error('Multiple %s matches for %s* exist. Narrow down the prefix.', type, fileOrFileStem);
+                    exactName = append(stem, bin_ext);
+                    exactMatch = mask & strcmp(candidates, exactName);
+                    if any(exactMatch)
+                        mask = exactMatch;
+                    else
+                        error('Multiple %s matches for %s* exist, none exactly matches %s. Narrow down the prefix.', type, fileOrFileStem, exactName);
+                    end
                 end
                 
                 file = fullfile(parent, candidates{mask});
@@ -1488,7 +1638,7 @@ end
             file = [f, e];
 
 
-            match = regexp(file, '(?<stem>\w+).imec.(?<type>\w+).bin', 'names', 'once');
+            match = regexp(file, '(?<stem>[\w\.]+).imec.(?<type>\w+).bin', 'names', 'once');
             if ~isempty(match)
                 type = match.type;
                 fileStem = match.stem;

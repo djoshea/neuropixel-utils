@@ -192,6 +192,7 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
         end
         
         function [channelInds, channelIds] = lookup_channelIdsForSnippet(ss, snippetInd, channelIds)
+            assert(isscalar(snippetInd), 'snippetInd must be scalar');
             [tf, channelInds] = ismember(channelIds, ss.channel_ids_by_snippet(:, snippetInd));
             assert(all(tf), 'Not all channel_ids found in ss.channel_ids_by_snippet for this snippet''s cluster');
         end

@@ -32,7 +32,7 @@ classdef KilosortTrialSegmentedDataset < handle & matlab.mixin.Copyable
         nTrialsHaveData
         nClusters
         nChannelsSorted
-        channel_ids % which channel_ids were used for sorting
+        channel_ids_sorted % which channel_ids were used for sorting
         
         % nTrials x 1
         trial_duration_ms
@@ -127,7 +127,7 @@ classdef KilosortTrialSegmentedDataset < handle & matlab.mixin.Copyable
 
             subs = [local_trial_ind_each_spike, unit_idx_each_spike];
             
-            % same for cutoff spikes
+            % same for cutoff spikesks.
             cutoff_local_trial_ind_each_spike = get_local_trial_ind_each_time(tsi, trial_ids, seg.dataset.cutoff_spike_times);
             [~, cutoff_unit_idx_each_spike] = ismember(seg.dataset.cutoff_spike_clusters, seg.cluster_ids);
             cutoff_subs = [cutoff_local_trial_ind_each_spike, cutoff_unit_idx_each_spike];
@@ -245,8 +245,8 @@ classdef KilosortTrialSegmentedDataset < handle & matlab.mixin.Copyable
             n = numel(seg.channel_ids);
         end
         
-        function n = get.channel_ids(seg)
-            n = seg.dataset.channel_ids;
+        function n = get.channel_ids_sorted(seg)
+            n = seg.dataset.channel_ids_sorted;
         end
         
         function rd = get.raw_dataset(seg)
@@ -337,7 +337,8 @@ classdef KilosortTrialSegmentedDataset < handle & matlab.mixin.Copyable
             p.addParameter('subtractOtherClusters', false, @islogical); % time consuming step to remove the contribution of the other clusters to a given snippet
             
             p.addParameter('raw_dataset', seg.raw_dataset, @(x) true); 
-            
+            p.addParameter('fromSourceDatasets', false, @islogical); % go all the way back to the imecDatasets that were concatenated to form ks.raw_dataset
+            p.addParameter('from_cutoff_spikes', false, @islogical);
             p.parse(varargin{:});
             
             % lookup cluster_ids from
@@ -356,9 +357,12 @@ classdef KilosortTrialSegmentedDataset < handle & matlab.mixin.Copyable
             assert(size(mask_cell, 2) == nClu, 'mask_cell must be nClusters along dim 2');
 
 %             % assemble spike_times we want to collect, all at once
-            masked_spike_idx = cellfun(@(spike_idx, mask) spike_idx(mask), seg.spike_idx(:, cluster_ind), mask_cell, 'UniformOutput', false);
+            if ~p.Results.from_cutoff_spikes
+                masked_spike_idx = cellfun(@(spike_idx, mask) spike_idx(mask), seg.spike_idx(:, cluster_ind), mask_cell, 'UniformOutput', false);
+            else
+                masked_spike_idx = cellfun(@(spike_idx, mask) spike_idx(mask), seg.cutoff_spike_idx(:, cluster_ind), mask_cell, 'UniformOutput', false);
+            end
             [masked_spike_idx, whichCell] = Neuropixel.Utils.TensorUtils.catWhich(1, masked_spike_idx{:});
-            
             trialIdMat = repmat(seg.trial_ids, 1, numel(cluster_ind));
             trial_idx = trialIdMat(whichCell);
          
