@@ -231,7 +231,7 @@ function exportRezToPhy(rez, savePath, varargin)
     writeNPY_local(splitauc, 'cluster_splitauc.npy');
     writeNPY_local(mergecount, 'cluster_mergecount.npy');
     writeNPY_local(rez.est_contam_rate, 'cluster_est_contam_rate.npy');
-    writeNPY_local(rez.split_candidate, 'cluster_split_candidate.npy');ks.
+    writeNPY_local(rez.split_candidate, 'cluster_split_candidate.npy');
     writeNPY_local(rez.split_orig_template, 'cluster_split_orig_template.npy');
     
     writeNPY_local(rez.W, 'template_W.npy');

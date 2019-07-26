@@ -1029,7 +1029,10 @@ classdef KilosortDataset < handle
                  end
              end
              
-                          
+             if nnz(mask) == 0
+                 error('No spikes collected');
+             end
+                       
              % figure out channels requested, one set for each cluster
              if ~isnan(p.Results.best_n_channels)
                  metrics = ks.computeMetrics();

@@ -244,6 +244,7 @@ if ~isempty(labels)
     set(gca, 'YTick', sorted_offsets, 'YTickLabels', labels(sort_idx));
 end
 
+
 out.tvec = tvec;
 out.data = data;
 out.hLines = hvec;
@@ -254,7 +255,18 @@ transformInfo = tform;
 
 axis tight;
 box off;
-set(gca, 'TickDir', 'out');
+
+if ~isempty(traceColors)
+    cmap = traceColors;
+else
+    cmap =layerColors;
+end
+
+ax = gca;
+ax.TickDir = 'out';
+ax.ColorSpace.Colormap = cmap;
+ax.CLim = [1 size(cmap, 1)];
+
 
 if ~washolding
     hold off;

@@ -643,7 +643,7 @@ classdef ImecDataset < handle
                 assert(size(channel_ids_by_snippet, 2) == numel(times), 'channel_ids must be nChannels x numel(times)');
                 
             elseif ~isempty(channel_ids_by_cluster)
-                assert(~isempty(cluster_ids), 'cluster_ids must be specified when channel_ids_by_cluster is used');
+                assert(~isempty(cluster_ids), 'cluster_ids_by_snippet must be specified when channel_ids_by_cluster is used');
                 [~, cluster_inds] = ismember(cluster_ids, unique_cluster_ids);
                 channel_ids_by_snippet = channel_ids_by_cluster(:, cluster_inds);
                 
@@ -1326,7 +1326,7 @@ end
             end
         end   
         
-        function modifyInPlaceInternal(imec, mode, procFnList, varargin)
+        function transformExtraArg = modifyInPlaceInternal(imec, mode, procFnList, varargin)
             p = inputParser();
             p.addParameter('chunkSize', 2^20, @isscalar);
             
@@ -1342,6 +1342,8 @@ end
             p.addParameter('extraMeta', struct(), @isstruct);
             p.addParameter('dryRun', false, @islogical); % for testing proc fn before modifying file
             p.addParameter('dryRunSampleInds', [], @(x) isempty(x) || isvector(x)); % if specified only include chunks with these sample inds 
+            
+            p.addParameter('transformExtraArg', [], @(x) true);
             p.parse(varargin{:});
 
             chunkSize = p.Results.chunkSize;
@@ -1350,6 +1352,7 @@ end
             applyScaling = p.Results.applyScaling;
             dryRun = p.Results.dryRun;
             dryRunSampleInds = p.Results.dryRunSampleInds;
+            transformExtraArg = p.Results.transformExtraArg;
 
             if ~iscell(procFnList)
                 procFnList = {procFnList};
@@ -1377,14 +1380,14 @@ end
             nChunks = ceil(dataSize / chunkSize);
             prog = Neuropixel.Utils.ProgressBar(nChunks, 'Modifying %s file in place', mode);
             for iCh = 1:nChunks
-                [idx, keepIdx] = Neuropixel.ImecDataset.determineChunkIdx(dataSize, iCh, nChunks, chunkSize, chunkExtra);
+                [source_idx, keepIdx] = Neuropixel.ImecDataset.determineChunkIdx(dataSize, iCh, nChunks, chunkSize, chunkExtra);
                 
-                if dryRun && ~isempty(dryRunSampleInds) && ~any(ismember(idx, dryRunSampleInds))
+                if dryRun && ~isempty(dryRunSampleInds) && ~any(ismember(source_idx, dryRunSampleInds))
                     % skip this chunk unless some ind in idx should be processed
                     continue;
                 end
 
-                data = mm.Data.x(chInds, idx);
+                data = mm.Data.x(chInds, source_idx);
 
                 % ch_connected_mask indicates which channels are
                 % connected, which are the ones where scaling makes
@@ -1411,7 +1414,21 @@ end
                 % apply each procFn sequentially
                 for iFn = 1:numel(procFnList)
                     fn = procFnList{iFn};
-                    data = fn(imec, data, chIds, idx);
+                    
+                    % pass as many inputs to fn as it can handle, including user provided args at the end
+                    extraArgs = {chIds, source_idx, transformExtraArg};
+                    ninputs = nargin(fn);
+                    if ninputs > 0 && ninputs < 2 + numel(extraArgs)
+                        extraArgs = extraArgs(1:ninputs-2);
+                    end
+
+                    noutputs = nargout(fn);
+                    if noutputs > 1
+                        [data, transformExtraArg] = fn(imec, data, extraArgs{:});
+                    else
+                        data = fn(imec, data, extraArgs{:});
+                    end
+                                
                 end
 
                 if useGpuArray
@@ -1427,7 +1444,7 @@ end
                 if ~dryRun
                     % slice off extra at edges
                     data = data(:, keepIdx);
-                    mm.Data.x(chInds, idx) = data;
+                    mm.Data.x(chInds, source_idx) = data;
                 end
                 prog.increment();
             end
@@ -1671,7 +1688,7 @@ end
             end
         end
 
-        function imecOut = writeConcatenatedFileMatchGains(imecList, outPath, varargin)
+        function [imecOut, transformExtraArg] = writeConcatenatedFileMatchGains(imecList, outPath, varargin)
             p = inputParser();
             p.addParameter('writeAP', true, @islogical);
             p.addParameter('goodChannelsOnly', false, @islogical);
@@ -1687,7 +1704,7 @@ end
 
             p.addParameter('transformAP', {}, @(x) iscell(x) || isa(x, 'function_handle')); % list of transformation functions that accept (imec, dataChunk) and return dataChunk someplace
             p.addParameter('transformLF', {}, @(x) iscell(x) || isa(x, 'function_handle')); % list of transformation functions that accept (imec, dataChunk) and return dataChunk someplace
-
+            p.addParameter('transformExtraArg', [], @(x) true);
             p.addParameter('timeShiftsAP', {}, @(x) isempty(x) || isa(x, 'Neuropixel.TimeShiftSpec')); % cell array of time shifts for each file, a time shift is a n x 3 matrix of idxStart, idxStop, newIdxStart. These are used to excise specific time windows from the file
             p.addParameter('timeShiftsLF', {}, @(x) isempty(x) || isa(x, 'Neuropixel.TimeShiftSpec')); % cell array of time shifts for each file, a time shift is a n x 3 matrix of idxStart, idxStop, newIdxStart. These are used to excise specific time windows from the file
             
@@ -1752,7 +1769,7 @@ end
             timeShiftsAP = p.Results.timeShiftsAP;
             timeShiftsLF = p.Results.timeShiftsLF;
             isConcatenation = numel(imecList) > 1;
-            
+            transformExtraArg = p.Results.transformExtraArg;
             if ~dryRun
                 Neuropixel.ImecDataset.clearDestinationStem(fullfile(outPath, leaf));
             end
@@ -1813,8 +1830,8 @@ end
                 end
                 
                 fprintf('Writing AP bin file %s\n', (outFile));
-                writeCatFile(outFile, chIndsByFile, 'ap', multipliers, chunkSize, chunkEdgeExtraSamples, ...
-                    p.Results.transformAP, timeShiftsAP, dryRun);
+                transformExtraArg = writeCatFile(outFile, chIndsByFile, 'ap', multipliers, chunkSize, chunkEdgeExtraSamples, ...
+                    p.Results.transformAP, timeShiftsAP, dryRun, transformExtraArg);
             end
 
             if p.Results.writeLF || ~isempty(p.Results.transformLF)
@@ -1865,21 +1882,21 @@ end
                 end
 
                 fprintf('Writing LF bin file %s\n', lastFilePart(outFile));
-                writeCatFile(outFile, chIndsByFile, 'lf', multipliers, chunkSize, chunkEdgeExtraSamples, ...
-                    p.Results.transformLF, timeShiftsLF, dryRun);
+                transformExtraArg = writeCatFile(outFile, chIndsByFile, 'lf', multipliers, chunkSize, chunkEdgeExtraSamples, ...
+                    p.Results.transformLF, timeShiftsLF, dryRun, transformExtraArg);
             end
 
             if p.Results.writeSyncSeparate
                 outFile = fullfile(outPath, [leaf '.imec.sync.bin']);
                 fprintf('Writing separate sync bin file %s', lastFilePart(outFile));
-                writeCatFile(outFile, imecList{1}.syncChannelIndex, 'sync', ones(nFiles, 1, 'int16'), chunkSize, chunkEdgeExtraSamples, ...
-                    {}, timeShiftsAP, dryRun);
+                transformExtraArg = writeCatFile(outFile, imecList{1}.syncChannelIndex, 'sync', ones(nFiles, 1, 'int16'), chunkSize, chunkEdgeExtraSamples, ...
+                    {}, timeShiftsAP, dryRun, transformExtraArg);
             end
 
             outFile = fullfile(outPath, [leaf '.imec.ap.bin']);
             imecOut = Neuropixel.ImecDataset(outFile, 'channelMap', imecList{1}.channelMapFile);
 
-            function writeCatFile(outFile, chIndsByFile, mode, multipliers, chunkSize, chunkExtra, procFnList, timeShifts, dryRun)
+            function transformExtraArg = writeCatFile(outFile, chIndsByFile, mode, multipliers, chunkSize, chunkExtra, procFnList, timeShifts, dryRun, transformExtraArg)
                 if ~iscell(procFnList)
                     procFnList = {procFnList};
                 end
@@ -1970,7 +1987,19 @@ end
                             % apply each procFn sequentially
                             for iFn = 1:numel(procFnList)
                                 fn = procFnList{iFn};
-                                data = fn(imecList{iF}, data, chIds, source_idx);
+                                % pass as many inputs to fn as it can handle, including user provided args at the end
+                                extraArgs = {chIds, source_idx, transformExtraArg};
+                                ninputs = nargin(fn);
+                                if ninputs > 0 && ninputs < 2 + numel(extraArgs)
+                                    extraArgs = extraArgs(1:ninputs-2);
+                                end
+                                
+                                noutputs = nargout(fn);
+                                if noutputs > 0
+                                    [data, transformExtraArg] = fn(imecList{iF}, data, extraArgs{:});
+                                else
+                                    data = fn(imecList{iF}, data, extraArgs{:});
+                                end
                             end
 
                             if useGpuArray
