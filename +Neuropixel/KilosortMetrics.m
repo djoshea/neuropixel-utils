@@ -510,6 +510,7 @@ classdef KilosortMetrics < handle
             p.addParameter('alpha', 1, @isscalar);
             p.addParameter('zShuffleClusters', true, @islogical);
             p.addParameter('maxClustersPlot', Inf, @isscalar);
+            p.addParameter('markerSize', 4, @isscalar);
             
             p.addParameter('tsi', [], @(x) isempty(x) || isa(x, 'Neuropixel.TrialSegmentationInfo')); % to mark trial boundaries
             p.addParameter('maskRegionsOutsideTrials', true, @islogical);
@@ -565,9 +566,12 @@ classdef KilosortMetrics < handle
                 cluAmpNormalized = min(1, clusterAmps / cluAmpMax);  
 %                 
 %                 cmap = amplitudeCmap(clusterAmpsSortOrder / numel(clusterAmps));
-                cmap = amplitudeCmap(cluAmpNormalized);
+                [cmap, cmap_base] = amplitudeCmap(cluAmpNormalized);
+                cmap_lims = [0 cluAmpMax];
             else
                 cmap = Neuropixel.Utils.distinguishable_colors(nClu, [1 1 1; 0 1 0]);
+                cmap_base = cmap;
+                cmap_lims = [1 nClu];
             end
 
             rng(1);
@@ -592,9 +596,9 @@ classdef KilosortMetrics < handle
                 y = spikeYpos(thisClu);
                 
                 if p.Results.scaleWithAmp
-                    sz = spikeAmps(thisClu) / ampMax * 20;
+                    sz = spikeAmps(thisClu) / ampMax * 5*p.Results.markerSize;
                 else
-                    sz = 6;
+                    sz = p.Results.markerSize;
                 end
                 
                 ud = struct('cluster_id', uClu(iC), 'cluster_amplitude', sprintf('%.1f uV', clusterAmps(iC)), ...
@@ -627,8 +631,16 @@ classdef KilosortMetrics < handle
             axh.MinorGridColor = [0.96 0.96 0.96];
             axh.MinorGridAlpha = 1;
             axh.MinorGridLineStyle = '-';
+            axh.TickDir = 'out';
+            axh.ColorSpace.Colormap = cmap_base;
+            axh.CLim = cmap_lims;
             set(gcf, 'InvertHardcopy', 'off');
             axis tight;
+            
+            if colorByAmplitude
+                hbar = colorbar(axh);
+                ylabel(hbar, 'Amplitude (uV)');
+            end
             
             Neuropixel.Utils.configureDataTipsFromUserData(gcf);
                 
@@ -651,15 +663,20 @@ classdef KilosortMetrics < handle
                 yb = yb(mask);
             end  
             
-            function cmap = amplitudeCmap(amp)
-                N = numel(amp);
-                cmap_hsl = cat(2, rand(N, 1), repmat(0.7, N, 1), repmat(0.5, N, 1));
+            function [cmap, cmap_base] = amplitudeCmap(amp)
+                cmap_base = Neuropixel.Utils.cmocean('thermal');
+                N = size(cmap_base, 1);
                 lerp = @(x, a, b) x*(b-a) + a; % map x from [0 1] to [a b]
-                lum = lerp(amp, 0, 0.9);
-%                 sat = lerp(amp, 0, 0.9);
-%                 cmap_hsl(:, 2) = sat;
-                cmap_hsl(:, 3) = lum;
-                cmap = Neuropixel.Utils.hsl2rgb(cmap_hsl);
+                cmap_ind = round(lerp(amp, 1, N));
+                cmap = cmap_base(cmap_ind, :);
+%                 
+%                 cmap_hsl = cat(2, rand(N, 1), repmat(0.7, N, 1), repmat(0.5, N, 1));
+%                 
+%                 lum = lerp(amp, 0, 0.9);
+% %                 sat = lerp(amp, 0, 0.9);
+% %                 cmap_hsl(:, 2) = sat;
+%                 cmap_hsl(:, 3) = lum;
+%                 cmap = Neuropixel.Utils.hsl2rgb(cmap_hsl);
             end
         end
             
@@ -688,6 +705,7 @@ classdef KilosortMetrics < handle
             p.addParameter('exciseRegionsOutsideTrials', false, @islogical);
             p.addParameter('xOffset', 0, @isscalar);
             p.addParameter('ampRange', [], @(x) isvector(x) || isempty(x));
+            p.addParameter('markerSize', 4, @isscalar);
             
             p.addParameter('timeInSeconds', true, @islogical);
             p.addParameter('sample_window', [], @(x) isempty(x) || isvector(x)); % subselect a window to plot
@@ -742,7 +760,7 @@ classdef KilosortMetrics < handle
             if ~strcmpi(opt, 'show')
                 m.plotSpikesByAmplitude('spike_mask', mask, 'time_shifts', timeShifts, 'nAmpBins', p.Results.nAmpBins, ...
                     'ampRange', p.Results.ampRange, 'timeInSeconds', timeInSeconds, ...
-                    'localizedOnly', p.Results.localizedOnly, 'tsi', p.Results.tsi, 'xOffset', xOffset);
+                    'localizedOnly', p.Results.localizedOnly, 'tsi', p.Results.tsi, 'xOffset', xOffset, 'markerSize', p.Results.markerSize);
                 
                 ylim(m.channelMap.ylim);
                 set(gca, 'XLimSpec', 'tight');
@@ -888,6 +906,7 @@ classdef KilosortMetrics < handle
             p.addParameter('localizedOnly', true, @islogical);
             p.addParameter('nAmpBins', 20, @isscalar);
             p.addParameter('ampRange', [], @(x) isvector(x) || isempty(x));
+            p.addParameter('markerSize', 2, @isscalar);
             p.addParameter('timeInSeconds', true, @islogical);
             p.addParameter('time_shifts', [], @(x) isempty(x) || isa(x, 'Neuropixel.TimeShiftSpec'));
             p.addParameter('tsi', [], @(x) isempty(x) || isa(x, 'Neuropixel.TrialSegmentationInfo')); % to mark trial boundaries
@@ -931,7 +950,7 @@ classdef KilosortMetrics < handle
             for b = 1:nAmpBins-1
                 theseSpikes = spikeAmps>=colorBins(b) & spikeAmps<=colorBins(b+1);
 
-                h = plot(spikeTimes(theseSpikes) + xOffset, spikeYpos(theseSpikes), '.', 'Color', colors(b,:));
+                h = plot(spikeTimes(theseSpikes) + xOffset, spikeYpos(theseSpikes), '.', 'Color', colors(b,:), 'MarkerSize', p.Results.markerSize);
                 
                 if ~verLessThan('matlab', '9.6.0') % R2019a
                     h.DataTipTemplate.DataTipRows(1).Label = 'Shifted Time';

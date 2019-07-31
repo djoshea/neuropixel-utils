@@ -183,7 +183,7 @@ classdef ImecDataset < handle
                 fclose(fid);
                 imec.nSamplesLF = bytes / imec.bytesPerSample / imec.nChannels;
                 assert(round(imec.nSamplesAP) == imec.nSamplesAP, 'LF bin file size is not an integral number of samples');
-                
+              
                 imec.concatenationInfoLF = Neuropixel.ConcatenationInfo(imec, 'lf', meta);
             end
         end
@@ -1995,7 +1995,7 @@ end
                                 end
                                 
                                 noutputs = nargout(fn);
-                                if noutputs > 0
+                                if noutputs > 1
                                     [data, transformExtraArg] = fn(imecList{iF}, data, extraArgs{:});
                                 else
                                     data = fn(imecList{iF}, data, extraArgs{:});

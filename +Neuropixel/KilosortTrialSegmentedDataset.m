@@ -80,7 +80,7 @@ classdef KilosortTrialSegmentedDataset < handle & matlab.mixin.Copyable
     methods
         function seg = KilosortTrialSegmentedDataset(dataset, tsi, trial_ids, varargin)
             p = inputParser();
-            p.addParameter('loadFeatures', true, @islogical);
+            p.addParameter('loadFeatures', false, @islogical);
             p.addParameter('loadSync', false, @islogical);
             p.parse(varargin{:});
             
