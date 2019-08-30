@@ -448,7 +448,12 @@ classdef ImecDataset < handle
             p.addParameter('fromSourceDatasets', false, @islogical);
             p.addParameter('downsample',1, @isscalar); 
             p.addParameter('timeInSeconds', false, @islogical);
+            p.addParameter('timeRelativeTo', 0, @isscalar);
             p.addParameter('tsi', [], @(x) isempty(x) || isa(x, 'Neuropixel.TrialSegmentationInfo')); % to mark trial boundaries
+            
+            p.addParameter('markSampleIdx', [], @isvector);
+            p.addParameter('markSampleMode', 'rug', @ischar);
+            p.addParameter('markSampleColor', [0.5 0 0.5], @(x) true);
             p.parse(varargin{:});
             
             if numel(idxWindow) > 2
@@ -505,10 +510,10 @@ classdef ImecDataset < handle
                 labels = [];
             end
             
+            timeRelativeTo = p.Results.timeRelativeTo;
+            time = int64(sampleIdx) - int64(timeRelativeTo);
             if p.Results.timeInSeconds
-                time = double(sampleIdx) / imec.fsAP;
-            else
-                time = sampleIdx;
+                time = double(time) / imec.fsAP;
             end
             Neuropixel.Utils.plotStackedTraces(time, mat', 'colors', colors, 'labels', labels, ...
                 'gain', p.Results.gain, 'invertChannels', p.Results.invertChannels, 'normalizeMask', normalizeMask, 'normalizeEach', false);
@@ -518,6 +523,30 @@ classdef ImecDataset < handle
                 tsi.markTrialTicks('sample_window', idxWindow, 'timeInSeconds', p.Results.timeInSeconds, ...
                     'side', 'bottom', 'Color', [0.2 0.2 1], 'expand_limits', true);
             end
+            
+            markSampleIdx = p.Results.markSampleIdx;
+            if ~isempty(markSampleIdx)
+                mask = markSampleIdx >= idxWindow(1) & markSampleIdx <= idxWindow(2);
+                markSampleIdx = markSampleIdx(mask);
+                assert(numel(markSampleIdx) < 100, 'Too many times to mark');
+                
+                markSampleIdx = int64(markSampleIdx) - int64(timeRelativeTo);
+                if p.Results.timeInSeconds
+                    markTimes = double(markSampleIdx) / imec.fsAP;
+                else
+                    markTimes = markSampleIdx;
+                end
+                
+                if strcmp(p.Results.markSampleMode, 'rug')
+                    Neuropixel.Utils.rugplot(markTimes, 'side', 'top', 'Color', p.Results.markSampleColor, 'expand_limits', true);
+                else
+                    for iM = 1:numel(markTimes)
+                        xline(markTimes(iM), 'Color', p.Results.markSampleColor);
+                    end
+                end 
+            end
+            
+            hold off;
         end
     end
 
@@ -770,7 +799,7 @@ classdef ImecDataset < handle
                 for iiS = 1:nS_this
                     out(:, :, idxS(iiS)) = extract_all_ch(channel_inds_by_snippet(:, idxS(iiS)), :, iiS) - ar(1, :, iiS); % which channels for this spike
                 end
-                prog.increment(nPerGroup);
+                if ~isempty(prog), prog.increment(nPerGroup); end
             end
             
             out(:, ~mask_idx_okay(:)) = 0;
