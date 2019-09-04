@@ -1560,10 +1560,21 @@ end
                 warning('Found data file %s but not meta file %s', pathAP, pathAPMeta);
             end
         end
-
-        function file = findImecFileInDir(fileOrFileStem, type)
+        
+        function [tf, candidates] = pathPointsToSingleValidDataset(fileOrFileStem, type)
             if nargin < 2
                 type = 'ap';
+            end
+            candidates = Neuropixel.ImecDataset.findImecFileInDir(fileOrFileStem, type, true);
+            tf = numel(candidates) == 1;
+        end
+
+        function file = findImecFileInDir(fileOrFileStem, type, returnMultiple)
+            if nargin < 2
+                type = 'ap';
+            end
+            if nargin < 3
+                returnMultiple = false;
             end
             fileOrFileStem = char(fileOrFileStem);
 
@@ -1597,10 +1608,14 @@ end
                                     file = apFiles{idx};
                                     return
                                 end
-                                file = apFiles{1};
-                                warning('Multiple AP files found in dir %s, choosing %s', path, file);
+                                if returnMultiple
+                                    file = apFiles;
+                                else
+                                    file = apFiles{1};
+                                    warning('Multiple AP files found in dir %s, choosing %s', path, file);
+                                end
                             else
-                                file = apFiles{1};
+                                file = apFiles;
                             end
                         else
                             file = [];
@@ -1616,10 +1631,14 @@ end
                                     file = lfFiles{idx};
                                     return
                                 end
-                                file = lfFiles{1};
-                                warning('Multiple LF files found in dir, choosing %s', file);
+                                if returnMultiple
+                                    file = lfFiles{1};
+                                    warning('Multiple LF files found in dir, choosing %s', file);
+                                else
+                                    file = lfFiles;
+                                end
                             else
-                                file = lfFiles{1};
+                                file = lfFiles;
                             end
                         else
                             file = [];
@@ -1629,7 +1648,9 @@ end
                         error('Unknown type %s');
                 end
 
-                file = fullfile(path, file);
+                for iF = 1:numel(file)
+                    file{iF} = fullfile(path, file{iF});
+                end
                 
             else
                 % not a folder or a file, but possibly pointing to the
@@ -1661,13 +1682,19 @@ end
                     exactMatch = mask & strcmp(candidates, exactName);
                     if any(exactMatch)
                         mask = exactMatch;
-                    else
+                    elseif ~returnMultiple
                         error('Multiple %s matches for %s* exist, none exactly matches %s. Narrow down the prefix.', type, fileOrFileStem, exactName);
                     end
                 end
                 
-                file = fullfile(parent, candidates{mask});
+                candidates = candidates(mask);
+                file = strings(numel(candidates), 1);
+                for iF = 1:numel(candidates)
+                    file(iF) = fullfile(parent, candidates(iF));
+                end
             end
+            
+            file = string(file);
         end
 
         function [pathRoot, fileStem, type] = parseImecFileName(file)
