@@ -245,6 +245,9 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
                 maskSnippets = p.Results.maskSnippets;
             end
            
+            hdata = struct();
+            settings = struct();
+            
             % center and scale each channel
             if ~any(maskSnippets)
                 warning('No snippets for these clusters');
