@@ -1565,16 +1565,19 @@ end
             if nargin < 2
                 type = 'ap';
             end
-            candidates = Neuropixel.ImecDataset.findImecFileInDir(fileOrFileStem, type, true);
+            candidates = Neuropixel.ImecDataset.findImecFileInDir(fileOrFileStem, type, true, false);
             tf = numel(candidates) == 1;
         end
 
-        function file = findImecFileInDir(fileOrFileStem, type, returnMultiple)
+        function file = findImecFileInDir(fileOrFileStem, type, returnMultiple, errorIfNotFound)
             if nargin < 2
                 type = 'ap';
             end
             if nargin < 3
                 returnMultiple = false;
+            end
+            if nargin < 4
+                errorIfNotFound = true;
             end
             fileOrFileStem = char(fileOrFileStem);
 
@@ -1658,7 +1661,12 @@ end
                 % '/path/data.ap.imec.bin'
                 [parent, leaf, ext] = fileparts(fileOrFileStem);
                 if ~exist(parent, 'dir')
-                    error('Folder %s does not exist', parent);
+                    if errorIfNotFound
+                        error('Folder %s does not exist', parent);
+                    else
+                        file = strings(0, 1);
+                        return;
+                    end
                 end
                 stem = [leaf, ext];
                 
@@ -1676,7 +1684,13 @@ end
                 mask = startsWith(candidates, stem);
                 
                 if ~any(mask)
-                    error('No %s matches for %s* exist', type, fileOrFileStem);
+                    if errorIfNotFound
+                        error('No %s matches for %s* exist', type, fileOrFileStem);
+                    else
+                        file = strings(0, 1);
+                        return;
+                    end
+                        
                 elseif nnz(mask) > 1
                     exactName = append(stem, bin_ext);
                     exactMatch = mask & strcmp(candidates, exactName);
