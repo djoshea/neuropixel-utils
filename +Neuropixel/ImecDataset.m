@@ -331,21 +331,33 @@ classdef ImecDataset < handle
             tf = logical(bitget(imec.readSync(), bit));
         end
         
-        function vec = readSync_idx(imec, idx)
-            if ~isempty(imec.syncRaw)
-                vec = imec.syncRaw(idx);
+        function vec = readSync_idx(imec, idx, varargin)
+            p = inputParser();
+            p.addParameter('fromSourceDatasets', false, @islogical);
+            p.parse(varargin{:});
+            
+            fromSource = p.Results.fromSourceDatasets;
+            
+            if ~fromSource
+                if ~isempty(imec.syncRaw)
+                    vec = imec.syncRaw(idx);
+                else
+                    mm = imec.memmapSync_full();
+                    vec = mm.Data.x(imec.syncChannelIndex, idx)';
+                end
             else
-                mm = imec.memmapSync_full();
-                vec = mm.Data.x(imec.syncChannelIndex, idx)';
+                mmSet = imec.memmap_sourceAP_full();
+                [sourceFileInds, sourceSampleInds] = imec.concatenationInfoAP.lookup_sampleIndexInSourceFiles(idx);
+                vec = Neuropixel.ImecDataset.multi_mmap_extract_sample_idx(mmSet, sourceFileInds, sourceSampleInds, imec.syncChannelIndex);
             end
         end
         
-        function mat = readSyncBits_idx(imec, bits, idx)
+        function mat = readSyncBits_idx(imec, bits, idx, varargin)
             % mat is nBits x nTime to match readAP_idx which is nChannels x nTime
             if isstring(bits) || ischar(bits)
                 bits = imec.lookupSyncBitByName(bits);
             end
-            vec = imec.readSync_idx(idx);
+            vec = imec.readSync_idx(idx, varargin{:});
             mat = false(numel(bits), numel(vec));
             for iB = 1:numel(bits)
                 mat(iB, :) = logical(bitget(vec, bits(iB)));
@@ -498,7 +510,7 @@ classdef ImecDataset < handle
             % append sync bit info to plot in purple
             syncBits = p.Results.syncBits;
             if ~isempty(syncBits) && p.Results.showSync
-                syncBitMat = imec.readSyncBits_idx(syncBits, sampleIdx);
+                syncBitMat = imec.readSyncBits_idx(syncBits, sampleIdx, 'fromSourceDatasets', p.Results.fromSourceDatasets);
                 mat = cat(1, mat, syncBitMat);
                 syncColor = [0.75 0 0.9];
                 colors = cat(1, colors, repmat(syncColor, size(syncBitMat, 1), 1));
@@ -623,16 +635,24 @@ classdef ImecDataset < handle
             % given [fileInds, origSampleInds] as returned by ConcatenationInfo/lookup_sampleIndexInSourceFiles
             % extract those samples from the set of memory mapped files in mmSet (returned by memmap**_all)
             
-            nCh = mmSet{1}.Format{2}(1);
+            
             assert(numel(fileInds) == numel(origSampleInds));
             nSamplesOut = numel(origSampleInds);
             cls = mmSet{1}.Format{1};
-            out = zeros(nCh, nSamplesOut, cls);
             nFiles = numel(mmSet);
             
             if nargin < 4
+                nCh = mmSet{1}.Format{2}(1);
                 chInds = 1:nCh;
+            else
+                if islogical(chInds)
+                    nCh = nnz(chInds);
+                else
+                    nCh = numel(chInds);
+                end
             end
+            out = zeros(nCh, nSamplesOut, cls);
+            
             for iF = 1:nFiles
                 mask = fileInds == iF;
                 out(:, mask) = mmSet{iF}.Data.x(chInds, origSampleInds(mask));
