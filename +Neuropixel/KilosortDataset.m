@@ -32,6 +32,10 @@ classdef KilosortDataset < handle
     properties(Dependent)
         pathLeaf
         hasRawDataset
+        hasFeaturesLoaded
+        hasCutoffLoaded
+        hasBatchwiseLoaded
+        
         nChannelsSorted
         nSpikes
         nClusters
@@ -122,8 +126,14 @@ classdef KilosortDataset < handle
         % if not provided will be automatically created the first time you run the template gui, taking the same values as
         % spike_templates.npy until you do any merging or splitting.
         spike_clusters(:, 1) uint32
-
-        % cluster_groups - "cluster group" of each cluster as set in Phy, defaulting to cluster_ks_label (noise, mua, good, unsorted)
+        
+        % computed - [nClusters] counting the number of spikes assigned to each cluster
+        cluster_spike_counts(:, 1) uint32
+        
+        % original of spike_clusters before being adjusted by Phy or 
+        spike_clusters_ks2orig(:, 1) uint32
+        
+        % cluster_groups - "cluster group" of each cluster as set in Phy
         cluster_groups(:, 1) categorical
         
         % unique clusters in spike_clusters [nClusters]
@@ -181,6 +191,7 @@ classdef KilosortDataset < handle
         % [nSpikesCutoff, ] uint32 vector specifying the identity of the template that was used to extract each spike 
         cutoff_spike_templates(:, 1) uint32
         cutoff_spike_clusters(:, 1) uint32
+        cutoff_spike_clusters_ks2orig(:, 1) uint32
         
          % [nSpikesCutoff, nFeaturesPerChannel, nPCFeatures] single matrix giving the PC values for each spike (from .cProjPC_cutoff_invalid)
         cutoff_pc_features(:, :, :) uint32
@@ -203,6 +214,19 @@ classdef KilosortDataset < handle
         
         function tf = get.hasRawDataset(ks)
             tf = ~isempty(ks.raw_dataset);
+        end
+        
+        function tf = get.hasFeaturesLoaded(ks)
+            tf = ~isempty(ks.pc_features);
+        end
+        
+        function tf = get.hasCutoffLoaded(ks)
+            tf = ~isempty(ks.cutoff_spike_clusters);
+        end
+        
+        
+        function tf = get.hasBatchwiseLoaded(ks)
+            tf = ~isempty(ks.W_batch);
         end
         
         function n = get.nSpikes(ks)
@@ -230,10 +254,10 @@ classdef KilosortDataset < handle
         end
 
         function n = get.nTemplates(ks)
-            if isempty(ks.pc_feature_ind)
+            if isempty(ks.templates)
                 n = NaN;
             else
-                n = size(ks.pc_feature_ind, 1);
+                n = size(ks.templates, 1);
             end
         end
         
@@ -485,14 +509,25 @@ classdef KilosortDataset < handle
             grid on;
         end
 
-        function load(ks, reload)
-            if nargin < 2
-                reload = false;
-            end
+        function load(ks, varargin)
+            p = inputParser();
+            p.addOptional('reload', false, @islogical);
+            p.addParameter('loadBatchwise', true, @islogical);
+            p.addParameter('loadFeatures', true, @islogical);
+            p.addParameter('loadCutoff', true, @islogical);
+            p.addParameter('progressInitializeFcn', [], @(x) isempty(x) || isa(x, 'function_handle')); % f(nUpdates) to print update
+            p.addParameter('progressIncrementFcn', [], @(x) isempty(x) || isa(x, 'function_handle')); % f(updateString) to print update
+            p.parse(varargin{:});
+            
+            reload = p.Results.reload;
             if ks.isLoaded && ~reload
                 return;
             end
             ks.isLoaded = false;
+            
+            loadFeatures = p.Results.loadFeatures;
+            loadBatchwise = p.Results.loadBatchwise;
+            loadCutoff = p.Results.loadCutoff;
                 
             params = Neuropixel.readINI(fullfile(ks.path, 'params.py'));
             ks.dat_path = params.dat_path;
@@ -502,8 +537,8 @@ classdef KilosortDataset < handle
             ks.sample_rate = params.sample_rate;
             ks.hp_filtered = params.hp_filtered;
 
-            p = ks.path;
-            existp = @(file) exist(fullfile(p, file), 'file') > 0;
+            path = ks.path;
+            existp = @(file) exist(fullfile(path, file), 'file') > 0;
 
             nProg = 15;
             has_ccb = existp('batchwise_ccb.npy');
@@ -513,22 +548,36 @@ classdef KilosortDataset < handle
             else
                 ks.kilosort_version = 1;
             end
-            prog = Neuropixel.Utils.ProgressBar(nProg, 'Loading Kilosort %d dataset: ', ks.kilosort_version);
-
+            
+            initStr = sprintf('Loading Kilosort %d dataset', ks.kilosort_version);
+            if isempty(p.Results.progressInitializeFcn) && isempty(p.Results.progressIncrementFcn)
+                prog = Neuropixel.Utils.ProgressBar(nProg, initStr);
+                progIncrFcn = @(text) prog.increment(text);
+            else
+                if ~isempty(p.Results.progressInitializeFcn)
+                    p.Results.progressInitializeFcn(nProg, initStr);
+                end
+                progIncrFcn = p.Results.progressIncrementFcn;
+            end
+            
             ks.amplitudes = read('amplitudes');
             ks.channel_ids_sorted = read('channel_map');
             ks.channel_ids_sorted = ks.channel_ids_sorted + ones(1, 'like', ks.channel_ids_sorted); % make channel map 1 indexed
             ks.channel_positions_sorted = read('channel_positions');
-            ks.pc_features = read('pc_features');
-            ks.pc_feature_ind = read('pc_feature_ind');
-            ks.pc_feature_ind = ks.pc_feature_ind + ones(1, 'like', ks.pc_feature_ind); % convert plus zero indexed to 1 indexed channels
+            if loadFeatures
+                ks.pc_features = read('pc_features');
+                ks.pc_feature_ind = read('pc_feature_ind');
+                ks.pc_feature_ind = ks.pc_feature_ind + ones(1, 'like', ks.pc_feature_ind); % convert plus zero indexed to 1 indexed channels
+            end
             ks.similar_templates = read('similar_templates');
             ks.spike_templates = read('spike_templates');
             ks.spike_templates = ks.spike_templates + ones(1, 'like', ks.spike_templates);
             ks.spike_times = read('spike_times');
-            ks.template_features = read('template_features');
-            ks.template_feature_ind = read('template_feature_ind');
-            ks.template_feature_ind = ks.template_feature_ind + ones(1, 'like', ks.template_feature_ind); % 0 indexed templates to 1 indexed templates
+            if loadFeatures
+                ks.template_features = read('template_features');
+                ks.template_feature_ind = read('template_feature_ind');
+                ks.template_feature_ind = ks.template_feature_ind + ones(1, 'like', ks.template_feature_ind); % 0 indexed templates to 1 indexed templates
+            end
             
             ks.templates = read('templates');
             T = size(ks.templates, 2);
@@ -541,15 +590,25 @@ classdef KilosortDataset < handle
             ks.whitening_mat_inv = read('whitening_mat_inv');
             ks.spike_clusters = read('spike_clusters');
             
+            ks.cluster_spike_counts = Neuropixel.Utils.discrete_histcounts(ks.spike_clusters, ks.cluster_ids);
+            
+            if existp('spike_clusters_ks2orig.npy')
+                ks.spike_clusters_ks2orig = read('spike_clusters_ks2orig');
+            else
+                ks.spike_clusters_ks2orig = ks.spike_clusters;
+            end
+            
             % filter out clusters > 10000, typically used for cutoff clusters during export so that Phy can see them
             mask = ks.spike_clusters < 10000;
             ks.amplitudes = ks.amplitudes(mask);
             ks.spike_times = ks.spike_times(mask);
             ks.spike_templates = ks.spike_templates(mask);
             ks.spike_clusters = ks.spike_clusters(mask);
-            ks.pc_features = ks.pc_features(mask, :, :);
-            ks.template_features = ks.template_features(mask, :);
-            
+            ks.spike_clusters_ks2orig = ks.spike_clusters_ks2orig(mask);
+            if loadFeatures
+                ks.pc_features = ks.pc_features(mask, :, :);
+                ks.template_features = ks.template_features(mask, :);
+            end
             ks.cluster_ids = unique(ks.spike_clusters);
             
             % load KS cluster labels
@@ -564,23 +623,19 @@ classdef KilosortDataset < handle
             % important to lookup the cluster inds since we've uniquified spike_clusters
             fnameSearch = {'cluster_groups.csv', 'cluster_group.tsv'};
             found = false;
+            ks.cluster_groups = repmat(categorical("unsorted"), numel(ks.cluster_ids), 1);
             for iF = 1:numel(fnameSearch)
                 file = fnameSearch{iF};
                 if existp(file)
                     tbl = readClusterMetaTSV(file, 'group', 'categorical');
                     found = true;
                     
-                    ks.cluster_groups = repmat(categorical("unsorted"), numel(ks.cluster_ids), 1);
+                    
                     [tf, ind] = ismember(tbl.cluster_id, ks.cluster_ids);
                     ks.cluster_groups(ind(tf)) = tbl{tf, 2};
                 end
             end
-            if ~found
-                % default to everything unsorted
-                warning('Could not find cluster group file, defaulting to KS labels');
-                ks.cluster_groups = ks.cluster_ks_label;
-            end
-           
+
             if existp('ops.mat')
                 temp = load(fullfile(p, 'ops.mat'), 'ops');
                 ks.ops = temp.ops;
@@ -598,16 +653,18 @@ classdef KilosortDataset < handle
                     ks.template_sample_offset = ks.template_sample_offset - uint64(nStrip);
                 end
 
-                ks.batchwise_cc = readOr('batchwise_ccb');
-                ks.batch_sort_order = readOr('batch_sort_order');
-                ks.batch_starts = readOr('batch_starts');
-                    
-                ks.W_batch = readOr('template_W_batch');
-                ks.W_batch_US = readOr('template_W_batch_US');
-                ks.W_batch_V = readOr('template_W_batch_V');
-                ks.U_batch = readOr('template_U_batch');
-                ks.U_batch_US = readOr('template_U_batch_US');
-                ks.U_batch_V = readOr('template_U_batch_V');
+                if loadBatchwise
+                    ks.batchwise_cc = readOr('batchwise_ccb');
+                    ks.batch_sort_order = readOr('batch_sort_order');
+                    ks.batch_starts = readOr('batch_starts');
+
+                    ks.W_batch = readOr('template_W_batch');
+                    ks.W_batch_US = readOr('template_W_batch_US');
+                    ks.W_batch_V = readOr('template_W_batch_V');
+                    ks.U_batch = readOr('template_U_batch');
+                    ks.U_batch_US = readOr('template_U_batch_US');
+                    ks.U_batch_V = readOr('template_U_batch_V');
+                end
                 
                 ks.cluster_est_contam_rate = readOr('cluster_est_contam_rate');
                 ks.cluster_merge_count = readOr('cluster_mergecount');
@@ -616,21 +673,33 @@ classdef KilosortDataset < handle
                 ks.cluster_split_auc = read('cluster_splitauc');
                 ks.cluster_split_candidate = read('cluster_split_candidate');
                 ks.cluster_orig_template = read('cluster_split_orig_template');
-                    
-                ks.cutoff_spike_times = readOr('cutoff_spike_times');
-                ks.cutoff_spike_templates = readOr('cutoff_spike_templates') + ones(1, 'like', ks.spike_templates); % 0 indexed templates to 1 indexed templates
-                ks.cutoff_amplitudes = readOr('cutoff_amplitudes');
-                ks.cutoff_spike_clusters = readOr('cutoff_spike_clusters'); % rez.st3_cutoff is 1 indexed, cluster ids are 0 indexed
-                ks.cutoff_pc_features = readOr('cutoff_pc_features');
-                ks.cutoff_template_features = readOr('cutoff_template_features');
+                   
+                if loadCutoff
+                    ks.cutoff_spike_times = readOr('cutoff_spike_times');
+                    ks.cutoff_spike_templates = readOr('cutoff_spike_templates') + ones(1, 'like', ks.spike_templates); % 0 indexed templates to 1 indexed templates
+                    ks.cutoff_amplitudes = readOr('cutoff_amplitudes');
+                    ks.cutoff_spike_clusters = readOr('cutoff_spike_clusters'); % rez.st3_cutoff is 1 indexed, cluster ids are 0 indexed
+                    if existp('cutoff_spike_clusters_ks2orig.npy')
+                        ks.cutoff_spike_clusters_ks2orig = read('cutoff_spike_clusters_ks2orig');
+                    else
+                        ks.cutoff_spike_clusters_ks2orig = ks.cutoff_spike_clusters;
+                    end
+
+                    if loadFeatures
+                        ks.cutoff_pc_features = readOr('cutoff_pc_features');
+                        ks.cutoff_template_features = readOr('cutoff_template_features');
+                    end
+                end
             end
             
-            prog.finish();
+            if exist('prog', 'var')
+                prog.finish();
+            end
             ks.metrics = []; % old metrics no longer valid
             ks.isLoaded = true;
             
             function out = readOr(file, default)
-                ffile = fullfile(p, [file '.npy']);
+                ffile = fullfile(path, [file '.npy']);
                 if exist(ffile, 'file') > 0
                     out = read(file);
                 elseif nargin > 2
@@ -641,8 +710,8 @@ classdef KilosortDataset < handle
             end
             
             function out = read(file)
-                prog.increment('Loading Kilosort dataset: %s', file);
-                out = Neuropixel.readNPY(fullfile(p, [file '.npy']));
+                progIncrFcn(sprintf('Loading Kilosort dataset: %s', file));
+                out = Neuropixel.readNPY(fullfile(path, [file '.npy']));
             end
             
             function tbl = readClusterMetaTSV(file, field, type)
@@ -659,8 +728,29 @@ classdef KilosortDataset < handle
                     opts.EmptyLineRule = "read";
 
                     % Import the data
-                    tbl = readtable(fullfile(p,file), opts);
+                    tbl = readtable(fullfile(path,file), opts);
             end
+        end
+        
+        function create_spike_clusters_ks2orig_if_missing(ks)
+            % copies the file spike_clusters.npy to spike_clusters_ks2orig.npy if the latter is nonexistent
+            dest_path = fullfile(ks.path, 'spike_clusters_ks2orig.npy');
+            if ~exist(dest_path, 'file')
+                src_path = fullfile(ks.path, 'spike_clusters.npy');
+                copyfile(src_path, dest_path);
+            end
+            
+            dest_path = fullfile(ks.path, 'cutoff_spike_clusters_ks2orig.npy');
+            if ~exist(dest_path, 'file')
+                src_path = fullfile(ks.path, 'cutoff_spike_clusters.npy');
+                copyfile(src_path, dest_path);
+            end
+        end
+        
+        function save_spike_clusters_to_disk(ks)
+            writeNPY_local = @(v, fname) writeNPY(v, fullfile(ks.path, fname));
+            writeNPY_local(ks.spike_clusters, 'spike_clusters.npy');
+            writeNPY_local(ks.cutoff_spike_clusters, 'cutoff_spike_clusters.npy');
         end
         
 %         function loadFromRez(ks, rez)

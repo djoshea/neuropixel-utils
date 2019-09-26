@@ -141,6 +141,7 @@ function exportRezToPhy(rez, savePath, varargin)
     writeNPY_local(uint32(spikeTemplates-cluster_offset), 'spike_templates.npy'); % -1 for zero indexing
     writeNPY_local(uint32(spikeTemplatesPreSplit-cluster_offset), 'spike_templates_preSplit.npy'); % -1 for zero indexing
     writeNPY_local(uint32(spikeClusters-cluster_offset), 'spike_clusters.npy'); % -1 for zero indexing
+    writeNPY_local(uint32(spikeClusters-cluster_offset), 'spike_clusters_ks2orig.npy'); % -1 for zero indexing (this is a copy made that won't be touched by Phy / Unit merge tool)
 
     writeNPY_local(amplitudes, 'amplitudes.npy');
     writeNPY_local(templates, 'templates.npy');

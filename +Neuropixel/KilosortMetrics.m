@@ -232,18 +232,20 @@ classdef KilosortMetrics < handle
             m.template_ttp = (template_peak - template_trough) / ks.fsAP * 1000;
             m.template_ttp(m.template_ttp <= 0) = NaN;
             
-            prog.increment('Individual spike center of mass');
-            % H. use private pcs to determine spike center of mass a la driftmap
-            %   1. weight channels based on squared projection onto 1st pc
-            pc1proj = squeeze(ks.pc_features(:, 1, :)); % nSpikes x nPCFeatures
-            pc1proj(pc1proj < 0) = 0; % only positive entries contribute
-            pc1weight = pc1proj.^2;
-            
-            %   2. compute center of mass. (spikeFeatureChannelPos is nSpikes x nCh x nSpatialDim)
-            spike_pcfeat_chind = ks.pc_feature_ind(ks.spike_templates, :);
-            spikeFeatureChannelPos = reshape(ks.channel_positions_sorted(spike_pcfeat_chind(:), :), [size(spike_pcfeat_chind), size(ks.channel_positions_sorted, 2)]);
-            m.spike_centerOfMass = Neuropixel.Utils.TensorUtils.squeezeDims(sum(pc1weight .* spikeFeatureChannelPos, 2) ./ ...
-                sum(pc1weight, 2), 2);
+            if ks.hasFeaturesLoaded
+                prog.increment('Individual spike center of mass');
+                % H. use private pcs to determine spike center of mass a la driftmap
+                %   1. weight channels based on squared projection onto 1st pc
+                pc1proj = squeeze(ks.pc_features(:, 1, :)); % nSpikes x nPCFeatures
+                pc1proj(pc1proj < 0) = 0; % only positive entries contribute
+                pc1weight = pc1proj.^2;
+
+                %   2. compute center of mass. (spikeFeatureChannelPos is nSpikes x nCh x nSpatialDim)
+                spike_pcfeat_chind = ks.pc_feature_ind(ks.spike_templates, :);
+                spikeFeatureChannelPos = reshape(ks.channel_positions_sorted(spike_pcfeat_chind(:), :), [size(spike_pcfeat_chind), size(ks.channel_positions_sorted, 2)]);
+                m.spike_centerOfMass = Neuropixel.Utils.TensorUtils.squeezeDims(sum(pc1weight .* spikeFeatureChannelPos, 2) ./ ...
+                    sum(pc1weight, 2), 2);
+            end
             
             % I. compute cluster weighting over templates and list of templates used by each cluster, sorted by number of uses
             prog.increment('Cluster weighting over templates');
