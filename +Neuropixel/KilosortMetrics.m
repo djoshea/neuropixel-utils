@@ -712,6 +712,10 @@ classdef KilosortMetrics < handle
             p.addParameter('timeInSeconds', true, @islogical);
             p.addParameter('sample_window', [], @(x) isempty(x) || isvector(x)); % subselect a window to plot
 
+            p.addParameter('plotDriftEventsInline', false, @islogical);
+            p.addParameter('plotDriftEventTicks', true, @islogical);
+            p.addParameter('configureDataTips', true, @islogical);
+            
             p.parse(varargin{:});
             opt = p.Results.mode;
             segDepth = p.Results.segmentDepth;
@@ -759,15 +763,16 @@ classdef KilosortMetrics < handle
             spikeAmps = m.spike_amplitude(mask);
             spikeYpos = m.spike_depth(mask);
             
-            if ~strcmpi(opt, 'show')
-                m.plotSpikesByAmplitude('spike_mask', mask, 'time_shifts', timeShifts, 'nAmpBins', p.Results.nAmpBins, ...
-                    'ampRange', p.Results.ampRange, 'timeInSeconds', timeInSeconds, ...
-                    'localizedOnly', p.Results.localizedOnly, 'tsi', p.Results.tsi, 'xOffset', xOffset, 'markerSize', p.Results.markerSize);
-                
-                ylim(m.channelMap.ylim);
-                set(gca, 'XLimSpec', 'tight');
-                box off;
-                
+            m.plotSpikesByAmplitude('spike_mask', mask, 'time_shifts', timeShifts, 'nAmpBins', p.Results.nAmpBins, ...
+                'ampRange', p.Results.ampRange, 'timeInSeconds', timeInSeconds, ...
+                'localizedOnly', p.Results.localizedOnly, 'tsi', p.Results.tsi, 'xOffset', xOffset, ...
+                'markerSize', p.Results.markerSize, 'configureDataTips', p.Results.configureDataTips);
+
+            ylim(m.channelMap.ylim);
+            set(gca, 'XLimSpec', 'tight');
+            box off;
+
+            if p.Results.plotDriftEventsInline || p.Results.plotDriftEventTicks
                 nD = floor(max(spikeYpos) / segDepth);
                 driftEventsAll = cell(nD, 1);
                 for iD = 1:nD % break the recording into 800 um segments
@@ -779,7 +784,7 @@ classdef KilosortMetrics < handle
                         driftEvents(:, 1) = driftEvents(:,1) * m.fs;
                     end
                     driftEventsAll{iD} = driftEvents;
-                    if strcmpi(opt, 'mark') && ~isempty(driftEvents)
+                    if p.Results.plotDriftEventsInline && ~isempty(driftEvents)
                         plot(driftEvents(:,1) + xOffset, driftEvents(:,2), 'o', 'MarkerEdgeColor', 'none', 'MarkerFaceColor', 'r')
                         % text(driftEvents(:,1)+1, driftEvents(:,2), num2str(round(driftEvents(:,3))), 'Color', 'r') % the magnitude of the drift
                     end
@@ -788,8 +793,10 @@ classdef KilosortMetrics < handle
                 driftEvents = cat(1, driftEventsAll{:});
                 if ~isempty(driftEvents)
                     driftTimes = driftEvents(:, 1);
-                    hold on;
-                    Neuropixel.Utils.rugplot(driftTimes + xOffset, 'side', 'top', 'Color', [1 0.2 0.2]);
+                    if p.Results.plotDriftEventTicks
+                        hold on;
+                        Neuropixel.Utils.rugplot(driftTimes + xOffset, 'side', 'top', 'Color', [1 0.2 0.2]);
+                    end
                 else
                     driftTimes = [];
                 end
@@ -913,6 +920,7 @@ classdef KilosortMetrics < handle
             p.addParameter('time_shifts', [], @(x) isempty(x) || isa(x, 'Neuropixel.TimeShiftSpec'));
             p.addParameter('tsi', [], @(x) isempty(x) || isa(x, 'Neuropixel.TrialSegmentationInfo')); % to mark trial boundaries
             p.addParameter('xOffset', 0, @isscalar);
+            p.addParameter('configureDataTips', true, @islogical);
             p.parse(varargin{:});
             
             mask = p.Results.spike_mask;
@@ -954,7 +962,7 @@ classdef KilosortMetrics < handle
 
                 h = plot(spikeTimes(theseSpikes) + xOffset, spikeYpos(theseSpikes), '.', 'Color', colors(b,:), 'MarkerSize', p.Results.markerSize);
                 
-                if ~verLessThan('matlab', '9.6.0') % R2019a
+                if ~verLessThan('matlab', '9.6.0') && p.Results.configureDataTips % R2019a
                     h.DataTipTemplate.DataTipRows(1).Label = 'Shifted Time';
                     h.DataTipTemplate.DataTipRows(2).Format = '%g sec';
                     h.DataTipTemplate.DataTipRows(2).Label = 'Probe Y';
@@ -982,7 +990,7 @@ classdef KilosortMetrics < handle
 %                     mask = ~isnan(fileInd);
 %                     fileNames(mask) = m.concatenatedNames(fileInd(mask));
                     
-                    if ~verLessThan('matlab', '9.6.0') % R2019a
+                    if ~verLessThan('matlab', '9.6.0')  && p.Results.configureDataTips % R2019a
                         row = dataTipTextRow('Orig File Ind', double(fileInd), '%d');
                         h.DataTipTemplate.DataTipRows(end+1) = row;
                         row = dataTipTextRow('Orig Sample Ind', double(origInd), '%d');
@@ -1246,19 +1254,20 @@ classdef KilosortMetrics < handle
         
         function plotRecordingSites(m, varargin)
             p = inputParser();
-            p.addParameter('channel_ids', m.channel_ids, @isvector)
+            p.addParameter('channel_ids', m.channel_ids_sorted, @isvector)
             p.addParameter('showChannelLabels', false, @islogical);
             p.addParameter('labelArgs', {}, @iscell);
             p.parse(varargin{:});
             
-            channelInds = m.lookup_fullChannelIds(p.Results.channel_ids);
+            [channelInds, channel_ids] = m.lookup_channelIds(p.Results.channel_ids);
+            
             xc = m.channelMap.xcoords(channelInds);
             yc = m.channelMap.ycoords(channelInds);
             plot(xc, yc, '.', 'Marker', 's', 'MarkerEdgeColor', 'none', ...
                 'MarkerFaceColor', [0.8 0.8 0.8], 'MarkerSize', 5);
             if p.Results.showChannelLabels
                 for iC = 1:numel(channelInds)
-                    text(xc(iC), yc(iC), sprintf('ch %d', m.channel_ids(channelInds(iC))), ...
+                    text(xc(iC), yc(iC), sprintf('ch %d', channel_ids(iC)), ...
                             'HorizontalAlignment', 'right', 'VerticalAlignment', 'middle', ...
                             'Background', 'none', ...
                             p.Results.labelArgs{:});
