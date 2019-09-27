@@ -127,11 +127,10 @@ classdef KilosortDataset < handle
         % spike_templates.npy until you do any merging or splitting.
         spike_clusters(:, 1) uint32
         
-        % computed - [nClusters] counting the number of spikes assigned to each cluster
-        cluster_spike_counts(:, 1) uint32
-        
         % original of spike_clusters before being adjusted by Phy or 
         spike_clusters_ks2orig(:, 1) uint32
+        
+        cluster_spike_counts(:, 1) uint32 % nClusters x 1 number of spikes assigned to each cluster
         
         % cluster_groups - "cluster group" of each cluster as set in Phy
         cluster_groups(:, 1) categorical
@@ -590,14 +589,15 @@ classdef KilosortDataset < handle
             ks.whitening_mat_inv = read('whitening_mat_inv');
             ks.spike_clusters = read('spike_clusters');
             
-            ks.cluster_spike_counts = Neuropixel.Utils.discrete_histcounts(ks.spike_clusters, ks.cluster_ids);
+            progIncrFcn('Computing cluster spike counts');
+            ks.cluster_spike_counts = uint32(Neuropixel.Utils.discrete_histcounts(ks.spike_clusters, ks.cluster_ids));
             
             if existp('spike_clusters_ks2orig.npy')
                 ks.spike_clusters_ks2orig = read('spike_clusters_ks2orig');
             else
                 ks.spike_clusters_ks2orig = ks.spike_clusters;
             end
-            
+              
             % filter out clusters > 10000, typically used for cutoff clusters during export so that Phy can see them
             mask = ks.spike_clusters < 10000;
             ks.amplitudes = ks.amplitudes(mask);
@@ -710,7 +710,7 @@ classdef KilosortDataset < handle
             end
             
             function out = read(file)
-                progIncrFcn(sprintf('Loading Kilosort dataset: %s', file));
+                progIncrFcn(sprintf('Loading %s', file));
                 out = Neuropixel.readNPY(fullfile(path, [file '.npy']));
             end
             
