@@ -24,7 +24,7 @@ classdef ImecDataset < handle
         channelMap = []; % can be stored using set channelMap
 
         % see markBadChannels
-        badChannels
+        badChannels (:, 1) uint32
 
         syncBitNames string;
         
@@ -157,7 +157,7 @@ classdef ImecDataset < handle
             imec.lfRange = [meta.imAiRangeMin meta.imAiRangeMax];
 
             % look at AP meta fields that might have been set by us
-            if isfield(meta, 'badChannels')
+            if isfield(meta, 'badChannels') && ~isempty(meta.badChannels)
                 imec.badChannels = union(imec.badChannels, meta.badChannels);
             end
             if isfield(meta, 'syncBitNames')

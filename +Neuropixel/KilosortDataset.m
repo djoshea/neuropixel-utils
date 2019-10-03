@@ -434,7 +434,7 @@ classdef KilosortDataset < handle
 
             % these will pass thru to raw_dataset if provided
             ks.fsAP = p.Results.fsAP;
-            if isempty(ks.fsAP() || isnan(ks.fsAP) % will pass thru to raw_dataset if found
+            if isempty(ks.fsAP) || isnan(ks.fsAP) % will pass thru to raw_dataset if found
                 % try reading sample_rate from params.py
                 ks.readParamsPy();
                 ks.fsAP = ks.sample_rate;
