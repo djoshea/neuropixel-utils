@@ -852,6 +852,7 @@ classdef ImecDataset < handle
         end
 
         function rms = computeRMSByChannel(imec, varargin)
+            % output will be nMappedChannels x 1 vector of rms
             p = inputParser();
             p.addParameter('sampleMaskFn', [], @(x) isempty(x) || isa(x, 'function_handle')); % sampleMaskFn(data_ch_x_time, sample_idx_time) --> logical_time mask of time samples valid for use, useful if you have artifacts at known times
             p.addParameter('car', false, @islogical);
@@ -890,6 +891,8 @@ classdef ImecDataset < handle
             end
 %             prog.finish();
             rms = sqrt(sum(sumByChunk, 2) ./ (useChunks * chunkSize));
+            
+            rms = rms(ch_mask); % only return mapped channels
             rms = rms * imec.apScaleToUv;
         end
     end
@@ -1023,7 +1026,7 @@ classdef ImecDataset < handle
             if isempty(imec.channelMap)
                 list = [];
             else
-                list = imec.channelMap.channelIds;
+                list = imec.channelMap.channelIdsMapped;
             end
         end
         
@@ -1047,7 +1050,7 @@ classdef ImecDataset < handle
             if isempty(imec.channelMap)
                 n = NaN;
             else
-                n = imec.channelMap.nChannels;
+                n = imec.channelMap.nChannelsMapped;
             end
         end
 
@@ -1157,19 +1160,16 @@ classdef ImecDataset < handle
             p.addParameter('sampleMaskFn', [], @(x) isempty(x) || isa(x, 'function_handle')); % sampleMaskFn(data_ch_x_time, sample_idx_time) --> logical_time mask of time samples valid for use, useful if you have artifacts at known times
             p.parse(varargin{:});
 
-            channelMask = true(imec.nChannels, 1);
-
-            channelMask(~imec.channelMap.connected) = false;
-
-            oldChannelMask = channelMask;
-
             rmsByChannel = imec.computeRMSByChannel('sampleMaskFn', p.Results.sampleMaskFn);
             rmsMin = p.Results.rmsRange(1);
             rmsMax = p.Results.rmsRange(2);
-            channelMask(rmsByChannel < rmsMin | rmsByChannel > rmsMax) = false;
-
-            rmsBadChannels = find(~channelMask & oldChannelMask);
-            imec.markBadChannels(~channelMask);
+            rmsBadMask = rmsByChannel < rmsMin | rmsByChannel > rmsMax;
+            
+            badMappedChannels = imec.mappedChannels(rmsBadMask);
+            badConnectedChannels = badMappedChannels(ismember(badMappedChannels, imec.connectedChannels));
+            imec.markBadChannels(badConnectedChannels);
+            
+            rmsBadChannels = badMappedChannels;
         end
 
         function markBadChannels(imec, list)
@@ -1178,7 +1178,9 @@ classdef ImecDataset < handle
             if islogical(list)
                 list = find(list);
             end
-            imec.badChannels = union(imec.badChannels, list);
+            % filter for connected channels only
+            badConnectedChannels = list(ismember(list, imec.connectedChannels));
+            imec.badChannels = union(badConnectedChannels, list);
         end
 
 end
