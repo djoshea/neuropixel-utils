@@ -215,6 +215,12 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
             p.addParameter('ymag', 0.8, @isscalar);
             p.addParameter('gain', NaN, @isscalar);
             
+            p.addParameter('xoffset', 0, @isscalar);
+            p.addParameter('yoffset', 0, @isscalar);
+            
+            p.addParameter('xoffsetBetweenClusters', 0, @isscalar);
+            p.addParameter('yoffsetBetweenClusters', 0, @isscalar);
+            
             p.addParameter('showIndividual', true, @islogical); 
             p.addParameter('showMean', false, @islogical);
             p.addParameter('meanPlotArgs', {'LineWidth', 3}, @iscell);
@@ -228,6 +234,8 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
             p.addParameter('ylim', [], @(x) true);
             
             p.addParameter('colormap', get(groot, 'DefaultAxesColorOrder'), @(x) true);
+            
+            p.addParameter('axh', [], @(x) true);
             p.KeepUnmatched = false;
             p.parse(varargin{:});
             
@@ -235,6 +243,13 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
             xspacing = ss.channelMap.xspacing;
             xmag = p.Results.xmag;
             ymag = p.Results.ymag;
+            xoffset = p.Results.xoffset;
+            yoffset = p.Results.yoffset;
+            xoffsetBetweenClusters = p.Results.xoffsetBetweenClusters;
+            yoffsetBetweenClusters = p.Results.yoffsetBetweenClusters;
+            
+            axh = p.Results.axh;
+            if isempty(axh), axh = gca; end
             
             % plot relative time vector
             tvec = linspace(0, xspacing * xmag, numel(ss.window(1) : ss.window(2)));
@@ -251,7 +266,7 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
             % center and scale each channel
             if ~any(maskSnippets)
                 warning('No snippets for these clusters');
-                axis off;
+                axis(axh, 'off');
                 return;
             end
             
@@ -272,7 +287,7 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
             unique_cluster_ids = unique(ss.cluster_ids(maskSnippets));
             nUniqueClusters = numel(unique_cluster_ids);
             
-            holding = ishold;
+            holding = ishold(axh);
             nChannels = size(data, 1);
             handlesIndiv = cell(nChannels, nUniqueClusters);
             handlesMean = gobjects(nChannels, nUniqueClusters);
@@ -308,19 +323,22 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
 
                 cmapIdx = mod(iClu-1, size(cmap, 1))+1;
                 
+                xc = xc + xoffset + xoffsetBetweenClusters*(iClu-1);
+                yc = yc + yoffset + yoffsetBetweenClusters*(iClu-1);
+                
                 for iC = 1:nChannels
                     dmat = Neuropixel.Utils.TensorUtils.squeezeDims(data(iC, :, this_snippet_mask_subset), 1) + yc(iC);
                         
                     if p.Results.showIndividual
-                        handlesIndiv{iC, iClu} = plot(tvec + xc(iC), dmat, 'Color', [cmap(cmapIdx, :), p.Results.alpha], ...
+                        handlesIndiv{iC, iClu} = plot(axh, tvec + xc(iC), dmat, 'Color', [cmap(cmapIdx, :), p.Results.alpha], ...
                             'AlignVertexCenters', true, p.Results.plotArgs{:});
                         Neuropixel.Utils.hideInLegend(handlesIndiv{iC, iClu});
-                        hold on;
+                        hold(axh, 'on');
                     end
                     if p.Results.showMean
-                        handlesMean(iC, iClu) = plot(tvec + xc(iC), mean(dmat, 2), 'Color', cmap(cmapIdx, :), ...
+                        handlesMean(iC, iClu) = plot(axh, tvec + xc(iC), mean(dmat, 2), 'Color', cmap(cmapIdx, :), ...
                             'AlignVertexCenters', true, p.Results.meanPlotArgs{:});
-                        hold on;
+                        hold(axh, 'on');
                     end
                     if iC == 1 
                         Neuropixel.Utils.showFirstInLegend(handlesMean(iC, iClu), sprintf('cluster %d', this_cluster_id));
@@ -333,30 +351,30 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
             end
             
             if p.Results.showChannelLabels
-                xc = ss.channelMap.xcoords;
-                yc = ss.channelMap.ycoords;
+                xc = ss.channelMap.xcoords + xoffset;
+                yc = ss.channelMap.ycoords + yoffset;
                 
                 for iC = 1:ss.channelMap.nChannels
                     if channels_plotted(iC)
                         text(xc(iC), yc(iC), sprintf('ch %d', ss.channelMap.channelIds(iC)), ...
-                            'HorizontalAlignment', 'right', 'VerticalAlignment', 'middle', ...
+                            'Parent', axh, 'HorizontalAlignment', 'right', 'VerticalAlignment', 'middle', ...
                             p.Results.labelArgs{:});
                     end
                 end
             end
             
             if ~holding
-                hold off;
+                hold(axh, 'off');
             end
-            axis off;
-            axis tight;
+            axis(axh, 'off');
+            axis(axh, 'tight');
             if ~isempty(p.Results.xlim)
-                xlim(p.Results.xlim);
+                xlim(axh, p.Results.xlim);
             end
             if ~isempty(p.Results.ylim)
-                ylim(p.Results.ylim);
+                ylim(axh, p.Results.ylim);
             end
-            box off;
+            box(axh, 'off');
             
             hdata.waveforms = handlesIndiv;
             hdata.waveformMeans = handlesMean;
@@ -364,8 +382,12 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
             settings.ymag = ymag;
             settings.xmag = xmag;
             settings.gain = gain;
-            settings.xlim = xlim();
-            settings.ylim = ylim();
+            settings.xlim = xlim(axh);
+            settings.ylim = ylim(axh);
+            settings.xoffset = xoffset;
+            settings.yoffset = yoffset;
+            settings.xoffsetBetweenClusters = xoffsetBetweenClusters;
+            settings.yoffsetBetweenClusters = yoffsetBetweenClusters;
         end
         
         function [bg, traceColor] = setupFigureAxes(~, dark)
