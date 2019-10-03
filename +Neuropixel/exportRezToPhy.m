@@ -8,9 +8,12 @@ function exportRezToPhy(rez, savePath, varargin)
     p = inputParser();
     p.addParameter('export_cutoff_as_offset_clusters', false, @islogical); % export the cutoff spikes with cluster numbers 10000 + original, only for debugging, neuropixel-utils directly handles the cutoff spikes directly
     p.addParameter('export_cutoff_hidden', true, @islogical); % export the cutoff spikes with cluster numbers 10000 + original, only for debugging, neuropixel-utils directly handles the cutoff spikes directly
+    p.addParameter('export_batchwise', getOr(rez.ops, 'export_batchwise', true), @islogical);
     p.parse(varargin{:});
     export_cutoff_as_offset_clusters = p.Results.export_cutoff_as_offset_clusters;
     export_cutoff_hidden = p.Results.export_cutoff_hidden;
+    export_batchwise = p.Results.export_batchwise;
+    
     if export_cutoff_hidden
         assert(isfield(rez, 'st3_cutoff_invalid'), 'Missing rez.st3_cutoff_invalid');
     end
@@ -215,7 +218,7 @@ function exportRezToPhy(rez, savePath, varargin)
 
     writeTSV('cluster_KSLabel.tsv', 'KSLabel', ks_labels, '%s');
     writeTSV('cluster_ContamPct.tsv', 'ContamPct', est_contam_rate, '%.1f');
-    writeTSV('cluster_Amplitude.tsv', 'Amplitude', clusterAmps, '%.1f');
+    %writeTSV('cluster_Amplitude.tsv', 'Amplitude', clusterAmps, '%.1f'); % phy computes automatically now
     writeTSV('cluster_MergeSplit.tsv', 'MergeSplit', merge_split_desc, '%s');
     
     %% export other things not needed by phy but needed by KilosortDataset
@@ -240,19 +243,21 @@ function exportRezToPhy(rez, savePath, varargin)
     writeNPY_local(rez.ccb, 'batchwise_ccb.npy');
     writeNPY_local(rez.iorig, 'batch_sort_order.npy');
 
-    nTemplateRank = size(rez.WA, 3);
-    nTemplatePCs = size(rez.W_a, 2);
-    nTemplates = size(templates, 1);
-    nTemplateTimepoints = size(rez.WA, 1);
-    nChannelsSorted = rez.ops.Nchan;
+    if export_batchwise && isfield(rez, 'W_a')
+        nTemplateRank = size(rez.WA, 3);
+        nTemplatePCs = size(rez.W_a, 2);
+        nTemplates = size(templates, 1);
+        nTemplateTimepoints = size(rez.WA, 1);
+        nChannelsSorted = rez.ops.Nchan;
 
-    writeNPY_local(single(rez.WA), 'template_W_batch.npy');
-    writeNPY_local(reshape(single(rez.W_a), [nTemplateTimepoints, nTemplateRank, nTemplatePCs, nTemplates]), 'template_W_batch_US.npy');
-    writeNPY_local(single(rez.W_b), 'template_W_batch_V.npy');
-    
-    writeNPY_local(single(rez.UA), 'template_U_batch.npy');
-    writeNPY_local(reshape(single(rez.U_a), [nChannelsSorted, nTemplateRank, nTemplatePCs, nTemplates]), 'template_U_batch_US.npy');
-    writeNPY_local(single(rez.U_b), 'template_U_batch_V.npy');
+        writeNPY_local(single(rez.WA), 'template_W_batch.npy');
+        writeNPY_local(reshape(single(rez.W_a), [nTemplateTimepoints, nTemplateRank, nTemplatePCs, nTemplates]), 'template_W_batch_US.npy');
+        writeNPY_local(single(rez.W_b), 'template_W_batch_V.npy');
+
+        writeNPY_local(single(rez.UA), 'template_U_batch.npy');
+        writeNPY_local(reshape(single(rez.U_a), [nChannelsSorted, nTemplateRank, nTemplatePCs, nTemplates]), 'template_U_batch_US.npy');
+        writeNPY_local(single(rez.U_b), 'template_U_batch_V.npy');
+    end
     
     %% write params.py file
     fid = fopen(fullfile(savePath,'params.py'), 'w');
