@@ -78,6 +78,7 @@ classdef KilosortMetrics < handle
         
         % nClusters x nTemplates
         cluster_template_useCount uint64 % nClusters x nTemplates number of spikes in cluster i using template j
+        cluster_template_weight single % nClusters x nTemplates fraction of spikes using template j of all cluster i's spikes 
         cluster_num_templates uint32 % nClusters x 1 number of templates
         
         % nClusters x nChannelsSorted channel ids
@@ -92,6 +93,9 @@ classdef KilosortMetrics < handle
         % nClusters x nTimePoint x maxTemplatesPerCluster
         cluster_waveform single
         
+        % [nClusters, nClusters] single matrix giving the similarity score (larger is more similar) between each pair of clusters, based on similar_templates
+        similar_clusters(:, :) single
+
         % nClusters x maxTemplatesPerCluster
         cluster_waveform_ch uint32
         cluster_amplitude single
@@ -133,15 +137,27 @@ classdef KilosortMetrics < handle
             p.addParameter('ampThreshCenterOfMass', 0.3, @isscalar);
             p.addParameter('extThreshLocalizedTemplate', 0.5, @isscalar);
             p.addParameter('distThreshLocalizedTemplate', 200, @isscalar);
+            
+            p.addParameter('progressInitializeFn', [], @(x) isempty(x) || isa(x, 'function_handle')); % f(nUpdates) to print update
+            p.addParameter('progressIncrementFn', [], @(x) isempty(x) || isa(x, 'function_handle')); % f(updateString) to print update
             p.parse(varargin{:});
             
             assert(isa(ks, 'Neuropixel.KilosortDataset'));
             assert(ks.isLoaded, 'KilosortDataset is not loaded');
             
             nSteps = 8;
-            prog = Neuropixel.Utils.ProgressBar(nSteps, 'Computing metrics for Kilosort Dataset...\n');
-            m.ks = ks;
+            initStr = 'Computing KilosortMetrics for dataset';
+            if isempty(p.Results.progressInitializeFn) && isempty(p.Results.progressIncrementFn)
+                prog = Neuropixel.Utils.ProgressBar(nSteps, initStr);
+                progIncrFn = @(text) prog.increment(text);
+            else
+                if ~isempty(p.Results.progressInitializeFn)
+                    p.Results.progressInitializeFn(nSteps, initStr);
+                end
+                progIncrFn = p.Results.progressIncrementFn;
+            end
             
+            m.ks = ks;
             m.fs = ks.fsAP;
             m.spike_templates = ks.spike_templates;
             m.spike_clusters = ks.spike_clusters;
@@ -178,7 +194,7 @@ classdef KilosortMetrics < handle
                 m.template_best_channels(iT, :) = closest_lookup(bestChannelInd, :)';
             end
              
-            prog.increment('Template center of mass');
+            progIncrFn('Template center of mass');
             % B. determine template center of mass
             %   1. compute template amp on each channel, zeroing out small (< 0.3 max) faraway channels
             templateUnscaledAmps = squeeze(max(m.template_unw,[],2) - min(m.template_unw,[],2)); % nTemplates x nTemplateChannels
@@ -209,7 +225,7 @@ classdef KilosortMetrics < handle
             end
             
             % D. scale the spikes by both templates's largest intrinsic amplitude and then ks.amplitudes
-            prog.increment('Spike / template amplitude scaling');
+            progIncrFn('Spike / template amplitude scaling');
             m.spike_amplitude = ks.amplitudes .* templateUnscaledMaxAmp(ks.spike_templates) * ks.apScaleToUv;
             
             % E. determine template scale by averaging ks.amplitudes that use that template
@@ -217,7 +233,7 @@ classdef KilosortMetrics < handle
             m.template_scaled = m.template_unw .* template_scale * ks.apScaleToUv;
             
             % F. determine template largest scaled waveform
-            prog.increment('Template waveforms');
+            progIncrFn('Template waveforms');
             m.template_waveform_ch = nan(ks.nTemplates, 1);
             m.template_waveform = nan(ks.nTemplates, size(ks.templates, 2));
             for iT = 1:ks.nTemplates
@@ -233,7 +249,7 @@ classdef KilosortMetrics < handle
             m.template_ttp(m.template_ttp <= 0) = NaN;
             
             if ks.hasFeaturesLoaded
-                prog.increment('Individual spike center of mass');
+                progIncrFn('Individual spike center of mass');
                 % H. use private pcs to determine spike center of mass a la driftmap
                 %   1. weight channels based on squared projection onto 1st pc
                 pc1proj = squeeze(ks.pc_features(:, 1, :)); % nSpikes x nPCFeatures
@@ -248,10 +264,11 @@ classdef KilosortMetrics < handle
             end
             
             % I. compute cluster weighting over templates and list of templates used by each cluster, sorted by number of uses
-            prog.increment('Cluster weighting over templates');
+            progIncrFn('Cluster weighting over templates');
             [mask_spike_in_cluster, cluster_ind_each_spike] = ismember(ks.spike_clusters, ks.cluster_ids);
             m.cluster_template_useCount = accumarray([cluster_ind_each_spike(mask_spike_in_cluster), ks.spike_templates(mask_spike_in_cluster)], ...
                 ones(ks.nSpikes, 1), [ks.nClusters, ks.nTemplates]);
+            m.cluster_template_weight = single(m.cluster_template_useCount) ./ single(ks.cluster_spike_counts);
             
             [~, m.cluster_template_mostUsed] = max(m.cluster_template_useCount, [], 2);
             m.cluster_best_channels = m.template_best_channels(m.cluster_template_mostUsed, :);
@@ -268,13 +285,13 @@ classdef KilosortMetrics < handle
             % J. cluster is localized if all templates used are localized
             m.cluster_is_localized = arrayfun(@(iC) all(m.template_is_localized(m.cluster_template_list{iC})), 1:ks.nClusters);
             
-            prog.increment('Cluster center of mass');
+            progIncrFn('Cluster center of mass');
             % K. find cluster center of mass
             cluster_template_weight = double(m.cluster_template_useCount) ./ sum(m.cluster_template_useCount, 2);
             m.cluster_centerOfMass = Neuropixel.Utils.TensorUtils.linearCombinationAlongDimension(m.template_centerOfMass, 1, cluster_template_weight);
             
             % L. cluster waveforms
-            prog.increment('Cluster waveform');
+            progIncrFn('Cluster waveform');
             cluster_waveform = nan(ks.nClusters, size(m.template_waveform, 2), maxTemplatesPerCluster);
             cluster_waveform_ch = nan(ks.nClusters);
             for iC = 1:ks.nClusters
@@ -284,11 +301,26 @@ classdef KilosortMetrics < handle
             m.cluster_waveform = cluster_waveform;
             m.cluster_waveform_ch = cluster_waveform_ch;
             % J. cluster_amplitudes and ttp - weighted mean of template amplitude / ttp
-            prog.increment('Cluster amplitudes');
+            progIncrFn('Cluster amplitudes');
             m.cluster_amplitude = accumarray(cluster_ind_each_spike(mask_spike_in_cluster), m.spike_amplitude(mask_spike_in_cluster), [ks.nClusters, 1], @mean);
             template_mask = ~isnan(m.template_ttp);
             m.cluster_ttp = (double(m.cluster_template_useCount(:, template_mask)) * m.template_ttp(template_mask)) ./ sum(m.cluster_template_useCount(:, template_mask), 2);
             
+            progIncrFn('Cluster similarity');
+            % computed template_use_count weighted similarity to other templates
+            % similar_clusters_i,j = sum_t1 sum_t2 [ template_weight(i, t1) * template_weight(j, t2) * similar_templates(t1, t2) ]
+            m.similar_clusters = m.cluster_template_weight * (m.cluster_template_weight * ks.similar_templates)';
+            
+%             similar_clusters = zeros(ks.nClusters, ks.nClusters);
+%             for iT = 1:ks.nTemplates
+%                 similar_clusters = similar_clusters + m.cluster_template_useCount(:, iT) .* m.cluster_template_useCount(:, t)';
+%             end
+%             
+%             
+%             ks.similar_templates * m.cluster_template_useCount;
+%             
+%             [~, sortIdx] = sort(m.cluster_template_useCount(iC, inds), 'descend');
+%             m.cluster_template_list{iC} = inds(sortIdx)';          
 %            % J. batch-wise templates
 %            all_nonempty = @(flds) all(arrayfun(@(fld) ~isempty(ks.(fld)), flds));
 %             
@@ -338,8 +370,9 @@ classdef KilosortMetrics < handle
 %         % nClusters x maxTemplatesPerCluster x nBatches
 %         cluster_amplitude_batchwise single
             
-            
-            prog.finish();
+            if exist('prog', 'var')
+                prog.finish();
+            end
         end
         
         function n = get.nSpikes(m)
@@ -486,6 +519,117 @@ classdef KilosortMetrics < handle
             counts = m.computeClusterBinnedCounts('binWidth', p.Results.binWidth, varargin{:});
             meanFR = mean(counts, 2) / p.Results.binWidth;
         end
+        
+        function [similar_cluster_ids, similarity] = computeSimilarClusters(m, cluster_ids, varargin)
+            p = inputParser();
+            p.addParameter('max_similar', m.nClusters-1, @isscalar);
+            p.addParameter('min_similarity', 0, @isscalar);
+            p.parse(varargin{:});
+            
+            [cluster_inds, ~] = m.lookup_clusterIds(cluster_ids);
+            similar_clusters = max(m.similar_clusters(:, cluster_inds), [], 2);
+            similar_clusters(cluster_inds) = -1; % clear the self-similarity terms within group so they aren't considered
+            
+            max_similar = p.Results.max_similar;
+            min_similarity = max(0, p.Results.min_similarity);
+            
+            [similarity,  similar_cluster_inds] = maxk(similar_clusters, max_similar);
+            mask = similarity >= min_similarity;
+            similar_cluster_ids = m.cluster_ids(similar_cluster_inds(mask));
+            similarity = similarity(mask);
+        end
+        
+        function [K, bins] = computeCCG(m, cluster_ids1, cluster_ids2, varargin)
+            p = inputParser();
+            p.addParameter('windowMs', 25, @isscalar);
+            p.addParameter('binMs', 1, @isscalar);
+            p.addParameter('include_cutoff_spikes', false, @islogical);
+            p.parse(varargin{:});
+            
+            windowMs = p.Results.windowMs;
+            binMs = p.Results.binMs;
+            include_cutoff_spikes = p.Results.include_cutoff_spikes;
+            
+            st1 = m.internal_getSpikes(cluster_ids1, include_cutoff_spikes);
+            st2 = m.internal_getSpikes(cluster_ids2, include_cutoff_spikes);
+            
+            [K, bins] = m.internal_computeCCG(st1, st2, windowMs, binMs);
+        end
+        
+        function [K, bins] = computeACG(m, cluster_ids, varargin)
+            p = inputParser();
+            p.addParameter('windowMs', 25, @isscalar);
+            p.addParameter('binMs', 1, @isscalar);
+            p.addParameter('include_cutoff_spikes', false, @islogical);
+            p.parse(varargin{:});
+            
+            windowMs = p.Results.windowMs;
+            binMs = p.Results.binMs;
+            include_cutoff_spikes = p.Results.include_cutoff_spikes;
+            
+            st = m.internal_getSpikes(cluster_ids, include_cutoff_spikes);
+            [K, bins] = m.internal_computeCCG(st, st, windowMs, binMs);
+        end
+        
+        function st = internal_getSpikes(m, cluster_ids, include_cutoff_spikes)
+            if isscalar(cluster_ids)
+                mask = m.ks.spike_clusters == cluster_ids;
+            else
+                mask = ismember(m.ks.spike_clusters, cluster_ids);
+            end
+            st = m.ks.spike_times(mask);
+            
+            if include_cutoff_spikes
+                if isscalar(cluster_ids1)
+                    mask = m.cutoff_ks.spike_clusters == cluster_ids;
+                else
+                    mask = ismember(m.ks.cutoff_spike_clusters, cluster_ids);
+                end
+                st = sort(cat(1, st, m.ks.cutoff_spike_times(mask)));
+            end
+        end
+        
+        function [K, bins] = internal_computeCCG(m, st1, st2, windowMs, binWidthMs)
+            % this is based on Marius's ccg() method
+            
+            nbins = ceil(windowMs / binWidthMs);
+            % st1 and st2 are both in ks samples defined by ks.fsAP
+            
+            dt_ms = nbins*binWidthMs;
+            bins = (-dt_ms : binWidthMs : dt_ms)';
+            
+            % in samples
+            dt = dt_ms * m.fs / 1000;
+            tbin = binWidthMs * m.fs / 1000;
+            
+            ilow = 1;
+            ihigh = 1;
+            j = 1;
+
+            K = zeros(2*nbins+1, 1); 
+
+            while j<=numel(st2)
+                while (ihigh<=numel(st1)) && (double(st1(ihigh)) < double(st2(j))+dt)
+                    ihigh = ihigh + 1;
+                end
+                while (ilow<=numel(st1)) && double(st1(ilow)) <= double(st2(j))-dt
+                    ilow = ilow + 1;
+                end
+                if ilow>numel(st1)
+                    break;
+                end
+                if double(st1(ilow)) > double(st2(j))+dt
+                    j = j+1;
+                    continue;
+                end
+                for k = ilow:(ihigh-1)
+                    ibin = round((double(st2(j)) - double(st1(k)))/tbin);
+                    K(ibin+ nbins+1) = K(ibin + nbins+1) + 1;
+                end
+                j = j+1;
+            end
+        end
+        
     end
     
     methods % Plotting stability over time
@@ -1131,7 +1275,10 @@ classdef KilosortMetrics < handle
     
     methods % Plotting cluster waveforms
         
-        function clusterInds = lookup_clusterIds(m, cluster_ids)
+        function [clusterInds, cluster_ids] = lookup_clusterIds(m, cluster_ids)
+            if islogical(cluster_ids)
+                cluster_ids = m.cluster_ids(cluster_ids);
+            end
             [tf, clusterInds] = ismember(cluster_ids, m.cluster_ids);
             assert(all(tf), 'Some cluster ids were not found in ds.clusterids');
         end
