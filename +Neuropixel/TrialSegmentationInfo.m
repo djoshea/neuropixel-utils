@@ -33,6 +33,20 @@ classdef TrialSegmentationInfo < handle & matlab.mixin.Copyable
             nTrials = numel(tsi.trialId);
         end
         
+        function maskTrials(tsi, mask)
+            tsi.trialId = tsi.trialId(mask);
+            tsi.conditionId = tsi.conditionId(mask);
+            tsi.idxStart = tsi.idxStart(mask);
+            tsi.idxStop = tsi.idxStop(mask);
+        end
+        
+        function maskTrialsWithinTrialIdRange(tsi, trialIdLims)
+            trialIdLims = uint32(trialIdLims);
+            assert(numel(trialIdLims) == 2);
+            mask = tsi.trialId >= trialIdLims(1) & tsi.trialId <= trialIdLims(2);
+            tsi.maskTrials(mask);
+        end
+        
         function tf = get.trialsAreAdjacent(tsi)
             % true if each trial's stop == next trial's start (or within one sample
             tf = all(int64(tsi.idxStart(2:end)) - int64(tsi.idxStop(1:end-1)) <= int64(1));
