@@ -50,6 +50,10 @@ classdef KilosortDataset < handle
         nSpikesCutoff
     end
     
+    properties(Constant)
+        CUTOFF_SPIKES_EXPORT_OFFSET = 10000;
+    end
+    
     properties(SetAccess=protected)
         syncBitNames(:, 1) string
     end
@@ -425,6 +429,12 @@ classdef KilosortDataset < handle
            
             % these will pass thru to raw_dataset if provided
             ks.fsAP = p.Results.fsAP;
+            if isempty(ks.fsAP() || isnan(ks.fsAP) % will pass thru to raw_dataset if found
+                % try reading sample_rate from params.py
+                ks.readParamsPy();
+                ks.fsAP = ks.sample_rate;
+            end
+            
             ks.apScaleToUv = p.Results.apScaleToUv;
             
             % manually specify some additional props
@@ -464,14 +474,33 @@ classdef KilosortDataset < handle
                 s.offset = ks.offset;
                 s.sample_rate = ks.sample_rate;
                 s.spike_times = ks.spike_times;
+                
+                if ks.hasCutoffLoaded
+                    s.cutoff_spike_times = ks.cutoff_spike_times;
+                    s.cutoff_spike_clusters = ks.cutoff_spike_clusters;
+                else
+                    s.cutoff_spike_times = [];
+                    s.cutoff_spike_clusters = [];
+                end
             else
                 % partial load
                 s.spike_clusters = read('spike_clusters');
+                mask = s.spike_clusters < ks.CUTOFF_SPIKES_EXPORT_OFFSET; % eliminate cutoff spikes if included
+                s.spike_clusters = s.spike_clusters(mask);
                 s.cluster_ids = unique(s.spike_clusters);
                 params = Neuropixel.readINI(fullfile(ks.path, 'params.py'));
                 s.sample_rate = params.sample_rate;
                 s.offset = params.offset;
                 s.spike_times = read('spike_times');
+                s.spike_times = s.spike_times(mask);
+                
+                if existp('cutoff_spike_times')
+                    s.cutoff_spike_times = read('cutoff_spike_times');
+                    s.cutoff_spike_clusters = read('cutoff_spike_clusters');
+                else
+                    s.cutoff_spike_times = [];
+                    s.cutoff_spike_clusters = [];
+                end
             end
             
             s.nSpikes = numel(s.spike_clusters);
@@ -479,12 +508,23 @@ classdef KilosortDataset < handle
             s.nSec = double(max(s.spike_times) - s.offset) / double(s.sample_rate);
             
             counts = histcounts(s.spike_clusters, sort(s.cluster_ids));
+            if ~isempty(s.cutoff_spike_clusters)
+                cutoff_counts = histcounts(s.cutoff_spike_clusters, sort(s.cluster_ids));
+            else
+                cutoff_counts = zeros(size(counts));
+            end
             s.fr = counts / double(s.nSec);
+            s.fr_cutoff_only = cutoff_counts / double(s.nSec);
+            s.fr_plus_cutoff = s.fr + s.fr_cutoff_only;
             s.thresh = p.Results.frThresholdHz;
             
             s.clusterMask = s.fr > s.thresh;
             s.nClustersAboveThresh = nnz(s.clusterMask);
             s.nSpikesAboveThresh = nnz(ismember(s.spike_clusters, s.cluster_ids(s.clusterMask)));
+            
+            function tf = existp(file)
+                tf = exist(fullfile(ks.path, [file '.npy']), 'file') == 2;
+            end
             
             function out = read(file)
                 out = Neuropixel.readNPY(fullfile(ks.path, [file '.npy']));
@@ -492,20 +532,41 @@ classdef KilosortDataset < handle
         end
         
         function s = printBasicStats(ks, varargin)
-            s = ks.computeBasicStats(varargin{:});
+            p = inputParser();
+            p.addParameter('color', 'k', @(x) true);
+            p.KeepUnmatched = true;
+            p.parse(varargin{:})
+            s = ks.computeBasicStats(p.Unmatched);
             
             fprintf('%s: %.1f sec, %d (%d) spikes, %d (%d) clusters (with fr > %g Hz)\n', ks.pathLeaf, s.nSec, ...
                 s.nSpikes, s.nSpikesAboveThresh, ...
                 s.nClusters, s.nClustersAboveThresh, s.thresh);
             
-            plot(sort(s.fr, 'descend'), 'k-')
+            h = plot(sort(s.fr, 'descend'), '-', 'Color', p.Results.color);
+            Neuropixel.Utils.showFirstInLegend(h, ks.pathLeaf);
+            if any(s.fr_cutoff_only) > 0
+                hold on
+                h = plot(sort(s.fr_plus_cutoff, 'descend'), '--', 'Color', p.Results.color);
+                Neuropixel.Utils.hideInLegend(h);
+            end
             xlabel('Cluster');
             ylabel('# spikes');
             hold on
-            yline(s.thresh, 'Color', 'r');
+            h = yline(s.thresh, 'Color', 'r');
+            Neuropixel.Utils.hideInLegend(h);
             hold off;
             box off;
             grid on;
+        end
+        
+        function readParamsPy(ks)
+            params = Neuropixel.readINI(fullfile(ks.path, 'params.py'));
+            ks.dat_path = params.dat_path;
+            ks.n_channels_dat = params.n_channels_dat;
+            ks.dtype = params.dtype;
+            ks.offset = params.offset;
+            ks.sample_rate = params.sample_rate;
+            ks.hp_filtered = params.hp_filtered;
         end
 
         function load(ks, varargin)
@@ -524,18 +585,12 @@ classdef KilosortDataset < handle
             end
             ks.isLoaded = false;
             
+            ks.readParamsPy();
+            
             loadFeatures = p.Results.loadFeatures;
             loadBatchwise = p.Results.loadBatchwise;
             loadCutoff = p.Results.loadCutoff;
-                
-            params = Neuropixel.readINI(fullfile(ks.path, 'params.py'));
-            ks.dat_path = params.dat_path;
-            ks.n_channels_dat = params.n_channels_dat;
-            ks.dtype = params.dtype;
-            ks.offset = params.offset;
-            ks.sample_rate = params.sample_rate;
-            ks.hp_filtered = params.hp_filtered;
-
+            
             path = ks.path;
             existp = @(file) exist(fullfile(path, file), 'file') > 0;
 
@@ -599,7 +654,7 @@ classdef KilosortDataset < handle
             end
               
             % filter out clusters > 10000, typically used for cutoff clusters during export so that Phy can see them
-            mask = ks.spike_clusters < 10000;
+            mask = ks.spike_clusters < ks.CUTOFF_SPIKES_EXPORT_OFFSET;
             ks.amplitudes = ks.amplitudes(mask);
             ks.spike_times = ks.spike_times(mask);
             ks.spike_templates = ks.spike_templates(mask);
