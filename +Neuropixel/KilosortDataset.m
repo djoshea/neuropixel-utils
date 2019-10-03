@@ -669,6 +669,7 @@ classdef KilosortDataset < handle
             ks.cluster_ids = unique(ks.spike_clusters);
 
             progIncrFn('Computing cluster spike counts');
+            assert(~isempty(ks.cluster_ids));
             ks.cluster_spike_counts = uint32(Neuropixel.Utils.discrete_histcounts(ks.spike_clusters, ks.cluster_ids));
 
             % load KS cluster labels
