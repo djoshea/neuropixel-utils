@@ -38,11 +38,16 @@ classdef ConcatenationInfo < handle
                 
                 nC = numel(ci.samplesPreShift);
                 
-                timeShiftStrings = getor(meta, 'concatenatedTimeShifts', []);
-                if ~isempty(timeShiftStrings)
-                    % expecting mat2str serialized [1 2 3;4 5 6] type arrays, joined by ;
-                    matches = string(regexp(timeShiftStrings, '\s*(\[[\d ;,]*])\s*;?\s*', 'tokens'))';
-                    ci.timeShifts = arrayfun(@(str, nSamples) Neuropixel.TimeShiftSpec.from_string(str, nSamples), matches, ci.samplesPreShift);
+                timeShifts = getor(meta, 'concatenatedTimeShifts', []);
+                if ~isempty(timeShifts)
+                    if isnumeric(timeShifts)
+                        % single time shift, deserialized as single 1 x 3 numeric matrix
+                        ci.timeShifts = Neuropixel.TimeShiftSpec.from_matrix(timeShifts, ci.samplesPreShift);
+                    else
+                        % expecting mat2str serialized [1 2 3;4 5 6] type arrays, joined by ;
+                        matches = string(regexp(timeShifts, '\s*(\[[\d ;,]*])\s*;?\s*', 'tokens'))';
+                        ci.timeShifts = arrayfun(@(str, nSamples) Neuropixel.TimeShiftSpec.from_string(str, nSamples), matches, ci.samplesPreShift);
+                    end
                 end
                 
                 namescat = getor(meta, 'concatenated', []);
