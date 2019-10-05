@@ -568,7 +568,7 @@ classdef KilosortMetrics < handle
             include_cutoff_spikes = p.Results.include_cutoff_spikes;
             
             st = m.internal_getSpikes(cluster_ids, include_cutoff_spikes);
-            [K, bins] = m.internal_computeCCG(st, st, windowMs, binMs);
+            [K, bins] = m.internal_computeCCG(st, [], windowMs, binMs);
         end
         
         function st = internal_getSpikes(m, cluster_ids, include_cutoff_spikes)
@@ -580,8 +580,8 @@ classdef KilosortMetrics < handle
             st = m.ks.spike_times(mask);
             
             if include_cutoff_spikes
-                if isscalar(cluster_ids1)
-                    mask = m.cutoff_ks.spike_clusters == cluster_ids;
+                if isscalar(cluster_ids)
+                    mask = m.ks.cutoff_spike_clusters == cluster_ids;
                 else
                     mask = ismember(m.ks.cutoff_spike_clusters, cluster_ids);
                 end
@@ -591,6 +591,13 @@ classdef KilosortMetrics < handle
         
         function [K, bins] = internal_computeCCG(m, st1, st2, windowMs, binWidthMs)
             % this is based on Marius's ccg() method
+            
+            if isempty(st2)
+                st2 = st1;
+                isACG = true;
+            else
+                isACG = false;
+            end
             
             nbins = ceil(windowMs / binWidthMs);
             % st1 and st2 are both in ks samples defined by ks.fsAP
@@ -623,6 +630,7 @@ classdef KilosortMetrics < handle
                     continue;
                 end
                 for k = ilow:(ihigh-1)
+                    if isACG && k == j, continue, end
                     ibin = round((double(st2(j)) - double(st1(k)))/tbin);
                     K(ibin+ nbins+1) = K(ibin + nbins+1) + 1;
                 end
