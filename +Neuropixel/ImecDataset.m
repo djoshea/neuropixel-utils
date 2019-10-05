@@ -1180,7 +1180,7 @@ classdef ImecDataset < handle
             end
             % filter for connected channels only
             badConnectedChannels = list(ismember(list, imec.connectedChannels));
-            imec.badChannels = union(badConnectedChannels, list);
+            imec.badChannels = union(imec.badChannels, badConnectedChannels);
         end
 
 end
