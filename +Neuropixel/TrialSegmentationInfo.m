@@ -123,6 +123,21 @@ classdef TrialSegmentationInfo < handle & matlab.mixin.Copyable
             end
         end
         
+        function h = plotTrialsActiveRegions(tsi, varargin)
+            p = inputParser();
+            p.addParameter('maxPauseSec', 20, @isscalar);
+            p.addParameter('LineSpecStart', '-', @ischar);
+            p.addParameter('LineSpecStop', '--', @ischar);
+            p.KeepUnmatched = true;
+            p.parse(varargin{:});
+            
+            cla;
+            ylim([0 1]);
+            tsi.markActiveRegions(p.Results, p.Unmatched);
+            tsi.markTrialTicks(p.Unmatched);
+            
+        end
+        
         function h = markTrialTicks(tsi, varargin)
             p = inputParser();
             p.addParameter('sample_window', [], @(x) isempty(x) || isvector(x)); % masks which trials to include, note that it applies before the time shifts
@@ -166,9 +181,11 @@ classdef TrialSegmentationInfo < handle & matlab.mixin.Copyable
         function markActiveRegions(tsi, varargin)
             % marks regions that are densely covered with trials (ignoring gaps between trials
             p = inputParser();
-            p.addParameter('maxPauseSec', 20, @isscalar); % in samples
+            p.addParameter('maxPauseSec', 20, @isscalar); 
             p.addParameter('time_shifts', [], @(x) isempty(x) || isa(x, 'Neuropixel.TimeShiftSpec'));
             p.addParameter('Color', [0 0 1], @isvector);
+            p.addParameter('timeInSeconds', true, @islogical); % if true, x axis is seconds, if false, is samples 
+            
             p.addParameter('LineSpecStart', '-', @ischar);
             p.addParameter('LineSpecStop', '--', @ischar);
             p.addParameter('xOffset', 0, @isscalar);
@@ -181,11 +198,16 @@ classdef TrialSegmentationInfo < handle & matlab.mixin.Copyable
                 idxStart = timeShiftSpec.shiftTimes(idxStart);
                 idxStop = timeShiftSpec.shiftTimes(idxStop);
             end
+            
+            if p.Results.timeInSeconds
+                idxStart = double(idxStart) / tsi.fs;
+                idxStop = double(idxStop) / tsi.fs;
+            end
             hold on;
             for iT = 1:numel(idxStart)
                 str = sprintf('Trial %d-%d', trialStartStop(iT, 1), trialStartStop(iT, 2));
-                xline(double(idxStart(iT)) / tsi.fs + xOffset, p.Results.LineSpecStart, '', 'Color', p.Results.Color, 'LineWidth', 0.5);
-                xline(double(idxStop(iT))  / tsi.fs + xOffset, p.Results.LineSpecStop, str, 'Color', p.Results.Color, 'LineWidth', 0.5);
+                xline(double(idxStart(iT)) + xOffset, p.Results.LineSpecStart, '', 'Color', p.Results.Color, 'LineWidth', 0.5);
+                xline(double(idxStop(iT)) + xOffset, p.Results.LineSpecStop, str, 'Color', p.Results.Color, 'LineWidth', 0.5);
             end
         end
         
