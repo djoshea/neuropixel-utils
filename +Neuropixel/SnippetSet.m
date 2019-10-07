@@ -5,9 +5,11 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
     % data here should be thought of as a set of data for many snippets
     % 
     
+    properties(Transient)
+        ks  % optional, handle to KilosortDataset for plotting waveforms and templates
+    end
+    
     properties
-        ks % optional, handle to KilosortDataset for plotting waveforms and templates
-        
         data (:, :, :, :) int16 % channels x time x snippets x layers
         
         % optional, set if each snippet corresponds to a specific cluster

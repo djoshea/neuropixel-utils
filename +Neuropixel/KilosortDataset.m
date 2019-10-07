@@ -7,6 +7,8 @@ classdef KilosortDataset < handle
 
     properties
         path(1, :) char
+        
+        dataset_variant char;
 
         raw_dataset % Neuropixel.ImecDataset instance
 
