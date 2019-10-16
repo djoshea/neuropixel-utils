@@ -8,6 +8,8 @@ classdef ChannelMap
         channelIdsMapped uint32
         connected logical
         shankInd
+        
+        nSpatialDims = 2;
         xcoords
         ycoords
         zcoords
@@ -17,6 +19,8 @@ classdef ChannelMap
     end
     
     properties(Dependent)
+        coords
+        
         syncInAPFile
         channelIds
         nChannels
@@ -24,7 +28,7 @@ classdef ChannelMap
         connectedChannels
         referenceChannels
         
-        invertChannelsY % plot first channel at bottom? (if first channel has lower 
+        invertChannelsY % plot first channel at bottom?
         
         yspacing
         xspacing
@@ -52,7 +56,9 @@ classdef ChannelMap
             map.ycoords = Neuropixel.Utils.makecol(d.ycoords);
             if isfield(d, 'zcoords')
                 map.zcoords = Neuropixel.Utils.makecol(d.zcoords);
+                map.nSpatialDims = 3;
             else
+                map.nSpatialDims = 2;
                 map.zcoords = zeros(size(map.ycoords), 'like', map.ycoords);
             end
             
@@ -139,6 +145,14 @@ classdef ChannelMap
             zlim = [min(map.zcoords) - zs, maz(map.zcoords) + zs];
         end
         
+        function coords = get.coords(map)
+            if map.nSpatialDims == 3
+                coords = cat(2, map.xcoords, map.ycoords, map.zcoords);
+            else
+                coords = cat(2, map.xcoords, map.ycoords);
+            end
+        end
+        
         function tf = get.invertChannelsY(map)
             % bigger y coords are higher up on the probe. This is used when we want to plot stacked traces. If false, 
             % channel 1 belongs at the top (has largest y coord). If true, channel 1 belongs at the bottom (has smallest y coord)
@@ -194,6 +208,12 @@ classdef ChannelMap
 %                 maskInds = find(mask);
 %                 idxFull = maskInds(idxIntoMasked);
 %             end
+        end
+        
+        function channel_ids_sorted = sortChannelsVertically(map, channel_ids)
+            channel_inds = map.lookup_channelIds(channel_ids);
+            [~, sortIdx] = sortrows(map.coords(channel_inds, :), [-2 1 3]); % sort by y (high to low), x (low to high), then z (low to high)
+            channel_ids_sorted = channel_ids(sortIdx);
         end
         
         function plotRecordingSites(map, varargin)

@@ -410,6 +410,7 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
             p = inputParser();
             p.addParameter('maskSnippets', ss.valid, @isvector);
             p.addParameter('cluster_ids', ss.overlay_cluster_ids, @isvector);
+            p.addParameter('sortChannelsVertically', false, @islogical);
             p.addParameter('best_n_channels', 24, @isscalar);
             p.parse(varargin{:});
             
@@ -425,7 +426,9 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
              % waveform window by creating an overlay that matches the data within this window and is NaN elsewhere
                  
              cluster_best_channel_ids = m.cluster_best_channels(cluster_ind, 1:best_n_channels);
-
+             if p.Results.sortChannelsVertically
+                 cluster_best_channel_ids = m.channelMap.sortChannelsVertically(cluster_best_channel_ids);
+             end
              snippet_inds = find(p.Results.maskSnippets);
              nSnippets = numel(snippet_inds);
              times = ss.sample_idx;
@@ -472,6 +475,7 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
             p.addParameter('maskSnippets', ss.valid, @isvector);
             p.addParameter('cluster_ids', ss.overlay_cluster_ids, @isvector);
             p.addParameter('best_n_channels', 24, @isscalar);
+            p.addParameter('sortChannelsVertically', false, @isscalar);
             p.addParameter('nanOutsideSnippet', true, @islogical);
             p.addParameter('nanOutsideBestChannels', true, @islogical);
              
@@ -493,7 +497,9 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
             [cluster_ind, cluster_ids] = ks.lookup_clusterIds(p.Results.cluster_ids);  
             best_n_channels = p.Results.best_n_channels;       
             cluster_best_channel_ids = m.cluster_best_channels(cluster_ind, 1:best_n_channels);
-             
+            if p.Results.sortChannelsVertically
+                cluster_best_channel_ids = m.channelMap.sortChannelsVertically(cluster_best_channel_ids);
+            end
             [templates, template_start_ind, spike_inds, cluster_ids_by_spike] = deal(cell(numel(snippet_inds), 1));
             for iiSn = 1:numel(snippet_inds)
                 iSn = snippet_inds(iiSn);
@@ -595,7 +601,7 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
             if p.Results.overlay_waveforms
                 [overlay_labels, overlay_datatip_label, overlay_datatip_values] = ss.buildWaveformOverlays('maskSnippets', mask_snippets, ...
                     'cluster_ids', overlay_cluster_ids, ...
-                    'best_n_channels', overlay_best_channels);
+                    'best_n_channels', overlay_best_channels, 'sortChannelsVertically', true);
                 overlay_colormap = overlay_cluster_colormap;
                 
             elseif ~isempty(ss.overlay_labels)
@@ -640,7 +646,7 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
             % plot templates if requested
             if p.Results.overlay_templates
                 [templates, template_start_ind, spike_inds, cluster_ids] = ss.buildTemplateOverlays('maskSnippets', mask_snippets, ...
-                    'cluster_ids', overlay_cluster_ids, ...
+                    'cluster_ids', overlay_cluster_ids, 'sortChannelsVertically', true, ...
                     'best_n_channels', p.Results.overlay_best_channels);
                 
                 [~, cluster_inds] = ismember(cluster_ids, overlay_cluster_ids);
@@ -763,7 +769,7 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
             
              [templates, cluster_ids] = ss.buildTemplateReconstructions('maskSnippets', snippet_ind, ...
                 'cluster_ids', reconstruct_cluster_ids, ...
-                'best_n_channels', reconstruct_best_channels);
+                'best_n_channels', reconstruct_best_channels, 'sortChannelsVertically', true);
             
             residual = data;
             if p.Results.successive_residuals
@@ -820,13 +826,13 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
             if hasClusterId
                 % build this cluster's tempalte
                 this_template = ss.buildTemplateReconstructions('maskSnippets', snippet_ind, ...
-                'cluster_ids', this_cluster_id, ...
+                'cluster_ids', this_cluster_id, 'sortChannelsVertically', true, ...
                 'best_n_channels', reconstruct_best_channels);
             end
                 
             % build other clusters' templates
             [templates, cluster_ids_recon] = ss.buildTemplateReconstructions('maskSnippets', snippet_ind, ...
-                'cluster_ids', reconstruct_cluster_ids, ...
+                'cluster_ids', reconstruct_cluster_ids, 'sortChannelsVertically', true, ...
                 'best_n_channels', reconstruct_best_channels);
             reconstruction = sum(templates, 3);
             
