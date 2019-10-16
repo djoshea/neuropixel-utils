@@ -118,27 +118,39 @@ classdef KilosortMetrics < handle
     
     properties % batch-wise versions
         % per template properties
+        batchesComputed (:, 1) uint32
         
-        % nTemplates x nSpatialCoord x nBatches
-        template_centerOfMass_batchwise(:, :, :) single % x,y,z, coords for each template's center of mass
+        % nTemplates x nBatchesComputed
+        template_useCount_batchwise(:, :) single
         
-        % nTemplates x nBatches
-        template_waveform_batchwise(:, :) single % single, maximum amplitude waveform
-        template_amplitude_batchwise(:, :) single % in uV
+        % nTemplates x nSpatialCoord x nBatchesComputed
+        template_centroid_batchwise(:, :, :) single % x,y,z, coords for each template's center of mass
+        
+        % nTemplates x nTemplateTime x nBatchesComputed
+        template_waveform_batchwise(:, :, :) single % template waveform on channel template_waveform_ch
+        
+        % nTemplates x nBatchesComputed
+        template_amplitude_batchwise(:, :) single % in uV, per-batch template amplitude (max - min) on ALL channels, not just template_waveform_ch
         
         % per cluster properties
         
-        % nClusters x nSpatialCoord x nBatches
-        cluster_centerOfMass_batchwise(:, :, :) single
+        % nClusters x nTemplates x nBatchesComputed
+        cluster_template_useCount_batchwise(:, :, :) uint32 % nClusters x nTemplates x nBatches number of spikes in cluster i using template j in batch k
+        
+        % nClusters x nSpatialCoord x nBatchesComputed
+        cluster_centroid_batchwise(:, :, :) single
 
-        % nClusters x nTimePoint x maxTemplatesPerCluster x nBatches
+        % nClusters x nTimePoint x maxTemplatesPerCluster x nBatchesComputed
         cluster_waveform_batchwise(:, :, :) single
         
-        % nClusters x maxTemplatesPerCluster x nBatches
-        cluster_amplitude_batchwise single
+        % nClusters x maxTemplatesPerCluster x nBatchesComputed
+        cluster_amplitude_batchwise(:, :) single
     end
     
     properties(Dependent)
+        has_computed_batchwise
+        nBatchesComputed
+        
         template_depth % column 2 (y) of center of mass
         spike_depth % column 2 (y) of center of mass
         spike_is_localized % logical
@@ -346,71 +358,135 @@ classdef KilosortMetrics < handle
                 prog.finish();
             end
         end
+        
+        function computeBatchwiseMetrics(m, varargin)
+            p = inputParser();
+            p.addParameter('recompute', false, @islogical);
+            p.addParameter('every_n_batches', 10, @islogical);
+            p.addParameter('average_skipped_batches', false, @islogical);
+            p.addParameter('progressInitializeFn', [], @(x) isempty(x) || isa(x, 'function_handle')); % f(nUpdates) to print update
+            p.addParameter('progressIncrementFn', [], @(x) isempty(x) || isa(x, 'function_handle')); % f(updateString) to print update
+            p.parse(varargin{:});
+
+            % decide if we need to recompute anything
+            ks = m.ks;
+            recompute = p.Results.recompute;
+            batchesComputed = uint32(1:p.Results.every_n_batches:ks.nBatches)';
+            if ~isequal(batchesComputed, m.batchesComputed)
+                recompute = true; % ensure we recompute everything if batch indices have changed
+            end
+            if m.has_computed_batchwise && ~p.Results.recompute
+                return;
+            end
+            m.batchesComputed = batchesComputed;
+            help 
+            nBatchesComputed = numel(m.batchesComputed);
             
-%             similar_clusters = zeros(ks.nClusters, ks.nClusters);
-%             for iT = 1:ks.nTemplates
-%                 similar_clusters = similar_clusters + m.cluster_template_useCount(:, iT) .* m.cluster_template_useCount(:, t)';
-%             end
-%             
-%             
-%             ks.similar_templates * m.cluster_template_useCount;
-%             
-%             [~, sortIdx] = sort(m.cluster_template_useCount(iC, inds), 'descend');
-%             m.cluster_template_list{iC} = inds(sortIdx)';          
-%            % J. batch-wise templates
-%            all_nonempty = @(flds) all(arrayfun(@(fld) ~isempty(ks.(fld)), flds));
-%             
-%             if all_nonempty(["W_batch", "U_batch"])
-%                 template_unw = zeros(ks.nTemplates, ks.nTemplateTimepoints, ks.nChannelsSorted, ks.nBatches, 'like', templates);
-%             
-%                 templates = ks.W_batch;
-%            wmi = single(ks.whitening_mat_inv);
-%             assert(size(wmi, 1) == size(template_unw, 3), 'dim 3 of templates must match whitening matrix inverse');
-%             for iT = 1:size(templates, 1)
-%                 whichChannels = ks.templates_ind(iT, :);
-%                 template_unw(iT, :, whichChannels) = templates(iT, :, :);
-%             end
-%             sz = size(template_unw);
-%             m.template_unw = reshape(reshape(template_unw, sz(1)*sz(2), sz(3)) * wmi, sz);
-%             
-%             % for each channel i, list other channels in order of spatial proximity
-%             % nChannelsSorted x nChannelsSorted, include each channel in its own closest list
-%             closest_lookup = [ks.channel_ids_sorted, ks.channelMap.getClosestChannels(ks.nChannelsSorted-1, ks.channel_ids_sorted, ks.channel_ids_sorted)];
-%             m.template_best_channels = nan(ks.nClusters, ks.nChannelsSorted);
-%             for iT = 1:ks.nTemplates
-%                 [~, bestChannelInd] = max(range(m.template_unw(iT, :, :), 2));
-%                 m.template_best_channels(iT, :) = closest_lookup(bestChannelInd, :)';
-%             end
-%              
-%            
-%             
-%         % nTemplates x nTimePoints x nTemplateChannels x nBatches
-%         template_unw_batchwise single % unwhitened, unscaled templates (i.e. in an arbitrary scale determined by raw * whitening_mat_inv)
-%         template_scaled_batchwise single % unwhitened, scaled templates
-%         
-%         % nTemplates x nSpatialCoord x nBatches
-%         template_centerOfMass_batchwise( % single x,y,z, coords for each template's center of mass
-%         
-%         % nTemplates x nBatches
-%         template_waveform_batchwise(:, :) single % single, maximum amplitude waveform
-%         template_amplitude_batchwise(:, :) single % in uV
-%         
-%         % per cluster properties
-%         
-%         % nClusters x nSpatialCoord x nBatches
-%         cluster_centerOfMass_batchwise(:, :, :) single
-% 
-%         % nClusters x nTimePoint x maxTemplatesPerCluster x nBatches
-%         cluster_waveform_batchwise(:, :, :) single
-%         
-%         % nClusters x maxTemplatesPerCluster x nBatches
-%         cluster_amplitude_batchwise single
+            average_skipped_batches = p.Results.average_skipped_batches;
+            
+            nSteps = 1 + m.nTemplates + m.nClusters;
+            initStr = 'Computing batchwise KilosortMetrics for dataset';
+            if isempty(p.Results.progressInitializeFn) && isempty(p.Results.progressIncrementFn)
+                prog = Neuropixel.Utils.ProgressBar(nSteps, initStr);
+                progIncrFn = @(varargin) prog.increment(varargin{:});
+            else
+                if ~isempty(p.Results.progressInitializeFn)
+                    p.Results.progressInitializeFn(nSteps, initStr);
+                end
+                progIncrFn = p.Results.progressIncrementFn;
+            end
+            
+            if recompute || isempty(m.cluster_template_useCount_batchwise)
+                progIncrFn('Computing batchwise cluster weighting over templates');
+                batch_each_spike = ks.compute_which_batch(ks.spike_times);
+                % compute batch membership to include all spikes until the next counted batch
+                batch_ind_each_spike = discretize(batch_each_spike, [batchesComputed; ks.nBatches]);
+                mask_spike_in_batch = ~isnan(batch_ind_each_spike);
+%                 [mask_spike_in_batch, batch_ind_each_spike] = ismember(batch_each_spike, m.batchesComputed);
+                
+                mask_spike = mask_spike_in_batch;
+                m.template_useCount_batchwise = accumarray(...
+                    [ks.spike_templates(mask_spike), batch_ind_each_spike(mask_spike)], ...
+                    ones(nnz(mask_spike), 1, 'uint64'), [m.nTemplates, nBatchesComputed]); 
+                
+                [mask_spike_in_cluster, cluster_ind_each_spike] = ismember(ks.spike_clusters, ks.cluster_ids);
+                mask_spike = mask_spike_in_batch & mask_spike_in_cluster;
+                m.cluster_template_useCount_batchwise = accumarray(...
+                    [cluster_ind_each_spike(mask_spike), ks.spike_templates(mask_spike), batch_ind_each_spike(mask_spike)], ...
+                    ones(nnz(mask_spike), 1, 'uint64'), [m.nClusters, m.nTemplates, nBatchesComputed]);   
+            end
+
+            if recompute || isempty(m.template_centroid_batchwise)
+                template_centroid_batchwise = nan(m.nTemplates, nBatchesComputed, m.nSpatialDims, 'single');
+                template_waveform_batchwise = nan(m.nTemplates, m.nTemplateTimepoints, nBatchesComputed, 'single');
+                template_amplitude_batchwise =  nan(m.nTemplates, nBatchesComputed, 'single');
+                
+                for iT = 1:m.nTemplates
+                    progIncrFn();
+
+                    % 1 x time x channels x batch --> batch x time x channels
+                    % these templates are all on all channel_ids_sorted
+                    template_batch_time_channel = permute(m.construct_scaled_template_batchwise(iT, 'batches', m.batchesComputed, ...
+                        'average_skipped_batches', average_skipped_batches), [4 2 3 1]);
+                    template_centroid_batchwise(iT, :, :) = Neuropixel.Utils.computeWaveformImageCentroid(...
+                        template_batch_time_channel, 1:m.nChannelsSorted, m.ks.channel_positions_sorted);
+
+                    template_waveform_batchwise(iT, :, :) = template_batch_time_channel(:, :, m.template_waveform_ch(iT))';
+
+                    % for amplitude, we take the global max range over all channels, not just the best tempalte_waveform_ch
+                    template_amplitude_batchwise(iT, :) = max(max(template_batch_time_channel, [], 2) - min(template_batch_time_channel, [], 2), [], 3);
+                end
+
+                m.template_centroid_batchwise = template_centroid_batchwise;
+                m.template_waveform_batchwise = template_waveform_batchwise;
+                m.template_amplitude_batchwise = template_amplitude_batchwise;
+            end
+            
+            if recompute || isempty(m.cluster_centroid_batchwise)
+                cluster_centroid_batchwise  = nan(m.nClusters, m.nBatchesComputed, m.nSpatialDims, 'single');
+                cluster_waveform_batchwise = nan(m.nClusters, m.nTemplateTimepoints, m.nBatches, 'single');
+                cluster_amplitude_batchwise =  nan(m.nClusters, m.nBatchesComputed, 'single');
+            
+                % nClusters x nSpatialCoord x nBatches
+                for iC = 1:m.nClusters
+                    progIncrFn();
+                    for iB = 1:m.nBatchesComputed
+                        % some weights will be nan where no spikes found for cluster, that's okay as we don't know where the cluster is then anyway
+                        % this is a row vector of weights over templates
+                        weights_temp_batch = single(m.cluster_template_useCount_batchwise(iC, :, iB)) ./ sum(m.cluster_template_useCount_batchwise(iC, :, iB), 2);
+                        cluster_centroid_batchwise(iC, iB, :) =  weights_temp_batch * permute(m.template_centroid_batchwise(:, iB, :), [1 3 2]);
+                        
+                        cluster_waveform_batchwise(iC, :, iB) = weights_temp_batch * m.template_waveform_batchwise(:, :, iB); 
+                        cluster_amplitude_batchwise(iC, iB) = weights_temp_batch * m.template_amplitude_batchwise(:, iB);
+                    end
+                end
+                
+                m.cluster_centroid_batchwise = cluster_centroid_batchwise;
+                m.cluster_waveform_batchwise = cluster_waveform_batchwise;
+                m.cluster_amplitude_batchwise = cluster_amplitude_batchwise;
+            end
             
             if exist('prog', 'var')
                 prog.finish();
             end
         end
         
+        function templates = construct_scaled_template_batchwise(m, template_inds, varargin)
+            templates = m.ks.construct_batchwise_templates(template_inds, varargin{:});
+            templates = templates .* m.template_scale_factor(template_inds);
+        end
+        
+        function driftDistanceByCluster = computeClusterDriftDistance(m)
+            driftDistanceByCluster = nan(m.nClusters, 1);
+            for iC = 1:m.nClusters
+                centroids = permute(m.cluster_centroid_batchwise(iC, :, :), [2 3 1]); % nBatch x spatial dim
+                driftDistanceByCluster(iC) = max(pdist2(centroids, centroids, 'euclidean', 'Largest', 1));
+            end
+        end
+
+    end
+    
+    methods % Dependent prop get impl
         function n = get.nSpikes(m)
             n = size(m.spike_times, 1);
         end
@@ -430,12 +506,22 @@ classdef KilosortMetrics < handle
         function n = get.nTemplateChannels(m)
             n = size(m.template_unw, 3);
         end
+        
+        function n = get.nBatches(m)
+            n = m.ks.nBatches;
+        end
+        
+        function n = get.nBatchesComputed(m)
+            n = numel(m.batchesComputed);
+        end
+        
         function n = get.nSpatialDims(m)
             n = m.channelMap.nSpatialDims;
             if size(m.ks.channel_positions_sorted, 2) < 2
                 n = size(m.ks.channel_positions_sorted, 2);
             end
         end
+        
         function n = get.nClusters(m)
             n = size(m.cluster_ids, 1);
         end
@@ -445,7 +531,7 @@ classdef KilosortMetrics < handle
         end
         
         function d = get.spike_depth(m)
-            d = m.spike_centerOfMass(:, 2);
+            d = m.spike_centroid(:, 2);
         end
         
         function d = get.cluster_depth(m)
@@ -466,6 +552,10 @@ classdef KilosortMetrics < handle
         
         function tf = get.spike_is_localized(m)
             tf = m.template_is_localized(m.spike_templates);
+        end
+        
+        function tf = get.has_computed_batchwise(m)
+            tf = ~isempty(m.template_centroid_batchwise) && ~isempty(m.cluster_centroid_batchwise);
         end
         
         function assertHasKs(m)
@@ -1371,33 +1461,72 @@ classdef KilosortMetrics < handle
             m.plotTemplateImage(templateInds,  varargin{:});
         end
         
-        function plotTemplateImage(m, templateInds, varargin)
-%             isholding = ishold;
-            channel_ids_by_template = m.plotTemplateImageInternal(templateInds, varargin{:}); %#ok<NASGU>
-%             channel_idx_all = unique(channel_ids_by_template(:)); 
-%             hold on;
-%             m.plotRecordingSites('channel_ids', channel_idx_all, 'showChannelLabels', false);
-%             if ~isholding, hold off , end
+        function channel_ids_by_template = plotTemplateImage(m, templateInds, varargin)
+            channel_ids_by_template = m.plotTemplateImageInternal(templateInds, varargin{:}); 
         end
-            
+        
+        function channel_ids_by_template = plotTemplateImageBatchwise(m, templateInds, varargin)
+            channel_ids_by_template = m.plotTemplateImageInternal(templateInds, 'batchwise', true, varargin{:});
+        end
+        
+        function cmap = getDefaultLinearColormap(~, N)
+%             cmap = Neuropixel.Utils.colorcet('CBL2', 'N', N);
+            cmap = Neuropixel.Utils.cmocean('thermal', N);
+        end
+        
+        function cmap = getDefaultBatchColormap(m, nBatch)
+            if nargin < 2
+                nBatch = m.nBatchesComputed;
+            end
+%             cmap = Neuropixel.Utils.colorcet('d6', 'N', nBatch);
+            cmap = Neuropixel.Utils.cmocean('-deep', nBatch);
+        end
+        
+        function cmap = getDefaultCategoricalColormap(~, nItems)
+            if nargin < 2
+                nItems = 10;
+            end
+            if nItems <= 10
+                cmap = Neuropixel.Utils.seaborn_color_palette('colorblind');
+                cmap = cmap(1:nItems, :);
+            else
+                cmap = Neuropixel.Utils.distinguishable_colors(nItems);
+            end
+        end
+
         function channel_ids_by_template = plotTemplateImageInternal(m, templateInds, varargin)
             p = inputParser();
             p.addParameter('xmag', 1.5, @isscalar);
             p.addParameter('ymag', 1.5, @isscalar);
             
             p.addParameter('cluster_ids', m.cluster_ids, @isvector);
-            p.addParameter('colormap', @Neuropixel.Utils.distinguishable_colors, @(x) isa(x, 'function_handle') || ismatrix(x) || ischar(x));
+            p.addParameter('template_colormap', [], @(x) true);
+            
+            p.addParameter('batchwise', false, @islogical);
+            p.addParameter('batch_colormap', [], @(x) true);
+            p.addParameter('colorbar', false, @islogical);
+            
             p.addParameter('templateLabels', {}, @iscell);
+            
+            p.addParameter('plotCentroids', true, @islogical);
+            p.addParameter('centroidSize', 8, @isscalar);
             
             % and ONE OR NONE of these to pick channels (or channels for each cluster)
             p.addParameter('channel_ids_by_template', [], @(x) isempty(x) || ismatrix(x));
             p.addParameter('best_n_channels', NaN, @isscalar); % or take the best n channels based on this clusters template when cluster_id is scalar
-            
+            p.addParameter('axh', [], @(x) true);
             p.parse(varargin{:});
             
-            isholding = ishold;
+            batchwise = p.Results.batchwise;
+            plotCentroids = p.Results.plotCentroids;
             
-            % figure out actual times requested
+            axh = p.Results.axh;
+            if isempty(axh)
+                axh = gca;
+            end
+            isholding = ishold(axh);
+            
+            % figure out actual channels requested
             if isfinite(p.Results.best_n_channels)
                 channel_ids_by_template = m.template_best_channels(templateInds, 1:p.Results.best_n_channels);
             elseif ~isempty(p.Results.channel_ids_by_template)
@@ -1418,53 +1547,315 @@ classdef KilosortMetrics < handle
             
             nTemp = numel(templateInds);
             nChannelsSorted = size(channel_ind_by_template, 2);
-            data = nan(nTemp, size(m.template_scaled, 2), nChannelsSorted, 'single');
-            for iT = 1:nTemp
-                data(iT, :, :) = m.template_scaled(templateInds(iT), :, channel_ind_by_template(iT, :));
+            
+            % gather data
+            if batchwise
+                batches = m.batchesComputed;
+                nBatchesPlotted = numel(batches);
+                data = nan(nTemp, size(m.template_scaled, 2), nChannelsSorted, nBatchesPlotted, 'single');
+                for iT = 1:nTemp
+                    full_temp = m.construct_scaled_template_batchwise(templateInds(iT), 'batches', batches);
+                    data(iT, :, :, :) = full_temp(1, :, channel_ind_by_template(iT, :), :);
+                end
+            else
+                data = nan(nTemp, size(m.template_scaled, 2), nChannelsSorted, 'single');
+                for iT = 1:nTemp
+                    data(iT, :, :) = m.template_scaled(templateInds(iT), :, channel_ind_by_template(iT, :));
+                end
             end
             data = data - mean(data(:, :), 2); % center over time
             data = data ./ (max(data(:)) - min(data(:))) * yspacing * ymag; % normalize amplitudes
             
-            cmap = p.Results.colormap;
-            if isa(cmap, 'function_handle')
-                cmap = cmap(nTemp);
+            if p.Results.batchwise
+                batch_cmap = p.Results.batch_colormap;
+                if isempty(batch_cmap)
+                    batch_cmap = m.getDefaultBatchColormap();
+                elseif isa(batch_cmap, 'function_handle')
+                    batch_cmap = batch_cmap(nBatchesPlotted);
+                end
+            else 
+                template_cmap = p.Results.template_colormap;
+                if isempty(template_cmap)
+                    template_cmap = m.getDefaultCategoricalColormap(nTemp);
+                elseif isa(template_cmap, 'function_handle')
+                    template_cmap = template_cmap(nTemp);
+                end
             end
+            
             templateLabels = p.Results.templateLabels;
             if isempty(templateLabels)
                 templateLabels = arrayfun(@(ind) sprintf("template %d", ind), templateInds);
             end
-            
+
+%             if batchwise
+%                 if ~isholding
+%                     cla(axh);
+%                 end
+%                 axh.ColorOrder = batch_cmap;
+%                 axh.ColorOrderIndex = 1;      
+%             end
+%             
             for iT = 1:nTemp
                 this_channel_ind = channel_ind_by_template(iT, :);
 %                 this_channel_ids = channel_ids_by_template(iT, :);
-                xc = m.channelMap.xcoords(this_channel_ind);
-                yc = m.channelMap.ycoords(this_channel_ind);
-                cmapIdx = mod(iT-1, size(cmap, 1))+1;
+                xc = m.ks.channel_positions_sorted(this_channel_ind, 1);
+                yc = m.ks.channel_positions_sorted(this_channel_ind, 2);
                 
                 for iC = 1:nChannelsSorted
-                    wave = Neuropixel.Utils.TensorUtils.squeezeDims(data(iT, :, iC), 1) + yc(iC);
-                        
-%                     ud = struct('template_ind', template_inds(iT), 'template_amplitude', sprintf('%.1f uV', m.template_amplitude(template_inds(iT)),
-%                     'channel_id', this_channel_ids(iC), 'template_is_localized', m.template_is_localized(template_inds(iT)), ...
-%                     'xname', 'Time', 'yname', 'Voltage', 'xoffset', xc(iC) - mean(tvec), 'yoffset', yc(iC) + dataOffset(iT, 1, iC), 'xscale', 1, 'yscale', waveScalingFactor_umtouV, 'xunits', 'ms', 'yunits', 'uV');
-%                     
-                    h = plot(tvec_shift + xc(iC), wave, 'Color', cmap(cmapIdx, :), 'LineWidth', 0.5);
-                    hold on;
-                    
+                    if batchwise
+                        waves = Neuropixel.Utils.TensorUtils.squeezeDims(data(iT, :, iC, :), [1 3]) + yc(iC);
+                        h = plot(axh, tvec_shift + xc(iC), waves, 'LineWidth', 0.5);
+                        for iH = 1:numel(h)
+                            h(iH).Color = [batch_cmap(iH, :)];
+                        end
+                    else
+                        wave = Neuropixel.Utils.TensorUtils.squeezeDims(data(iT, :, iC), 1) + yc(iC);
+
+    %                     ud = struct('template_ind', template_inds(iT), 'template_amplitude', sprintf('%.1f uV', m.template_amplitude(template_inds(iT)),
+    %                     'channel_id', this_channel_ids(iC), 'template_is_localized', m.template_is_localized(template_inds(iT)), ...
+    %                     'xname', 'Time', 'yname', 'Voltage', 'xoffset', xc(iC) - mean(tvec), 'yoffset', yc(iC) + dataOffset(iT, 1, iC), 'xscale', 1, 'yscale', waveScalingFactor_umtouV, 'xunits', 'ms', 'yunits', 'uV');
+    %                     
+                        h = plot(axh, tvec_shift + xc(iC), wave, 'Color', template_cmap(iT, :), 'LineWidth', 0.5); 
+                            
+                    end
                     if iC == 1 
                         Neuropixel.Utils.showFirstInLegend(h, templateLabels{iT});
                     else
                         Neuropixel.Utils.hideInLegend(h);
                     end
+                    hold(axh, 'on');
                 end
                 
-                %drawnow;
+                if plotCentroids
+                    if batchwise
+                        centroid = Neuropixel.Utils.TensorUtils.squeezeDims(m.template_centroid_batchwise(templateInds(iT), :, [1 2]), 1);
+                        plot(axh, centroid(:, 1), centroid(:, 2), '-', 'Color', [0.8 0.8 0.8]);
+                        h = scatter(axh, centroid(:, 1), centroid(:, 2), p.Results.centroidSize^2, batch_cmap, '+');
+                        
+                    else
+                        centroid = m.template_centroid(templateInds(iT), [1 2]);
+                        plot(axh, centroid(1), centroid(2), '+', 'MarkerSize', p.Results.centroidSize, 'Color', template_cmap(cmapIdx, :));
+                    end
+                end
+                
             end
             
-            axis off;
-            axis tight;
-            box off;
-            if ~isholding, hold off, end
+            axis(axh, 'off', 'tight');
+            if batchwise
+                colormap(axh, batch_cmap);
+                caxis(axh, [1 m.nBatches]);
+                if p.Results.colorbar
+                    h = colorbar(axh);
+                    h.YDir = 'reverse';
+                    h.Ticks = [1 m.nBatches];
+                    h.TickLabels = ["Early", "Late"];
+                    ylabel(h, 'Batches');
+                end
+            end
+%             axh.Color = [0.92 0.92 0.95];
+            box(axh, 'off');
+            if ~isholding, hold(axh, 'off'), end
+        end
+        
+        function plotTemplateCentroids(m, template_inds, varargin)
+            p = inputParser();
+            p.addParameter('batchwise', false, @islogical);
+            p.addParameter('batch_colormap', [], @(x) true);
+            p.addParameter('template_colormap', [], @(x) true);
+            p.addParameter('colorbar', false, @islogical);
+            p.addParameter('centroidSize', 8, @isscalar);
+            p.addParameter('batchMinSpikes', 1, @isscalar)
+            p.addParameter('axh', [], @(x) true);
+            p.addParameter('ignoreDriftX', false, @islogical);
+            p.parse(varargin{:})
+            
+            axh = p.Results.axh;
+            if isempty(axh), axh = gca; end
+            isholding = ishold(axh);
+            
+            if nargin < 2 || isempty(template_inds) 
+                template_inds = find(m.template_is_localized);
+            end
+            
+            if p.Results.batchwise
+                batch_cmap = p.Results.batch_colormap;
+                if isempty(batch_cmap)
+                    batch_cmap = m.getDefaultBatchColormap();
+                elseif isa(batch_cmap, 'function_handle')
+                    batch_cmap = batch_cmap(nBatchesPlotted);
+                end
+            else 
+                template_cmap = p.Results.template_colormap;
+                if isempty(template_cmap)
+                    template_cmap = m.getDefaultCategoricalColormap(numel(template_inds));
+                elseif isa(template_cmap, 'function_handle')
+                    template_cmap = template_cmap(nTemp);
+                end
+            end
+            
+            if p.Results.batchwise
+                for iT = 1:numel(template_inds)f
+                    mask_valid = m.template_useCount_batchwise(template_inds(iT), :) >= p.Results.batchMinSpikes;
+                    centroid = Neuropixel.Utils.TensorUtils.squeezeDims(m.template_centroid_batchwise(template_inds(iT), :, [1 2]), 1);
+                    
+                    xv = centroid(mask_valid, 1);
+                    if p.Results.ignoreDriftX && ~isempty(xv)
+                        xv(2:end) = xv(1);
+                    end
+                    plot(axh, xv, centroid(mask_valid, 2), '-', 'Color', [0.8 0.8 0.8]);
+                    h = scatter(axh, xv, centroid(mask_valid, 2), p.Results.centroidSize^2, batch_cmap(mask_valid, :), 'filled');
+                    hold(axh, 'on');
+                end
+            else
+                for iT = 1:numel(template_inds)
+                    centroid = m.template_centroid(template_inds(iT), [1 2]);
+                    plot(axh, centroid(1), centroid(2), '+', 'MarkerSize', p.Results.centroidSize, 'Color', template_cmap(iT, :));
+                    hold(axh, 'on');
+                end
+            end
+            
+            if ~isholding, hold(axh, 'off'); end
+            
+        end
+        
+        function plotClusterCentroids(m, cluster_ids, varargin)
+            p = inputParser();
+            p.addParameter('batchwise', false, @islogical);
+            p.addParameter('batch_colormap', [], @(x) true);
+            p.addParameter('cluster_colormap', [], @(x) true);
+            p.addParameter('colorbar', false, @islogical);
+            p.addParameter('centroidSize', 8, @isscalar);
+            p.addParameter('batchMinSpikes', 1, @isscalar)
+            p.addParameter('axh', [], @(x) true);
+            p.addParameter('ignoreDriftX', false, @islogical);
+            p.parse(varargin{:})
+            
+            axh = p.Results.axh;
+            if isempty(axh), axh = gca; end
+            isholding = ishold(axh);
+            
+            cluster_inds = m.lookup_clusterIds(cluster_ids);
+            
+            if p.Results.batchwise
+                batch_cmap = p.Results.batch_colormap;
+                if isempty(batch_cmap)
+                    batch_cmap = m.getDefaultBatchColormap();
+                elseif isa(batch_cmap, 'function_handle')
+                    batch_cmap = batch_cmap(nBatchesPlotted);
+                end
+            else 
+                cluster_cmap = p.Results.cluster_colormap;
+                if isempty(cluster_cmap)
+                    cluster_cmap = m.getDefaultCategoricalColormap(numel(cluster_inds));
+                elseif isa(cluster_cmap, 'function_handle')
+                    cluster_cmap = cluster_cmap(nTemp);
+                end
+            end
+            
+            cluster_count_batchwise = sum(m.cluster_template_useCount_batchwise, 2);
+            if p.Results.batchwise
+                for iT = 1:numel(cluster_inds)
+                    mask_valid = cluster_count_batchwise(cluster_inds(iT), 1, :) >= p.Results.batchMinSpikes;
+                    centroid = Neuropixel.Utils.TensorUtils.squeezeDims(m.cluster_centroid_batchwise(cluster_inds(iT), :, [1 2]), 1);
+                   
+                    xv = centroid(mask_valid, 1);
+                    if p.Results.ignoreDriftX && ~isempty(xv)
+                        xv(2:end) = xv(1);
+                    end
+                    plot(axh, xv, centroid(mask_valid, 2), '-', 'Color', [0.8 0.8 0.8]);
+                    scatter(axh, xv, centroid(mask_valid, 2), p.Results.centroidSize^2, batch_cmap(mask_valid, :), 'filled');
+                    hold(axh, 'on');
+                end
+            else
+                for iT = 1:numel(cluster_inds)
+                    centroid = m.cluster_centroid(cluster_inds(iT), [1 2]);
+                    plot(axh, centroid(1), centroid(2), '+', 'MarkerSize', p.Results.centroidSize, 'Color', cluster_cmap(iT, :));
+                    hold(axh, 'on');
+                end
+            end
+            
+            if ~isholding, hold(axh, 'off'); end
+        end
+        
+        function plotClusterCentroidsBatchwiseReasonablyLocalized(m, varargin)
+            p = inputParser();
+            p.addParameter('maxDrift', 80, @isscalar);
+            p.parse(varargin{:});
+            
+            cluster_mask = m.cluster_is_localized;
+            
+            % clusters x batches x spatial dims
+            maxDriftByCluster = m.computeClusterDriftDistance();
+            cluster_mask = cluster_mask & maxDriftByCluster <= p.Results.maxDrift;
+            
+            m.plotClusterCentroids(m.cluster_ids(cluster_mask), 'batchwise', true, varargin{:});
+        end
+            
+        function plotClusterDriftSummary(m, varargin)
+            p = inputParser();
+            p.addParameter('spatialDim', 2, @isscalar); % 1 is x, 2 is y, 3 is z
+            p.addParameter('referenceBatchInd', 1, @isscalar);
+            p.addParameter('maxDrift', 80, @isscalar);
+            p.addParameter('binWidth', 200, @isscalar);
+            p.addParameter('colormap', [], @isscalar);
+            p.addParameter('smoothBy', 10, @iscalar);
+            p.addParameter('compressInitialOffsetsBy', 10, @isscalar);
+            p.parse(varargin{:});
+            sdim = p.Results.spatialDim;
+            referenceBatchInd = p.Results.referenceBatchInd;
+            
+            cluster_mask = m.cluster_is_localized;
+            
+            % clusters x batches x spatial dims
+            maxDriftByCluster = m.computeClusterDriftDistance();
+            cluster_mask = cluster_mask & maxDriftByCluster <= p.Results.maxDrift;
+            
+            % fill in missing batches with NaNs but don't extrapolate edges
+            centroids = fillmissing(m.cluster_centroid_batchwise, 'previous', 2, 'EndValues', 'none');
+            
+            % grab initial position at reference batch to define the binning
+            cluster_mask = cluster_mask & ~isnan(centroids(:, referenceBatchInd, sdim));
+            ref_pos = centroids(cluster_mask, referenceBatchInd, sdim);
+            
+            [~, ~, bins] = histcounts(ref_pos, 'BinWidth', p.Results.binWidth);
+            nBins = max(bins);
+            binmedian_ref_pos = accumarray(bins, ref_pos, [nBins, 1], @median);
+            
+            compressed_offsets = (binmedian_ref_pos - mean(binmedian_ref_pos)) / p.Results.compressInitialOffsetsBy;
+            compressed_offsets = compressed_offsets(bins);
+                        
+            pos_shift = centroids(cluster_mask, :, sdim) - ref_pos + compressed_offsets;
+            
+            % now histogram each time slice by bin
+            
+            
+            binnedQuantiles = nan(nBins, size(centroids, 2), 3);
+            for iB = 1:nBins
+                binnedQuantiles(iB, :, :) = quantile(pos_shift(bins == iB, :), [0.25 0.5 0.75], 1)';
+            end
+            
+            cmap = p.Results.colormap;
+            if isempty(cmap)
+                cmap = m.getDefaultLinearColormap(nBins);
+            end
+            
+            tvals = m.ks.batch_starts(m.batchesComputed) / m.fs;
+            for iB = 1:nBins
+%                  TrialDataUtilities.Plotting.errorshadeInterval(m.batchesComputed, binnedQuantiles(iB, :, 1), binnedQuantiles(iB, :, 3), cmap(iB, :));
+%                hold on
+                yvals = binnedQuantiles(iB, :, 2);
+                 if p.Results.smoothBy > 1
+                     yvals = smooth(yvals, p.Results.smoothBy);
+                 end
+                 plot(tvals, yvals, '-', 'Color', cmap(iB, :), 'LineWidth', 2);
+                 hold on
+            end
+            
+            axis tight
+            aa = AutoAxis.replaceScaleBars('xUnits', 'sec', 'yUnits', 'um');
+            aa.axisMarginLeft = aa.axisMarginRight;
+            grid on
+            aa.update();
         end
         
         function plotRecordingSites(m, varargin)
