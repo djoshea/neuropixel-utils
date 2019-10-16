@@ -882,15 +882,18 @@ classdef KilosortDataset < handle
             end
         end
         
-        function accept_cutoff_spikes(ks, cluster_ids)
+        function accept_cutoff_spikes(ks, ratings_or_cluster_ids)
             if nargin < 2
                 cluster_ids = ks.cluster_ids;
+            elseif isa(ratings_or_cluster_ids, 'Neuropixel.ClusterRatingInfo')
+                cluster_ids = ratings_or_cluster_ids.cluster_ids(ratings_or_cluster_ids.includeCutoffSpikes);
+            elseif islogical(ratings_or_cluster_ids)
+                assert(numel(ratings_or_cluster_ids) == ks.nClusters);
+                cluster_ids = ks.cluster_ids(ratings_or_cluster_ids);
+            else
+                cluster_ids = ratings_or_cluster_ids;
             end
-            if islogical(cluster_ids)
-                assert(numel(cluster_ids) == ks.nClusters);
-                cluster_ids = ks.cluster_ids(cluster_ids);
-            end
-           
+            
             accept_cutoff_mask = ismember(ks.cutoff_spike_clusters, cluster_ids);
             nCurrent = ks.nSpikes;
             nAccepted = nnz(accept_cutoff_mask);
