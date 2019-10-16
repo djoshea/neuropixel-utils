@@ -34,6 +34,7 @@ function rezFull = runKilosort2(imec, varargin)
     ops.root = imec.pathRoot;
     ops.fs = imec.fsAP;        % sampling rate		(omit if already in chanMap file)
     ops.fbinary = imec.pathAP;
+    ops.scaleToUv = imec.apScaleToUv;
     if ~exist(ops.fbinary, 'file')
         error('Imec data file not found.');
     end

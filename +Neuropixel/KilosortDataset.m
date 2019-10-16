@@ -24,6 +24,9 @@ classdef KilosortDataset < handle
         concatenationInfo
 
         isLoaded logical = false;
+        isLoadedBatchwise logical = false;
+        isLoadedFeatures logical = false;
+        isLoadedCutoff logical = false;
     end
 
     % Computed properties
@@ -46,6 +49,7 @@ classdef KilosortDataset < handle
         nPCFeatures
         nFeaturesPerChannel
         nTemplateTimepoints
+        nTemplateChannels
         templateTimeRelative
 
         nBatches
@@ -86,7 +90,7 @@ classdef KilosortDataset < handle
         channel_ids_sorted(:, 1) uint32
 
         % channel_positions.npy - [nChannelsSorted, 2] double matrix with each row giving the x and y coordinates of that channel. Together with the channel map, this determines how waveforms will be plotted in WaveformView (see below).
-        channel_positions_sorted(:, 2) double
+        channel_positions_sorted(:, :) double
 
         % pc_features.npy - [nSpikes, nFeaturesPerChannel, nPCFeatures] single matrix giving the PC values for each spike.
         % The channels that those features came from are specified in pc_features_ind.npy. E.g. the value at pc_features[123, 1, 5]
@@ -136,13 +140,8 @@ classdef KilosortDataset < handle
         % original of spike_clusters before being adjusted by Phy or
         spike_clusters_ks2orig(:, 1) uint32
 
-        cluster_spike_counts(:, 1) uint32 % nClusters x 1 number of spikes assigned to each cluster
-
         % cluster_groups - "cluster group" of each cluster as set in Phy
         cluster_groups(:, 1) categorical
-
-        % custom cluster_ratings completely divorced from Phy
-        cluster_ratings
 
         % unique clusters in spike_clusters [nClusters]
         cluster_ids (:, 1) uint32
@@ -201,8 +200,6 @@ classdef KilosortDataset < handle
         cutoff_spike_clusters(:, 1) uint32
         cutoff_spike_clusters_ks2orig(:, 1) uint32
 
-        cutoff_cluster_spike_counts(:, 1) uint32 % nClusters x 1 number of spikes assigned to each cluster
-
          % [nSpikesCutoff, nFeaturesPerChannel, nPCFeatures] single matrix giving the PC values for each spike (from .cProjPC_cutoff_invalid)
         cutoff_pc_features(:, :, :) uint32
         
@@ -215,6 +212,9 @@ classdef KilosortDataset < handle
         clusters_mua
         clusters_noise
         clusters_unsorted
+        
+        cluster_spike_counts % (:, 1) uint32 % nClusters x 1 number of spikes assigned to each cluster
+        cutoff_cluster_spike_counts % (:, 1) uint32 % nClusters x 1 number of spikes assigned to each cluster
     end
 
     methods % Dependent properties
@@ -302,6 +302,14 @@ classdef KilosortDataset < handle
                 n = size(ks.templates, 2);
             end
         end
+        
+        function n = get.nTemplateChannels(ks)
+            if isempty(ks.templates)
+                n = NaN;
+            else
+                n = size(ks.templates, 3);
+            end
+        end
 
         function tvec = get.templateTimeRelative(ks)
             T = int64(ks.nTemplateTimepoints);
@@ -329,7 +337,7 @@ classdef KilosortDataset < handle
         end
 
         function nBatches = get.nBatches(ks)
-            nBatches = numel(ks.batch_starts);
+            nBatches = numel(ks.batch_sort_order);
         end
 
         function fsAP = get.fsAP(ks)
@@ -364,7 +372,7 @@ classdef KilosortDataset < handle
                     apScaleToUv = ks.raw_dataset.apScaleToUv;
                 end
             else
-                apScaleToUv = ks.apScaleToUv;k
+                apScaleToUv = ks.apScaleToUv;
             end
         end
 
@@ -394,6 +402,22 @@ classdef KilosortDataset < handle
 
         function c = get.clusters_unsorted(ks)
             c = ks.cluster_ids(ks.cluster_groups == "unsorted");
+        end
+        
+        function n = get.cluster_spike_counts(ks)
+            if isempty(ks.cluster_ids)
+                n = zeros(0, 1, 'uint32');
+            else
+                n = uint32(Neuropixel.Utils.discrete_histcounts(ks.spike_clusters, ks.cluster_ids));
+            end
+        end
+        
+        function n = get.cutoff_cluster_spike_counts(ks)
+            if isempty(ks.cluster_ids)
+                n = zeros(0, 1, 'uint32');
+            else
+                n = uint32(Neuropixel.Utils.discrete_histcounts(ks.cutoff_spike_clusters, ks.cluster_ids));
+            end
         end
     end
 
@@ -436,14 +460,14 @@ classdef KilosortDataset < handle
 
             % these will pass thru to raw_dataset if provided
             ks.fsAP = p.Results.fsAP;
-            if isempty(ks.fsAP) || isnan(ks.fsAP) % will pass thru to raw_dataset if found
+            ks.apScaleToUv = p.Results.apScaleToUv;
+            if isempty(ks.fsAP) || isnan(ks.fsAP) || isempty(ks.apScaleToUv) || isnan(ks.apScaleToUv) 
+                % will pass thru to raw_dataset if found
                 % try reading sample_rate from params.py
                 ks.readParamsPy();
                 ks.fsAP = ks.sample_rate;
             end
-
-            ks.apScaleToUv = p.Results.apScaleToUv;
-
+                        
             % manually specify some additional props
             channelMap = p.Results.channelMap;
             if isempty(channelMap)
@@ -551,7 +575,7 @@ classdef KilosortDataset < handle
 
             h = plot(sort(s.fr, 'descend'), '-', 'Color', p.Results.color);
             Neuropixel.Utils.showFirstInLegend(h, ks.pathLeaf);
-            if any(s.fr_cutoff_only) > 0
+            if any(s.fr_cutoff_only)
                 hold on
                 h = plot(sort(s.fr_plus_cutoff, 'descend'), '--', 'Color', p.Results.color);
                 Neuropixel.Utils.hideInLegend(h);
@@ -574,8 +598,11 @@ classdef KilosortDataset < handle
             ks.offset = params.offset;
             ks.sample_rate = params.sample_rate;
             ks.hp_filtered = params.hp_filtered;
+            if isfield(params, 'scale_to_uv')
+                ks.apScaleToUv = params.scale_to_uv;
+            end
         end
-
+        
         function load(ks, varargin)
             p = inputParser();
             p.addOptional('reload', false, @islogical);
@@ -587,16 +614,21 @@ classdef KilosortDataset < handle
             p.parse(varargin{:});
 
             reload = p.Results.reload;
-            if ks.isLoaded && ~reload
-                return;
-            end
-            ks.isLoaded = false;
-
-            ks.readParamsPy();
-
+            
             loadFeatures = p.Results.loadFeatures;
             loadBatchwise = p.Results.loadBatchwise;
             loadCutoff = p.Results.loadCutoff;
+
+            if ks.isLoaded && ~reload
+                if (~p.Results.loadBatchwise || ks.isLoadedBatchwise) && ...
+                   (~p.Results.loadFeatures || ks.isLoadedFeatures) && ...
+                   (~p.Results.loadCutoff || ks.isLoadedCutoff)
+                    return;
+                end
+            end
+            ks.isLoaded = false;
+            
+            ks.readParamsPy();
 
             path = ks.path;
             existp = @(file) exist(fullfile(path, file), 'file') > 0;
@@ -670,10 +702,8 @@ classdef KilosortDataset < handle
             end
             ks.cluster_ids = unique(ks.spike_clusters);
 
-            progIncrFn('Computing cluster spike counts');
             assert(~isempty(ks.cluster_ids));
-            ks.cluster_spike_counts = uint32(Neuropixel.Utils.discrete_histcounts(ks.spike_clusters, ks.cluster_ids));
-
+            
             % load KS cluster labels
             ks.cluster_ks_label = repmat(categorical("unsorted"), numel(ks.cluster_ids), 1);
             if existp('cluster_KSLabel.tsv')
@@ -696,13 +726,13 @@ classdef KilosortDataset < handle
                 end
             end
 
-            % load cluster ratings from disk
-            ks.cluster_ratings = repmat(categorical("unrated"), numel(ks.cluster_ids), 1);
-            if existp('cluster_Rating.tsv')
-                tbl = readClusterMetaTSV('cluster_Rating.tsv', 'Rating', 'categorical');
-                [tf, ind] = ismember(tbl.cluster_id, ks.cluster_ids);
-                ks.cluster_rating(ind(tf)) = tbl{tf, 2};
-            end
+%             % load cluster ratings from disk
+%             ks.cluster_ratings = repmat(categorical("unrated"), numel(ks.cluster_ids), 1);
+%             if existp('cluster_Rating.tsv')
+%                 tbl = readClusterMetaTSV('cluster_Rating.tsv', 'Rating', 'categorical');
+%                 [tf, ind] = ismember(tbl.cluster_id, ks.cluster_ids);
+%                 ks.cluster_rating(ind(tf)) = tbl{tf, 2};
+%             end
 
             if existp('ops.mat')
                 temp = load(fullfile(p, 'ops.mat'), 'ops');
@@ -753,9 +783,6 @@ classdef KilosortDataset < handle
                         ks.cutoff_spike_clusters_ks2orig = ks.cutoff_spike_clusters;
                     end
 
-                    progIncrFn('Computing cluster cutoff spike counts');
-                    ks.cutoff_cluster_spike_counts = uint32(Neuropixel.Utils.discrete_histcounts(ks.cutoff_spike_clusters, ks.cluster_ids));
-
                     if loadFeatures
                         ks.cutoff_pc_features = readOr('cutoff_pc_features');
                         ks.cutoff_template_features = readOr('cutoff_template_features');
@@ -768,7 +795,16 @@ classdef KilosortDataset < handle
             end
             ks.metrics = []; % old metrics no longer valid
             ks.isLoaded = true;
-
+            if loadBatchwise
+                ks.isLoadedBatchwise = true;
+            end
+            if loadFeatures
+                ks.isLoadedFeatures = true;
+            end
+            if loadCutoff
+                ks.isLoadedCutoff = true;
+            end
+            
             function out = readOr(file, default)
                 ffile = fullfile(path, [file '.npy']);
                 if exist(ffile, 'file') > 0
@@ -822,6 +858,65 @@ classdef KilosortDataset < handle
             writeNPY_local = @(v, fname) writeNPY(v, fullfile(ks.path, fname));
             writeNPY_local(ks.spike_clusters, 'spike_clusters.npy');
             writeNPY_local(ks.cutoff_spike_clusters, 'cutoff_spike_clusters.npy');
+        end
+        
+        function apply_cluster_merge(ks, mergeInfo)
+            ks.load();
+            ks.create_spike_clusters_ks2orig_if_missing();
+            
+            % apply the merges in clusterMergeInfo 
+            assert(isa(mergeInfo, 'Neuropixel.ClusterMergeInfo'));
+            
+            spike_clusters = ks.spike_clusters;
+            cutoff_spike_clusters = ks.cutoff_spike_clusters;
+            for iM = 1:mergeInfo.nMerges
+                spike_clusters = apply_single_merge(spike_clusters, mergeInfo.new_cluster_ids(iM), mergeInfo.merges{iM});
+                cutoff_spike_clusters = apply_single_merge(cutoff_spike_clusters, mergeInfo.new_cluster_ids(iM), mergeInfo.merges{iM});
+            end
+            ks.spike_clusters = ks.spike_clusters;
+            ks.cutoff_spike_clusters = ks.cutoff_spike_clusters;
+            
+            function spike_clusters = apply_single_merge(spike_clusters, dst_cluster_id, src_cluster_ids)
+                mask_assign_to_dst = ismember(spike_clusters, src_cluster_ids);
+                spike_clusters(mask_assign_to_dst) = dst_cluster_id;
+            end
+        end
+        
+        function accept_cutoff_spikes(ks, cluster_ids)
+            if nargin < 2
+                cluster_ids = ks.cluster_ids;
+            end
+            if islogical(cluster_ids)
+                assert(numel(cluster_ids) == ks.nClusters);
+                cluster_ids = ks.cluster_ids(cluster_ids);
+            end
+           
+            accept_cutoff_mask = ismember(ks.cutoff_spike_clusters, cluster_ids);
+            nCurrent = ks.nSpikes;
+            nAccepted = nnz(accept_cutoff_mask);
+            nTotal = nAccepted + nCurrent;
+            [ks.spike_times, sortIdx] = sort(cat(1, ks.spike_times, ks.cutoff_spike_times(accept_cutoff_mask)));
+            ks.cutoff_spike_times = ks.cutoff_spike_times(~accept_cutoff_mask);
+            [~, insertOrigAt] = ismember((1:nCurrent)', sortIdx);
+            [~, insertCutoffAt] = ismember((nCurrent+1:nTotal)', sortIdx);
+            
+            function [combined, cutoff] = combineAndSort(orig, cutoff)
+                sz = size(orig);
+                sz(1) = nTotal;
+                combined = zeros(sz, 'like', orig);
+                combined(insertOrigAt, :, :, :) = orig;
+                combined(insertCutoffAt, :, :, :) = cutoff(accept_cutoff_mask, :, :, :);
+                cutoff = cutoff(~accept_cutoff_mask, :, :, :);
+            end
+            
+            [ks.spike_templates, ks.cutoff_spike_templates] = combineAndSort(ks.spike_templates, ks.cutoff_spike_templates);
+            [ks.amplitudes, ks.cutoff_amplitudes] = combineAndSort(ks.amplitudes, ks.cutoff_amplitudes);
+            [ks.spike_clusters, ks.cutoff_spike_clusters] = combineAndSort(ks.spike_clusters, ks.cutoff_spike_clusters);
+            
+            if ks.hasFeaturesLoaded
+                [ks.pc_features, ks.cutoff_pc_features] = combineAndSort(ks.pc_features, ks.cutoff_pc_features);
+                [ks.template_features, ks.cutoff_template_features] = combineAndSort(ks.template_features, ks.cutoff_template_features);
+            end
         end
 
 %         function loadFromRez(ks, rez)
@@ -1510,12 +1605,20 @@ classdef KilosortDataset < handle
 
         function data = construct_batchwise_templates(ks, template_inds, varargin)
             p = inputParser();
-            p.addParameter('batches', 1:ks.nBatches, @isvector);
+            p.addParameter('batches', [], @isvector);
+            p.addParameter('every_n_batches', 1, @isscalar);
+            p.addParameter('average_skipped_batches', false, @islogical);
             p.addParameter('whitened', true, @islogical);
-            p.addParameter('scaleByBatchAmplitude', false, @islogical); % multiply by muA to scale according to batch, dont use if you plan to scale by amplitudes
+            % not sure this is correct, plus we haven't saved muA to disk anyway
+%             p.addParameter('scaleByBatchAmplitude', false, @islogical); % multiply by muA to scale according to batch, dont use if you plan to scale by amplitudes
             p.parse(varargin{:});
             batch_inds = p.Results.batches;
-            scaleByBatchAmplitude = p.Results.scaleByBatchAmplitude;
+            average_skipped_batches = p.Results.average_skipped_batches;
+            
+            if isempty(batch_inds)
+                batch_inds = 1:p.Results.every_n_batches:ks.nBatches;
+            end
+%             scaleByBatchAmplitude = p.Results.scaleByBatchAmplitude;
 
             % returns batch-wise templates for a set of templates
             % nTemplates x nTimePoints x nTemplateChannels x nBatches
@@ -1534,22 +1637,34 @@ classdef KilosortDataset < handle
             else
                 wmi = eye(size(ks.whitening_mat_inv));
             end
+            
+            assert(size(ks.W_batch, 3) == 3);
 
             for iT = 1:nTemplates
                 for iB = 1:nBatches
-                    if scaleByBatchAmplitude
-                        amp = ks.muA(template_inds(iT), batch_inds(iB));
+                    if average_skipped_batches
+                        if iB == nBatches
+                            batch_inds_this = batch_inds(iB):ks.nBatches;
+                        else
+                            batch_inds_this = batch_inds(iB):batch_inds(iB+1);
+                        end
                     else
-                        amp = 1;
+                        batch_inds_this = batch_inds(iB);
                     end
+                        
+                    for iiB = 1:numel(batch_inds_this)
+                        W = ks.W_batch(:, template_inds(iT), :, batch_inds_this(iiB)); % nTT x 1 x 3 x 1
+                        U = ks.U_batch(:, template_inds(iT), :, batch_inds_this(iiB)); % nCh x 1 x 3 x 1
 
-                	W = ks.W_batch(:, template_inds(iT), :, batch_inds(iB)); % nTT x 1 x 3 x 1
-                    U = ks.U_batch(:, template_inds(iT), :, batch_inds(iB)); % nCh x 1 x 3 x 1
-
-                    for iP = 1:size(U, 3)
-                        this_pc = amp * W(:, :, iP, :) * (U(:, :, iP, :)' * wmi); % nTT x nCh
-                        data(iT, :, :, iB) = data(iT, :, :, iB) + reshape(this_pc, [1, nTT, nCh]);
+                        % manual loop unrolling to make this faster
+                        
+                        data(iT, :, :, iB) = data(iT, :, :, iB) + shiftdim(W(:,:,1,:)*(U(:,:,1,:)'*wmi) + W(:,:,2,:)*(U(:,:,2,:)'*wmi) + W(:,:,3,:)*(U(:,:,3,:)'*wmi), -1);
+%                         for iP = 1:size(U, 3)
+%                             this_pc = W(:, :, iP, :) * (U(:, :, iP, :)' * wmi); % nTT x nCh
+%                             data(iT, :, :, iB) = data(iT, :, :, iB) + reshape(this_pc, [1, nTT, nCh]);
+%                         end
                     end
+                    data(iT, :, :, iB) = data(iT, :, :, iB) ./ numel(batch_inds_this);
                 end
             end
         end
