@@ -227,7 +227,7 @@ function exportRezToPhy(rez, savePath, varargin)
     
     nBatches  = ops.Nbatch;
     ntPerBatch  	= uint64(ops.NT - ops.ntbuff);
-    batch_starts = (uint64(1) : ntPerBatch : (ntPerBatch*uint64(nBatches) + uint64(1)))';
+    batch_starts = (uint64(1) : ntPerBatch : (ntPerBatch*uint64(nBatches-1) + uint64(1)))';
     writeNPY_local(uint64(batch_starts), 'batch_starts.npy');
     
     writeNPY_local(uint32(splitsrc), 'cluster_splitsrc.npy');
@@ -254,7 +254,7 @@ function exportRezToPhy(rez, savePath, varargin)
         writeNPY_local(reshape(single(rez.W_a), [nTemplateTimepoints, nTemplateRank, nTemplatePCs, nTemplates]), 'template_W_batch_US.npy');
         writeNPY_local(single(rez.W_b), 'template_W_batch_V.npy');
 
-        writeNPY_local(single(rez.UA), 'template_U_batch.npy');
+        writeNPY_local(single(rez.UA), 'templante_U_batch.npy');
         writeNPY_local(reshape(single(rez.U_a), [nChannelsSorted, nTemplateRank, nTemplatePCs, nTemplates]), 'template_U_batch_US.npy');
         writeNPY_local(single(rez.U_b), 'template_U_batch_V.npy');
     end
@@ -272,6 +272,9 @@ function exportRezToPhy(rez, savePath, varargin)
         fprintf(fid,'sample_rate = %i.\n',rez.ops.fs);
     end
     fprintf(fid,'hp_filtered = False');
+    if isfield(rez.ops, 'scale_to_uv')
+       fprintf(fid, ' = %.8f\n', rez.ops.scaleToUv);
+    end
     fclose(fid);
     
     function writeNPY_local(vals, fname)
