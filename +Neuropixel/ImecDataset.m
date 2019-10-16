@@ -2080,7 +2080,11 @@ end
                             for iFn = 1:numel(procFnList)
                                 fn = procFnList{iFn};
                                 % pass as many inputs to fn as it can handle, including user provided args at the end
-                                extraArgs = {chIds, source_idx, transformExtraArg};
+                                extraArgs = {chIds, source_idx};
+                                if ~isempty(transformExtraArg)
+                                    extraArgs{end+1} = transformExtraArg;
+                                end
+                                
                                 ninputs = nargin(fn);
                                 if ninputs > 0 && ninputs < 2 + numel(extraArgs)
                                     extraArgs = extraArgs(1:ninputs-2);
