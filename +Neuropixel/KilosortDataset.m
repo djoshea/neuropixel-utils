@@ -157,6 +157,8 @@ classdef KilosortDataset < handle
 
         U (:, :, :) double % [nChannelsSorted, nTemplates, nTemplateRank] - spatial decomposition of templates
 
+        mu (:, 1) double % [nTemplates, 1] - original template scale factor determined in learnAndSolve8b
+        
         % batch information used in drift correction
         batch_starts (:, 1) uint64 % [nBatches] timesteps where each batch begins (unsorted)
 
@@ -177,6 +179,8 @@ classdef KilosortDataset < handle
         U_batch_US (:, :, :, :) single % [nChannelsSorted, nTemplateRank, nTemplatePCs, nTemplates]
         U_batch_V (:, :, :) single % [nBatches, nTemplatePCs, nTemplates]
 
+        mu_batch (:, :) single % [nTemplates, nBatches] - original template scale factors determined in learnAndSolve8b
+        
         % good vs. mua label as assigned by Kilosort2 in cluster_KSLabel.tsv (good, mua)
         cluster_ks_label(:, 1) categorical % [nClusters]
 
@@ -192,6 +196,8 @@ classdef KilosortDataset < handle
 
         % [nSpikesInvalid, ] uint64 vector giving the spike time of each spike in samples. To convert to seconds, divide by sample_rate from params.py.
         cutoff_spike_times(:, 1) uint64
+        
+        cutoff_thresholds(:, 1) double % cutoffs for spike_amplitude decided in vexp, these are in RMS units
 
         cutoff_amplitudes(:, 1) double
 
@@ -742,6 +748,7 @@ classdef KilosortDataset < handle
             if ks.kilosort_version == 2
                 ks.W = readOr('template_W');
                 ks.U = readOr('template_U');
+                ks.mu = readOr('template_mu');
 
                 % strip leading zeros off of ks.templates based on size of W
                 nTimeTempW = size(ks.W, 1);
@@ -762,6 +769,7 @@ classdef KilosortDataset < handle
                     ks.U_batch = readOr('template_U_batch');
                     ks.U_batch_US = readOr('template_U_batch_US');
                     ks.U_batch_V = readOr('template_U_batch_V');
+                    ks.mu_batch = readOr('template_mu_batch');
                 end
 
                 ks.cluster_est_contam_rate = readOr('cluster_est_contam_rate');
@@ -772,6 +780,8 @@ classdef KilosortDataset < handle
                 ks.cluster_split_candidate = read('cluster_split_candidate');
                 ks.cluster_orig_template = read('cluster_split_orig_template');
 
+                ks.cutoff_thresholds = readOr('cutoff_thresholds.npy');
+                
                 if loadCutoff
                     ks.cutoff_spike_times = readOr('cutoff_spike_times');
                     ks.cutoff_spike_templates = readOr('cutoff_spike_templates') + ones(1, 'like', ks.spike_templates); % 0 indexed templates to 1 indexed templates
