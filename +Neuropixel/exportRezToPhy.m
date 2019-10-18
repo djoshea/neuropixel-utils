@@ -18,14 +18,16 @@ function exportRezToPhy(rez, savePath, varargin)
         assert(isfield(rez, 'st3_cutoff_invalid'), 'Missing rez.st3_cutoff_invalid');
     end
 
-    cluster_col = 7; % use post split cluster assignments
     markSplitsOnly = getOr(rez.ops, 'markSplitsOnly', false);
 
+    cluster_col = rez.st3_cluster_col;
+    template_col = rez.st3_template_col;
+    
     % spikeTimes will be in samples, not seconds
     Wphy = gather(single(rez.Wphy));
     U = gather(single(rez.U));
     rez.mu = gather(single(rez.mu));
-
+   
     CUTOFF_CLUSTER_OFFSET = 10000;
     if export_cutoff_as_offset_clusters
         nNonCutoff = size(rez.st3, 1);
@@ -56,8 +58,8 @@ function exportRezToPhy(rez, savePath, varargin)
     spikeTimes = uint64(rez.st3(:,1));
     % [spikeTimes, ii] = sort(spikeTimes);
     spikeTemplatesPreSplit = uint32(rez.st3(:,2));
-    spikeTemplates = uint32(rez.st3(:,6));
-    spikeClusters = uint32(rez.st3(:,cluster_col));
+    spikeTemplates = uint32(rez.st3(:, template_col));
+    spikeClusters = uint32(rez.st3(:, cluster_col));
     amplitudes = rez.st3(:,3);
 
     if export_cutoff_hidden
@@ -160,6 +162,9 @@ function exportRezToPhy(rez, savePath, varargin)
     writeNPY_local(pcFeatures, 'pc_features.npy');
     writeNPY_local(pcFeatureInds'-cluster_offset, 'pc_feature_ind.npy');% -1 for zero indexing
 
+    % adding these to support reextraction of spikes with fixed templates
+    writeNPY_local(rez.Ths, 'cutoff_thresholds.npy');
+    
     if export_cutoff_hidden
         writeNPY_local(cutoff_spikeTimes, 'cutoff_spike_times.npy');
         writeNPY_local(uint32(cutoff_spikeTemplates-cluster_offset), 'cutoff_spike_templates.npy'); % -1 for zero indexing
@@ -240,6 +245,7 @@ function exportRezToPhy(rez, savePath, varargin)
     
     writeNPY_local(rez.W, 'template_W.npy');
     writeNPY_local(rez.U, 'template_U.npy');
+    writeNPY_local(rez.mu, 'template_mu.npy');
     writeNPY_local(rez.ccb, 'batchwise_ccb.npy');
     writeNPY_local(rez.iorig, 'batch_sort_order.npy');
 
@@ -257,6 +263,8 @@ function exportRezToPhy(rez, savePath, varargin)
         writeNPY_local(single(rez.UA), 'templante_U_batch.npy');
         writeNPY_local(reshape(single(rez.U_a), [nChannelsSorted, nTemplateRank, nTemplatePCs, nTemplates]), 'template_U_batch_US.npy');
         writeNPY_local(single(rez.U_b), 'template_U_batch_V.npy');
+        
+        writeNPY_local(single(rez.muA), 'template_mu_batch.npy');
     end
     
     %% write params.py file
