@@ -45,6 +45,7 @@ classdef KilosortDataset < handle
         nSpikes
         nClusters
         nTemplates
+        nTemplatesPreSplit
         nTemplateRank
         nPCFeatures
         nFeaturesPerChannel
@@ -106,6 +107,9 @@ classdef KilosortDataset < handle
 
         % spike_templates.npy - [nSpikes, ] uint32 vector specifying the identity of the template that was used to extract each spike
         spike_templates(:, 1) uint32
+        
+        % spike_templates.npy - [nSpikes, ] uint32 vector specifying the identity of the template that was originally used to extract each spike, before splitAllClusters
+        spike_templates_preSplit(:, 1) uint32
 
         % spike_times.npy - [nSpikes, ] uint64 vector giving the spike time of each spike in samples. To convert to seconds, divide by sample_rate from params.py.
         spike_times(:, 1) uint64
@@ -153,11 +157,14 @@ classdef KilosortDataset < handle
         kilosort_version (1, :) uint32 % scalar or vector (leading digit is 1 or 2 for Kilosort1 or Kilosort2)
 
         % low-rank decomposition of templates into spatial and temporal components
-        W (:, :, :) double % [nTemplateTimepoints, nTemplates, nTemplateRank] - temporal decomposition of templates
-
-        U (:, :, :) double % [nChannelsSorted, nTemplates, nTemplateRank] - spatial decomposition of templates
-
-        mu (:, 1) double % [nTemplates, 1] - original template scale factor determined in learnAndSolve8b
+        W (:, :, :) single % [nTemplateTimepoints, nTemplates, nTemplateRank] - temporal decomposition of templates
+        U (:, :, :) single % [nChannelsSorted, nTemplates, nTemplateRank] - spatial decomposition of templates
+        mu (:, 1) single % [nTemplates, 1] - original template scale factor determined in learnAndSolve8b
+        
+        W_preSplit (:, :, :) double % [nTemplateTimepoints, nTemplatesPreSplit, nTemplateRank] - temporal decomposition of templates
+        U_preSplit (:, :, :) double % [nChannelsSorted, nTemplatesPreSplit, nTemplateRank] - spatial decomposition of templates
+        mu_preSplit (:, 1) double % [nTemplatesPreSplit, 1] - original template scale factor determined in learnAndSolve8b
+        iW_preSplit(:, 1) int32 % nTemplatesPreSplit - channel indices where the biggest deflection is (at time nt0min), used mainly for spike reextraction with the same settings
         
         % batch information used in drift correction
         batch_starts (:, 1) uint64 % [nBatches] timesteps where each batch begins (unsorted)
@@ -168,12 +175,16 @@ classdef KilosortDataset < handle
 
         % batchwise template data
         W_batch (:, :, :, :) single % [nTemplateTimepoints, nTemplates, nTemplateRank, nBatches] - full spatial templates by batch
+        
+        W_batch_preSplit (:, :, :, :) single % [nTemplateTimepoints, nTemplatesPreSplit, nTemplateRank, nBatches] - full spatial templates by batch, for original pre-split templates
 
         % per-template svd of W_batch U*S --> W_batch_a, V --> W_batch_b
         W_batch_US (:, :, :, :) single % [nTemplateTimepoints, nTemplateRank, nTemplatePCs, nTemplates] - reshaped from rez.W_a
         W_batch_V (:, :, :) single % [nBatches, nTemplatePCs, nTemplates] % rez.W_b
 
-        U_batch (:, :, :, :) single  % [nChannelsSorted, nTemplates, nTemplateRank, nBatches] - full temporal templates
+        U_batch (:, :, :, :) single  % [nChannelsSorted, nTemplates, nTemplateRank, nBatches] - full temporal templates by batch
+        
+        U_batch_preSplit (:, :, :, :) single % [nTemplateTimepoints, nTemplatesPreSplit, nTemplateRank, nBatches] - full temporal templates by batch, for original pre-split templates
 
         % per-template svd of U_batch U*S --> U_batch_a, V --> U_batch_b
         U_batch_US (:, :, :, :) single % [nChannelsSorted, nTemplateRank, nTemplatePCs, nTemplates]
@@ -181,18 +192,23 @@ classdef KilosortDataset < handle
 
         mu_batch (:, :) single % [nTemplates, nBatches] - original template scale factors determined in learnAndSolve8b
         
+        mu_batch_preSplit (:, :) single % [nTemplatesPreSplit, nBatches] - original template scale factors determined in learnAndSolve8b
+        
         % good vs. mua label as assigned by Kilosort2 in cluster_KSLabel.tsv (good, mua)
         cluster_ks_label(:, 1) categorical % [nClusters]
 
         cluster_est_contam_rate (:, 1) double % [nClusters]
 
         % optional split and merge meta information (only on djoshea branch of Kilosort2)
-        cluster_merge_count (:, 1) uint32
-        cluster_split_src (:, 1) uint32
-        cluster_split_dst (:, 1) uint32
-        cluster_split_auc (:, 1) double
+        % each is nTemplates x 1 corresponding and points to cluster_ids (meaning are 0 indexed)
+        cluster_merge_count (:, 1) single
+        cluster_merge_dst(:, 1) single % cluster_merge_dst(i) == j implies that spikes from template i, cluster i-1 were merged into cluster j-1
+        cluster_split_src (:, 1) single
+        cluster_split_dst (:, 1) cell
+        cluster_split_auc (:, 1) cell
         cluster_split_candidate (:, 1) logical
         cluster_orig_template (:, 1) uint32
+        cluster_split_projections(:, 1) cell
 
         % [nSpikesInvalid, ] uint64 vector giving the spike time of each spike in samples. To convert to seconds, divide by sample_rate from params.py.
         cutoff_spike_times(:, 1) uint64
@@ -203,6 +219,7 @@ classdef KilosortDataset < handle
 
         % [nSpikesCutoff, ] uint32 vector specifying the identity of the template that was used to extract each spike
         cutoff_spike_templates(:, 1) uint32
+        cutoff_spike_templates_preSplit(:, 1) uint32
         cutoff_spike_clusters(:, 1) uint32
         cutoff_spike_clusters_ks2orig(:, 1) uint32
 
@@ -274,6 +291,18 @@ classdef KilosortDataset < handle
                 n = NaN;
             else
                 n = size(ks.templates, 1);
+            end
+        end
+        
+        function n = get.nTemplatesPreSplit(ks)
+            if isempty(ks.W_preSplit)
+                if isempty(ks.spike_templates_preSplit)
+                    n = NaN;
+                else
+                    n = max(ks.spike_templates_preSplit);
+                end
+            else
+                n = size(ks.W_preSplit, 2);
             end
         end
 
@@ -615,6 +644,7 @@ classdef KilosortDataset < handle
             p.addParameter('loadBatchwise', true, @islogical);
             p.addParameter('loadFeatures', true, @islogical);
             p.addParameter('loadCutoff', true, @islogical);
+            p.addParameter('loadPreSplit', true, @islogical);
             p.addParameter('progressInitializeFn', [], @(x) isempty(x) || isa(x, 'function_handle')); % f(nUpdates) to print update
             p.addParameter('progressIncrementFn', [], @(x) isempty(x) || isa(x, 'function_handle')); % f(updateString) to print update
             p.parse(varargin{:});
@@ -624,6 +654,7 @@ classdef KilosortDataset < handle
             loadFeatures = p.Results.loadFeatures;
             loadBatchwise = p.Results.loadBatchwise;
             loadCutoff = p.Results.loadCutoff;
+            loadPreSplit = p.Results.loadPreSplit;
 
             if ks.isLoaded && ~reload
                 if (~p.Results.loadBatchwise || ks.isLoadedBatchwise) && ...
@@ -658,6 +689,12 @@ classdef KilosortDataset < handle
                 end
                 progIncrFn = p.Results.progressIncrementFn;
             end
+            
+            if existp('ops.mat')
+                progIncrFn('Loading ops.mat');
+                ld = load(fullfile(path, 'ops.mat'), 'ops');
+                ks.ops = ld.ops;
+            end
 
             ks.amplitudes = read('amplitudes');
             ks.channel_ids_sorted = read('channel_map');
@@ -671,6 +708,8 @@ classdef KilosortDataset < handle
             ks.similar_templates = read('similar_templates');
             ks.spike_templates = read('spike_templates');
             ks.spike_templates = ks.spike_templates + ones(1, 'like', ks.spike_templates);
+            ks.spike_templates_preSplit = read('spike_templates_preSplit');
+            ks.spike_templates_preSplit = ks.spike_templates_preSplit + ones(1, 'like', ks.spike_templates_preSplit);
             ks.spike_times = read('spike_times');
             if loadFeatures
                 ks.template_features = read('template_features');
@@ -740,15 +779,19 @@ classdef KilosortDataset < handle
 %                 ks.cluster_rating(ind(tf)) = tbl{tf, 2};
 %             end
 
-            if existp('ops.mat')
-                temp = load(fullfile(p, 'ops.mat'), 'ops');
-                ks.ops = temp.ops;
-            end
-
             if ks.kilosort_version == 2
-                ks.W = readOr('template_W');
-                ks.U = readOr('template_U');
-                ks.mu = readOr('template_mu');
+                if loadFeatures
+                    ks.W = readOr('template_W');
+                    ks.U = readOr('template_U');
+                    ks.mu = readOr('template_mu');
+                    
+                    if loadPreSplit
+                        ks.W_preSplit = readOr('template_W_presplit');
+                        ks.U_preSplit = readOr('template_U_presplit');
+                        ks.mu_preSplit = readOr('template_mu_presplit');
+                        ks.iW_preSplit = readOr('template_iW_presplit');
+                    end
+                end
 
                 % strip leading zeros off of ks.templates based on size of W
                 nTimeTempW = size(ks.W, 1);
@@ -764,27 +807,48 @@ classdef KilosortDataset < handle
                     ks.batch_starts = readOr('batch_starts');
 
                     ks.W_batch = readOr('template_W_batch');
+                    
                     ks.W_batch_US = readOr('template_W_batch_US');
                     ks.W_batch_V = readOr('template_W_batch_V');
                     ks.U_batch = readOr('template_U_batch');
                     ks.U_batch_US = readOr('template_U_batch_US');
                     ks.U_batch_V = readOr('template_U_batch_V');
                     ks.mu_batch = readOr('template_mu_batch');
+                    
+                    if loadPreSplit % mostly used for reextracting spikes
+                        ks.W_batch_preSplit = readOr('template_W_batch_presplit');
+                        ks.U_batch_preSplit = readOr('template_U_batch_presplit');
+                        ks.mu_batch_preSplit = readOr('template_mu_batch_presplit');
+                    end
                 end
 
                 ks.cluster_est_contam_rate = readOr('cluster_est_contam_rate');
-                ks.cluster_merge_count = readOr('cluster_mergecount');
-                ks.cluster_split_src = readOr('cluster_splitsrc');
-                ks.cluster_split_dst = readOr('cluster_splitdst');
-                ks.cluster_split_auc = read('cluster_splitauc');
-                ks.cluster_split_candidate = read('cluster_split_candidate');
-                ks.cluster_orig_template = read('cluster_split_orig_template');
-
-                ks.cutoff_thresholds = readOr('cutoff_thresholds.npy');
+                
+                if existp('splitMergeInfo.mat')
+                    progIncrFn('Loading splitMergeInfo.mat');
+                    ld = load(fullfile(path, 'splitMergeInfo.mat'), 'splitMergeInfo');
+                    splitMergeInfo = ld.splitMergeInfo;
+                    ks.cluster_merge_count = splitMergeInfo.mergecount;
+                    ks.cluster_merge_dst = splitMergeInfo.mergedst;
+                    ks.cluster_split_src = splitMergeInfo.splitsrc;
+                    ks.cluster_split_dst = splitMergeInfo.splitdst;
+                    ks.cluster_split_auc = splitMergeInfo.splitauc;
+                    ks.cluster_split_candidate = splitMergeInfo.split_candidate;
+                    ks.cluster_orig_template = splitMergeInfo.split_orig_template;
+                    ks.cluster_split_projections = splitMergeInfo.split_projections;
+                end
                 
                 if loadCutoff
+                    ks.cutoff_thresholds = readOr('cutoff_thresholds');
+                
                     ks.cutoff_spike_times = readOr('cutoff_spike_times');
-                    ks.cutoff_spike_templates = readOr('cutoff_spike_templates') + ones(1, 'like', ks.spike_templates); % 0 indexed templates to 1 indexed templates
+                    cutoff_temps = readOr('cutoff_spike_templates');
+                    if ~isempty(cutoff_temps)
+                        ks.cutoff_spike_templates = cast(cutoff_temps, 'like', ks.spike_templates) + ones(1, 'like', ks.spike_templates); % 0 indexed templates to 1 indexed templates
+                        cutoff_temps_preSplit = readOr('cutoff_spike_templates_preSplit');
+                        ks.cutoff_spike_templates_preSplit = cast(cutoff_temps_preSplit, 'like', ks.spike_templates) + ones(1, 'like', ks.spike_templates); % 0 indexed templates to 1 indexed templates
+                    end
+
                     ks.cutoff_amplitudes = readOr('cutoff_amplitudes');
                     ks.cutoff_spike_clusters = readOr('cutoff_spike_clusters'); % rez.st3_cutoff is 1 indexed, cluster ids are 0 indexed
                     if existp('cutoff_spike_clusters_ks2orig.npy')
