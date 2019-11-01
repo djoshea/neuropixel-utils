@@ -2,6 +2,7 @@ function [out, transformInfo] = plotStackedTraces(tvec, data_txcxl, varargin)
 % data is time x channels x layers
 
 p = inputParser();
+p.addParameter('style', 'traces', @(x) ischar(x) || isstring(x)); 
 p.addParameter('transformInfo', [], @(x) isempty(x) || isstruct(x));
 
 p.addParameter('colors', [], @(x) true); % over channels
@@ -12,6 +13,7 @@ p.addParameter('quantile', 1, @isscalar);
 p.addParameter('lineArgs', {}, @iscell);
 p.addParameter('LineWidth', 1, @isscalar);
 p.addParameter('LineOpacity', 1, @isscalar);
+p.addParameter('RidgeOpacity', 1, @isscalar);
 p.addParameter('gain', 1, @isscalar);
 p.addParameter('labels', [], @(x) true);
 p.addParameter('channel_ids', [], @(x) true); % used for data tips, c x l or c x 1
@@ -35,6 +37,9 @@ p.parse(varargin{:});
 
 showChannelDataTips = p.Results.showChannelDataTips;
 showOverlayDataTips = p.Results.showOverlayDataTips;
+
+style = string(p.Results.style);
+assert(ismember(style, ["traces", "ridgeline", "heatmap"]));
 
 data = data_txcxl;
 if isinteger(data)
@@ -105,13 +110,18 @@ data(:, ~cmask, :) = data(:, ~cmask, :) * 0.95; % this keeps logical bits from t
 multipliers = nan(size(data, 2), 1);
 multipliers(cmask) = tform.normBy * tform.gain;
 
-if ~isfield(tform, 'offsets')
-    if p.Results.invertChannels % first is at bottom
-        tform.offsets = 0:nTraces-1;
-    else
-        tform.offsets = nTraces-1:-1:0; % default, first is at top
+if style == "traces" || style == "ridgeline"
+    if ~isfield(tform, 'offsets')
+        if p.Results.invertChannels % first is at bottom
+            tform.offsets = 0:nTraces-1;
+        else
+            tform.offsets = nTraces-1:-1:0; % default, first is at top
+        end
     end
+else
+    tform.offsets = zeros(1, nTraces);
 end
+
 data = data + tform.offsets; % channels along sercond dimension
 
 washolding = ishold;
@@ -145,42 +155,63 @@ if ~isempty(dataTipValue)
     end
 end
 
-for iR = 1:nTraces
-    dmat = squeeze(data(:, iR, :));
-    if ~any(~isnan(dmat), 'all'), continue, end
-    hvec(iR, :) = plot(tvec, dmat, '-', 'Color', [0 0 0 p.Results.LineOpacity], 'LineWidth', p.Results.LineWidth, p.Results.lineArgs{:});
-    
-    if ~isempty(traceColors)
-        % color by trace
-        set(hvec(iR, :), 'Color', [traceColors(iR, :) p.Results.LineOpacity]);
-    else
-        % color by layers
-        for iL = 1:nLayers
-            hvec(iR, iL).Color = [layerColors(iL, :) p.Results.LineOpacity];
-        end
-    end
-    
-    if ~verLessThan('matlab', '9.6.0') 
-        if ~isempty(channel_ids) && showChannelDataTips % R2019a 
-            for iL = 1:nLayers
-                nPoints = numel(hvec(iR, iL).XData);
-                hvec(iR, iL).DataTipTemplate.DataTipRows(end+1) = dataTipTextRow('channel', repmat(double(channel_ids(iR, iL)), nPoints, 1), '%d');
+switch style
+    case {"traces", "ridgeline"}
+        for iR = 1:nTraces
+            dmat = squeeze(data(:, iR, :));
+            if ~any(~isnan(dmat), 'all'), continue, end
+            
+            if style == "traces"
+                hvec(iR, :) = plot(tvec, dmat, '-', 'Color', [0 0 0 p.Results.LineOpacity], 'LineWidth', p.Results.LineWidth, p.Results.lineArgs{:});
+                if ~isempty(traceColors)
+                    % color by trace
+                    set(hvec(iR, :), 'Color', [traceColors(iR, :) p.Results.LineOpacity]);
+                else
+                    % color by layers
+                    for iL = 1:nLayers
+                        hvec(iR, iL).Color = [layerColors(iL, :) p.Results.LineOpacity];
+                    end
+                end
+            else
+                hvec(iR, :) = area(tvec, dmat, tform.offsets(iR), 'ShowBaseLine', 'off', 'FaceColor', 'w', 'EdgeAlpha', p.Results.LineOpacity, 'FaceAlpha', p.Results.RidgeOpacity);
+                if ~isempty(traceColors)
+                    % color by trace
+                    set(hvec(iR, :), 'EdgeColor', traceColors(iR, :));
+                else
+                    % color by layers
+                    for iL = 1:nLayers
+                        hvec(iR, iL).EdgeColor = layerColors(iL, :);
+                    end
+                end
             end
-        end
-        
-        if ~isempty(dataTipValue)
-            for iL = 1:nLayers
-                hvec(iR, iL).DataTipTemplate.DataTipRows(end+1) = dataTipTextRow(p.Results.dataTipLabel, double(dataTipValue(:, iR, iL)), dtipfmatArg{:});
+            
+
+            if ~verLessThan('matlab', '9.6.0') 
+                if ~isempty(channel_ids) && showChannelDataTips % R2019a 
+                    for iL = 1:nLayers
+                        nPoints = numel(hvec(iR, iL).XData);
+                        hvec(iR, iL).DataTipTemplate.DataTipRows(end+1) = dataTipTextRow('channel', repmat(double(channel_ids(iR, iL)), nPoints, 1), '%d');
+                    end
+                end
+
+                if ~isempty(dataTipValue)
+                    for iL = 1:nLayers
+                        hvec(iR, iL).DataTipTemplate.DataTipRows(end+1) = dataTipTextRow(p.Results.dataTipLabel, double(dataTipValue(:, iR, iL)), dtipfmatArg{:});
+                    end
+                end
             end
+
+            hold on;
+
+        %     if ~isempty(labels)
+        %         text(tvec(1) - (tvec(2) - tvec(1)), offsets(iR), labels{iR}, 'Background', 'none', ...
+        %             'HorizontalAlign', 'right', 'VerticalAlign', 'bottom', 'Color', colors(iR, :));
+        %     end
         end
-    end
-        
-    hold on;
-    
-%     if ~isempty(labels)
-%         text(tvec(1) - (tvec(2) - tvec(1)), offsets(iR), labels{iR}, 'Background', 'none', ...
-%             'HorizontalAlign', 'right', 'VerticalAlign', 'bottom', 'Color', colors(iR, :));
-%     end
+
+    case 'heatmap'
+        assert(nLayers == 1);
+        Neuropixel.Utils.pmatbal(data');
 end
 
 % do color overlays
@@ -264,9 +295,10 @@ end
 
 ax = gca;
 ax.TickDir = 'out';
-ax.ColorSpace.Colormap = cmap;
-ax.CLim = [1 size(cmap, 1)];
-
+if style == "traces" || style == "ridgeline"
+    ax.ColorSpace.Colormap = cmap;
+    ax.CLim = [1 size(cmap, 1)];
+end
 
 if ~washolding
     hold off;
