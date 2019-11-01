@@ -448,7 +448,7 @@ classdef ImecDataset < handle
         
         function inspectAP_idxWindow(imec, idxWindow, varargin)
             p = inputParser();
-            p.addParameter('channels', imec.mappedChannels, @isvector);
+            p.addParameter('channels', imec.mappedChannels, @(x) isempty(x) || isvector(x));
             p.addParameter('invertChannels', false, @islogical);
             p.addParameter('goodChannelsOnly', false, @islogical);
             p.addParameter('connectedChannelsOnly', false, @islogical);
@@ -559,6 +559,10 @@ classdef ImecDataset < handle
             end
             
             hold off;
+        end
+        
+        function inspectSync_idxWindow(imec, idxWindow, varargin)
+           imec.inspectAP_idxWindow(idxWindow, 'channels', [], 'showSync', true, varargin{:}); 
         end
     end
 
