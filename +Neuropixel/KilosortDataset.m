@@ -1,4 +1,4 @@
-classdef KilosortDataset < handle
+classdef KilosortDataset < handle & matlab.mixin.Copyable
     % wrapper around a Kilosort dataset
     % todo - load cluster ratings from cluster_groups.tsv
     % Note 1: in the context of this file, time refers to samples, 1-indexed
@@ -40,6 +40,7 @@ classdef KilosortDataset < handle
         hasFeaturesLoaded
         hasCutoffLoaded
         hasBatchwiseLoaded
+        hasPreSplitLoaded
 
         nChannelsSorted
         nSpikes
@@ -257,9 +258,12 @@ classdef KilosortDataset < handle
             tf = ~isempty(ks.cutoff_spike_clusters);
         end
 
-
         function tf = get.hasBatchwiseLoaded(ks)
             tf = ~isempty(ks.W_batch);
+        end
+        
+        function tf = get.hasPreSplitLoaded(ks)
+            tf = ~isempty(ks.W_preSplit);
         end
 
         function n = get.nSpikes(ks)
@@ -957,6 +961,7 @@ classdef KilosortDataset < handle
         end
         
         function accept_cutoff_spikes(ks, ratings_or_cluster_ids)
+            % THIS WILL NEED TO BE UDPATED IF ADDITIONAL PROPS ARE ADDED
             if nargin < 2
                 cluster_ids = ks.cluster_ids;
             elseif isa(ratings_or_cluster_ids, 'Neuropixel.ClusterRatingInfo')
@@ -987,6 +992,7 @@ classdef KilosortDataset < handle
             end
             
             [ks.spike_templates, ks.cutoff_spike_templates] = combineAndSort(ks.spike_templates, ks.cutoff_spike_templates);
+            [ks.spike_templates_preSplit, ks.cutoff_templates_preSplit] = combineAndSort(ks.spike_templates_preSplit, ks.cutoff_spike_templates_preSplit);
             [ks.amplitudes, ks.cutoff_amplitudes] = combineAndSort(ks.amplitudes, ks.cutoff_amplitudes);
             [ks.spike_clusters, ks.cutoff_spike_clusters] = combineAndSort(ks.spike_clusters, ks.cutoff_spike_clusters);
             
@@ -995,7 +1001,76 @@ classdef KilosortDataset < handle
                 [ks.template_features, ks.cutoff_template_features] = combineAndSort(ks.template_features, ks.cutoff_template_features);
             end
         end
+        
+        function sort_spikes(ks)
+            [ks.spike_times, sortIdx] = sort(ks.spike_times);
+            ks.spike_templates = ks.spike_templates(sortIdx);
+            ks.spike_templates_preSplit = ks.spike_templates_preSplit(sortIdx);
+            ks.amplitudes = ks.amplitudes(sortIdx);
+            ks.spike_clusters = ks.spike_clusters(sortIdx);
+            if ks.hasFeaturesLoaded
+                ks.pc_features = ks.pc_features(sortIdx, :, :);
+                ks.template_features = ks.template_features(sortIdx, :);
+            end
+            
+            [ks.cutoff_spike_times, sortIdx] = sort(ks.cutoff_spike_times);
+            ks.cutoff_spike_templates = ks.cutoff_spike_templates(sortIdx);
+            ks.cutoff_spike_templates_preSplit = ks.cutoff_spike_templates_preSplit(sortIdx);
+            ks.cutoff_amplitudes = ks.cutoff_amplitudes(sortIdx);
+            ks.cutoff_spike_clusters = ks.cutoff_spike_clusters(sortIdx);
+            if ks.hasFeaturesLoaded
+                ks.cutoff_pc_features = ks.cutoff_pc_features(sortIdx, :, :);
+                ks.cutoff_template_features = ks.cutoff_template_features(sortIdx, :);
+            end
+        end
+        
+        function mask_spikes(ks, mask, mask_cutoff)
+            assert(islogical(mask) && numel(mask) == ks.nSpikes);
+            assert(islogical(mask_cutoff) && numel(mask_cutoff) == ks.nSpikesCutoff);
+            
+            ks.spike_times = ks.spike_times(mask);
+            ks.spike_templates = ks.spike_templates(mask);
+            ks.spike_templates_preSplit = ks.spike_templates_preSplit(mask);
+            ks.amplitudes = ks.amplitudes(mask);
+            ks.spike_clusters = ks.spike_clusters(mask);
+            if ks.hasFeaturesLoaded
+                ks.pc_features = ks.pc_features(mask, :, :);
+                ks.template_features = ks.template_features(mask, :);
+            end
+            
+            ks.cutoff_spike_times = ks.cutoff_spike_times(mask_cutoff);
+            ks.cutoff_spike_templates = ks.cutoff_spike_templates(mask_cutoff);
+            ks.cutoff_spike_templates_preSplit = ks.cutoff_spike_templates_preSplit(mask_cutoff);
+            ks.cutoff_amplitudes = ks.cutoff_amplitudes(mask_cutoff);
+            ks.cutoff_spike_clusters = ks.cutoff_spike_clusters(mask_cutoff);
+            if ks.hasFeaturesLoaded
+                ks.cutoff_pc_features = ks.cutoff_pc_features(mask_cutoff, :, :);
+                ks.cutoff_template_features = ks.cutoff_template_features(mask_cutoff, :);
+            end
+        end
+        
+        function append_spikes(ks, append)
+            ks.spike_times = cat(1, ks.spike_times, append.spike_times);
+            ks.spike_templates = cat(1, ks.spike_templates, append.spike_templates);
+            ks.spike_templates_preSplit = cat(1, ks.spike_templates_preSplit, append.spike_templates_preSplit);
+            ks.amplitudes = cat(1, ks.amplitudes, append.amplitudes);
+            ks.spike_clusters = cat(1, ks.spike_clusters, append.spike_clusters);
+            if ks.hasFeaturesLoaded
+                ks.pc_features = cat(1, ks.pc_features, append.pc_features);
+                ks.template_features = cat(1, ks.template_features, append.template_features);
+            end
 
+            ks.cutoff_spike_times = cat(1, ks.cutoff_spike_times, append.cutoff_spike_times);
+            ks.cutoff_spike_templates = cat(1, ks.cutoff_spike_templates, append.cutoff_spike_templates);
+            ks.cutoff_spike_templates_preSplit = cat(1, ks.cutoff_spike_templates_preSplit, append.cutoff_spike_templates_preSplit);
+            ks.cutoff_amplitudes = cat(1, ks.cutoff_amplitudes, append.cutoff_amplitudes);
+            ks.cutoff_spike_clusters = cat(1, ks.cutoff_spike_clusters, append.cutoff_spike_clusters);
+            if ks.hasFeaturesLoaded
+                ks.cutoff_pc_features = cat(1, ks.cutoff_pc_features, append.cutoff_pc_features);
+                ks.cutoff_template_features = cat(1, ks.cutoff_template_features, append.cutoff_template_features);
+            end
+        end
+            
 %         function loadFromRez(ks, rez)
 %             % NOTE: not completed, currently just holding useful code
 %             error('not yet functional');

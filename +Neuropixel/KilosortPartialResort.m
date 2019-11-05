@@ -5,9 +5,10 @@ classdef KilosortPartialResort < handle
     end
     
     properties
-        sample_mask(:, 1) logical % [nSamples] sparse logical matrix indicating the timepoints for which resorted data is available
+        sort_windows (:, 2) uint64 % nWindows x 2 list of start, stop samples which were actually resorted
         
-        batch_mask(:, 1) logical % [nBatches] sparse matrix indicating which batches were resorted
+        % spike_times.npy - [nSpikes, ] uint64 vector giving the spike time of each spike in samples. To convert to seconds, divide by sample_rate from params.py.
+        spike_times(:, 1) uint64
         
         % amplitudes.npy - [nSpikes, ] double vector with the amplitude scaling factor that was applied to the template when extracting that spike
         amplitudes(:,1) double;
@@ -22,9 +23,6 @@ classdef KilosortPartialResort < handle
         
         % spike_templates.npy - [nSpikes, ] uint32 vector specifying the identity of the template that was originally used to extract each spike, before splitAllClusters
         spike_templates_preSplit(:, 1) uint32
-
-        % spike_times.npy - [nSpikes, ] uint64 vector giving the spike time of each spike in samples. To convert to seconds, divide by sample_rate from params.py.
-        spike_times(:, 1) uint64
 
         % template_features.npy - [nSpikes, nTemplateRank] single matrix giving the magnitude of the projection of each spike onto nTemplateRank other features.
         % Which other features is specified in template_feature_ind.npy
@@ -42,19 +40,109 @@ classdef KilosortPartialResort < handle
         cutoff_spike_templates_preSplit(:, 1) uint32
         cutoff_spike_clusters(:, 1) uint32
         
+        cutoff_template_features(:, :) single % [nSpikesCutoff, nTemplateRank]
+        
         % [nSpikesCutoff, nFeaturesPerChannel, nPCFeatures] single matrix giving the PC values for each spike (from .cProjPC_cutoff_invalid)
         cutoff_pc_features(:, :, :) uint32
     end
     
+    properties(Dependent)
+        nSpikes
+        nSpikesCutoff
+        nSortWindows
+        nSortSamples
+    end
+    
     methods
-        function ksr = KilosortPartialResort()
+        function kspr = KilosortPartialResort()
             
         end
         
+        function n = get.nSpikes(kspr)
+            n = numel(kspr.spike_times);
+        end
         
+        function n = get.nSpikesCutoff(kspr)
+            n = numel(kspr.cutoff_spike_times);
+        end
+        
+        function n = get.nSortWindows(kspr)
+            n = size(kspr.sort_windows, 1);
+        end
+        
+        function n = get.nSortSamples(kspr)
+            durations = kspr.sort_windows(:, 2) - kspr.sort_windows(:, 1) + uint64(1);
+            n = sum(durations);
+        end
+        
+        function ks = splice_into_ks(kspr, ks)
+            assert(isa(ks, 'Neuropixel.KilosortDataset'));
+            ks = copy(ks);
+            
+            % compute mask of spikes to keep
+            mask_keep = true(ks.nSpikes, 1);
+            mask_keep_cutoff = true(ks.nSpikesCutoff, 1);
+            for iW = 1:kspr.nSortWindows
+                % keep if not in this window
+                mask_keep = mask_keep & ~(ks.spike_times >= kspr.sort_windows(iW, 1) & ks.spike_times <= kspr.sort_windows(iW, 2));
+                mask_keep_cutoff = mask_keep_cutoff & ~(ks.cutoff_spike_times >= kspr.sort_windows(iW, 1) & ks.cutoff_spike_times <= kspr.sort_windows(iW, 2));
+            end
+           
+            debug('Removing %d spikes / %d cutoff, inserting %d / %d in %d sort windows\n', nnz(~mask_keep), nnz(~mask_keep_cutoff), kspr.nSpikes, kspr.nSpikesCutoff, kspr.nSortWindows);
+            ks.mask_spikes(mask_keep, mask_keep_cutoff);
+            ks.append_spikes(kspr);
+            ks.sort_spikes();
+        end
     end
     
     methods(Static)
-        
+        function kspr = construct_reextractSpikesWithFixedTemplates(ks, varargin)
+            p = inputParser();
+            % these are used to replace specific time windows in the raw data with 
+            p.addParameter('data_replace_windows', zeros(0, 2), @(x) ismatrix(x) && size(x, 2) == 2);
+            p.addParameter('data_replace', {}, @iscell);
+            p.addParameter('debug_ignore_replace_data', false, @islogical);
+            p.addParameter('pad_spike_extract_windows', [0 0], @isvector); % pad spike-sorted windows by this amount [pre post] relative to the data_replace_windows
+            p.parse(varargin{:});
+            
+            assert(isa(ks, 'Neuropixel.KilosortDataset'));
+            kspr = Neuropixel.KilosortPartialResort();
+            kspr.ks = ks;
+            
+            data_replace = p.Results.data_replace;
+            data_replace_windows = p.Results.data_replace_windows;
+            pad_spike_extract_windows = p.Results.pad_spike_extract_windows;
+            spike_extract_windows = [data_replace_windows(:, 1) - pad_spike_extract_windows(1), data_replace_windows(:, 2) + pad_spike_extract_windows(2)];
+
+            if p.Results.debug_ignore_replace_data
+                data_replace = {};
+                data_replace_windows = zeros(0, 2);
+            end
+            rez = reextractSpikesWithFixedTemplates(ks, ...
+                    'data_replace', data_replace, ...
+                    'data_replace_windows', data_replace_windows, ...
+                    'spike_extract_windows', spike_extract_windows);
+                
+            % now build out the kspr fields
+            cluster_offset = -1;
+            
+            kspr.sort_windows = spike_extract_windows;
+
+            kspr.spike_times = rez.st3(:, 1);
+            kspr.spike_templates_preSplit = rez.st3(:, 2);
+            kspr.amplitudes = rez.st3(:, 3);
+            kspr.spike_templates = rez.st3(:, rez.st3_template_col);
+            kspr.spike_clusters = uint32(rez.st3(:, rez.st3_cluster_col) + cluster_offset);
+            kspr.template_features = rez.cProj;
+            kspr.pc_features = rez.cProjPC;
+            
+            kspr.cutoff_spike_times = rez.st3_cutoff_invalid(:, 1);
+            kspr.cutoff_spike_templates_preSplit = rez.st3_cutoff_invalid(:, 2);
+            kspr.cutoff_amplitudes = rez.st3_cutoff_invalid(:, 3);
+            kspr.cutoff_spike_templates = rez.st3_cutoff_invalid(:, rez.st3_template_col);
+            kspr.cutoff_spike_clusters = uint32(rez.st3_cutoff_invalid(:, rez.st3_cluster_col) + cluster_offset);
+            kspr.cutoff_template_features = rez.cProj_cutoff_invalid;
+            kspr.cutoff_pc_features = rez.cProjPC_cutoff_invalid;
+        end
     end
 end
