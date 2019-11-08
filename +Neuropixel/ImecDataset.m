@@ -118,11 +118,16 @@ classdef ImecDataset < handle
                 error('Could not find AP bin file %s', imec.pathAP);
             end
 
-            channelMapFile = p.Results.channelMap;
-            if isempty(channelMapFile)
-                channelMapFile = Neuropixel.Utils.getDefaultChannelMapFile(true);
+            channelMap = p.Results.channelMap;
+            if isa(channelMap, 'Neuropixel.ChannelMap')
+                imec.channelMap = channelMap;
+            else
+                channelMapFile = string(channelMap);
+                if isempty(channelMapFile) || channelMapFile == ""
+                    channelMapFile = Neuropixel.Utils.getDefaultChannelMapFile(true);
+                end
+                imec.channelMap = Neuropixel.ChannelMap(channelMapFile);
             end
-            imec.channelMap = Neuropixel.ChannelMap(channelMapFile);
             assert(imec.channelMap.nChannels <= imec.nChannels, 'Channel count is less than number of channels in channel map');
 
             if ~isempty(p.Results.syncBitNames)
