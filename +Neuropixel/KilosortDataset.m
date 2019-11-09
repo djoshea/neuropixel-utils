@@ -27,6 +27,7 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
         isLoadedBatchwise logical = false;
         isLoadedFeatures logical = false;
         isLoadedCutoff logical = false;
+        isLoadedPreSplit logical = false;
     end
 
     % Computed properties
@@ -644,7 +645,7 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
 
         function load(ks, varargin)
             p = inputParser();
-            p.addOptional('reload', false, @islogical);
+            p.addParameter('reload', false, @islogical);
             p.addParameter('loadBatchwise', true, @islogical);
             p.addParameter('loadFeatures', true, @islogical);
             p.addParameter('loadCutoff', true, @islogical);
@@ -661,9 +662,11 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
             loadPreSplit = p.Results.loadPreSplit;
 
             if ks.isLoaded && ~reload
-                if (~p.Results.loadBatchwise || ks.isLoadedBatchwise) && ...
-                   (~p.Results.loadFeatures || ks.isLoadedFeatures) && ...
-                   (~p.Results.loadCutoff || ks.isLoadedCutoff)
+                % check whether we're missing any requested things to load
+                if (~p.Results.loadBatchwise || ks.isLoadedBatchwise) || ...
+                   (~p.Results.loadFeatures || ks.isLoadedFeatures) || ...
+                   (~p.Results.loadCutoff || ks.isLoadedCutoff) || ...
+                   (~p.Results.loadPreSplit || ks.isLoadedPreSplit)
                     return;
                 end
             end
@@ -886,6 +889,9 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
             end
             if loadCutoff
                 ks.isLoadedCutoff = true;
+            end
+            if loadPreSplit
+                ks.isLoadedPreSplit = true;
             end
 
             function out = readOr(file, default)

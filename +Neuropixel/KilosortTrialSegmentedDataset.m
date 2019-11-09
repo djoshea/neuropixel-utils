@@ -89,14 +89,15 @@ classdef KilosortTrialSegmentedDataset < handle & matlab.mixin.Copyable
             p.parse(varargin{:});
 
             loadCutoff = p.Results.loadCutoff;
-            loadFeatures = p.Results.loadCutoff;
+            loadFeatures = p.Results.loadFeatures;
             loadSync = p.Results.loadSync;
 
             % trial_ids specifies the id of each trial that will appear in
             % this segmented dataset. tsi has its own trialId field, and
             % the data will be copied over where these ids match. But the
             % ultimate size will be set according to trial_ids
-            ks.load(rmfield(p.Results, 'loadSync'));
+            ks.load('loadCutoff', loadCutoff, 'loadFeatures', p.Results.loadFeatures, ...
+                'loadBatchwise', p.Results.loadBatchwise, 'loadPreSplit', p.Results.loadPreSplit);
 
             seg.dataset = ks;
             seg.trial_ids = trial_ids;
@@ -134,7 +135,7 @@ classdef KilosortTrialSegmentedDataset < handle & matlab.mixin.Copyable
                         nnz(~found_in_dataset), numel(found_in_dataset));
                 end
             end
-            seg.cluster_groups = dataset.cluster_groups;
+            seg.cluster_groups = seg.dataset.cluster_groups;
 
             nUnits = numel(seg.cluster_ids);
 
