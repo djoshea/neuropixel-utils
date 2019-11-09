@@ -255,7 +255,7 @@ classdef ImecDataset < handle
         end
     end
 
-    methods  % these functions read a contiguous block of samples over a contiguous band of channels
+%     methods  % these functions read a contiguous block of samples over a contiguous band of channels
 %         function data_ch_by_time = readAPChannelBand(imec, chFirst, chLast, sampleFirst, sampleLast, msg)
 %             if nargin < 4 || isempty(sampleFirst)
 %                 sampleFirst = 1;
@@ -291,7 +291,7 @@ classdef ImecDataset < handle
 %         function data_by_time = readLFSingleChannel(imec, ch, varargin)
 %             data_by_time = imec.readLFChannelBand(ch, ch, varargin{:})';
 %         end
-    end
+%     end
     
     methods % Sync channel read / cache
         function syncRaw = readSync(imec, varargin)
@@ -323,8 +323,17 @@ classdef ImecDataset < handle
             sync = imec.readSync();
             save(imec.pathSyncCached, 'sync');
         end
-
+        
+        function clearSyncCached(imec)
+            if exist(imec.pathSyncCached, 'file') > 0
+                debug('Deleting cached sync file %s\n', imec.pathSyncCached);
+                delete(imec.pathSyncCached);
+            end
+            imec.syncRaw = [];
+        end
+        
         function updateSyncCached(imec, varargin)
+            imec.syncRaw = [];
             if exist(imec.pathSyncCached, 'file')
                 sync = imec.readSync('reload', true, 'ignoreCached', true);
                 save(imec.pathSyncCached, 'sync');
@@ -1512,6 +1521,7 @@ end
 
             if ~dryRun
                 imec.writeModifiedAPMeta('extraMeta', p.Results.extraMeta);
+                imec.clearSyncCached();
             end
         end
     end
@@ -1550,6 +1560,9 @@ end
         end   
         
         function [chIndsByFile, chIds] = multiFile_build_channelSelectors_internal(imecList, varargin)
+            if isempty(imecList)
+                error('No imecList specified');
+            end
             for iF = 1:numel(imecList)
                 [~, chIdsThis] = imecList{iF}.build_channelSelectors_internal(varargin{:});
                 if iF == 1
@@ -1814,6 +1827,7 @@ end
             p.parse(varargin{:});
 
             nFiles = numel(imecList);
+            assert(nFiles > 0);
             stemList = cellfun(@(imec) imec.fileStem, imecList, 'UniformOutput', false);
             dryRun = p.Results.dryRun;
             
