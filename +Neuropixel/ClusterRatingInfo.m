@@ -56,9 +56,14 @@ classdef ClusterRatingInfo < handle
                 cluster_ids = p.Results.cluster_ids;
                 assert(~isempty(cluster_ids));
             else
+                r.ks.load('loadFeatures', false, 'loadBatchwise', false, 'loadCutoff', false);
                 cluster_ids = r.ks.cluster_ids;
+                assert(~isempty(cluster_ids));
             end
             subgroupSet = p.Results.subgroupSet;
+            if isempty(subgroupSet)
+                subgroupSet = "";
+            end
             r.initializeBlank(cluster_ids, subgroupSet);
         end
         
@@ -105,7 +110,7 @@ classdef ClusterRatingInfo < handle
         end
         
         function n = get.nSubgroups(r)
-            n = numel(r.subgroupSet);
+            n = max(1, numel(r.subgroupSet));
         end
         
         function rating = get.defaultRating(r)

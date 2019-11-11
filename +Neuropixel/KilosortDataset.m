@@ -806,8 +806,14 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                 end
 
                 % strip leading zeros off of ks.templates based on size of W
-                nTimeTempW = size(ks.W, 1);
-                nStrip = size(ks.templates, 2) - nTimeTempW;
+                if ~isempty(ks.W)
+                    nTimeTemp = size(ks.W, 1);
+                else
+                    nTimeTemp = ks.ops.nt0;
+                end
+                assert(nTimeTemp ~= 0);    
+                
+                nStrip = size(ks.templates, 2) - nTimeTemp;
                 if nStrip > 0
                     ks.templates = ks.templates(:, nStrip+1:end, :);
                     ks.template_sample_offset = ks.template_sample_offset - uint64(nStrip);

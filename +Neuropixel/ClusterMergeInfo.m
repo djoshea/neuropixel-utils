@@ -165,7 +165,7 @@ classdef ClusterMergeInfo < handle
             cluster_ids = mi.listClusterWillMerge(mergeInds(found));
         end
         
-        function cluster_ids = listClusterWillMerge(mi, mergeInds)
+        function cluster_ids = listClustersWillMerge(mi, mergeInds)
             cluster_ids = unique(cat(1, mi.merges{mergeInds}));
         end
     end
