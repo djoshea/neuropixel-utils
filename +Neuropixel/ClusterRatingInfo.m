@@ -242,6 +242,23 @@ classdef ClusterRatingInfo < handle
             end
         end
         
+        function cluster_ids = listClusterIdsUsableWithinSubgroup(r, subgroup, ratingsAccepted)
+            % cluster_ids = listClusterIdsUsableWithinSubgroup(r, subgroup, ratingsAccepted)
+            % 
+            % list all cluster_ids that are:
+            % - rated as one of the ratings in ratingsAccepted
+            % - usable within the subgroup listed
+            %
+            % see listClusterIdsUsableAcrossSubgroupsWithRating if aggregating across multiple subgroups
+            
+            subgroup_ind = sort(r.lookup_subgroups(subgroup), 'ascend');
+            mask_rating_accepted = ismember(r.ratings, r.convertToRatingCategorical(ratingsAccepted));
+            mask_usable_all = all(r.usableWithin(:, subgroup_ind), 2);
+            
+            mask = mask_rating_accepted & mask_usable_all;
+            cluster_ids = r.cluster_ids(mask);
+        end
+        
         function cluster_ids = listClusterIdsUsableAcrossSubgroupsWithRating(r, subgroups, ratingsAccepted)
             % cluster_ids = listClusterIdsUsableAcrossSubgroupsWithRating(r, subgroups, ratingsAccepted)
             %
