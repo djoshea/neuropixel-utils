@@ -1065,6 +1065,26 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                 ks.cutoff_template_features = ks.cutoff_template_features(mask_cutoff, :);
             end
         end
+        
+        function mask_clusters(ks, cluster_ids)
+            [~, cluster_ids] = ks.lookup_clusterIds(cluster_ids);
+            
+            mask = ismember(ks.spike_clusters, cluster_ids);
+            cutoff_mask = ismember(ks.cutoff_spike_clusters, cluster_ids);
+            ks.mask_spikes(mask, cutoff_mask);     
+        end
+        
+        function drop_cutoff_spikes(ks)
+            ks.cutoff_spike_times = [];
+            ks.cutoff_spike_templates = [];
+            ks.cutoff_spike_templates_preSplit = [];
+            ks.cutoff_amplitudes = [];
+            ks.cutoff_spike_clusters = [];
+            if ks.hasFeaturesLoaded
+                ks.cutoff_pc_features = [];
+                ks.cutoff_template_features = [];
+            end
+        end
 
         function append_spikes(ks, append)
             ks.spike_times = cat(1, ks.spike_times, append.spike_times);
@@ -1838,5 +1858,155 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
             end
         end
 
+    end
+    
+    methods
+        function writeToDisk(ks, outpath, varargin)
+            p = inputParser();
+            p.addParameter('progressInitializeFn', [], @(x) isempty(x) || isa(x, 'function_handle')); % f(nUpdates) to print update
+            p.addParameter('progressIncrementFn', [], @(x) isempty(x) || isa(x, 'function_handle')); % f(updateString) to print update
+            p.parse(varargin{:});
+            
+            assert(~strcmp(outpath, ks.path));
+
+            % copy params.py
+            oldp = @(file) fullfile(ks.path, file);
+            existp = @(file) exist(oldp(file), 'file') > 0;
+            newp = @(file) fullfile(outpath, file);
+
+            nProg = 15;
+            if ks.kilosort_version == 2
+                nProg = nProg + 24;
+            end
+
+            initStr = sprintf('Writing Kilosort %d dataset to %s', ks.kilosort_version, outpath);
+            if isempty(p.Results.progressInitializeFn) && isempty(p.Results.progressIncrementFn)
+                prog = Neuropixel.Utils.ProgressBar(nProg, initStr);
+                progIncrFn = @(text) prog.increment(text);
+            else
+                if ~isempty(p.Results.progressInitializeFn)
+                    p.Results.progressInitializeFn(nProg, initStr);
+                end
+                progIncrFn = p.Results.progressIncrementFn;
+            end
+            
+            progIncrFn('Copying params.py');
+            copyfile(oldp('params.py'), newp('params.py'));
+
+            if ~isempty(ks.ops)
+                progIncrFn('Copying ops.mat');
+                ops = ks.ops;
+                save(newp('ops.mat'), 'ops');
+            end
+
+            write(ks.amplitudes, 'amplitudes');
+            write(ks.channel_ids_sorted - ones(1, 'like', ks.channel_ids_sorted), 'channel_map');
+            write(ks.channel_positions_sorted, 'channel_positions');
+            if ks.hasFeaturesLoaded
+                write(ks.pc_features, 'pc_features');
+                write(ks.pc_feature_ind - ones(1, 'like', ks.pc_feature_ind), 'pc_feature_ind'); % convert 1 indexed to 0 indexed 
+            end
+            write(ks.similar_templates, 'similar_templates');
+            
+            write(ks.spike_templates - ones(1, 'like', ks.spike_templates), 'spike_templates');
+            write(ks.spike_templates_preSplit - ones(1, 'like', ks.spike_templates), 'spike_templates_preSplit');
+            
+            write(ks.spike_times, 'spike_times');
+            if ks.hasFeaturesLoaded
+                write(ks.template_features, 'template_features');
+                write(ks.template_feature_ind - ones(1, 'like', ks.template_feature_ind), 'template_feature_ind'); % 1 indexed to 0 indeded
+            end
+
+            % add back leading zeros stripped off of ks.templates based on size of W    
+            prepad_templates = ks.ops.nt0 - 2*ks.ops.nt0min - 1;
+            szPad = [size(ks.templates, 1), prepad_templates, size(ks.templates, 3)];
+            templates_padded = cat(2, zeros(szPad, 'like', ks.templates), ks.templates);
+            write(templates_padded, 'templates');
+            write(ks.templates_ind - ones(1, 'like', ks.templates_ind), 'templates_ind');
+            write(ks.whitening_mat, 'whitening_mat');
+            write(ks.whitening_mat_inv, 'whitening_mat_inv');
+            write(ks.spike_clusters, 'spike_clusters');
+            
+            write(ks.spike_clusters_ks2orig, 'spike_clusters_ks2orig');
+
+            if ks.kilosort_version == 2
+                if ks.hasFeaturesLoaded
+                    write(ks.W, 'template_W');
+                    write(ks.U, 'template_U');
+                    write(ks.mu, 'template_mu');
+
+                    if ks.hasPreSplitLoaded
+                        write(ks.W_preSplit, 'template_W_presplit');
+                        write(ks.U_preSplit, 'template_U_presplit');
+                        write(ks.mu_preSplit, 'template_mu_presplit');
+                        write(ks.iW_preSplit, 'template_iW_presplit');
+                    end
+                end
+
+                if ks.hasBatchwiseLoaded
+                    write(ks.batchwise_cc , 'batchwise_ccb');
+                    write(ks.batch_sort_order, 'batch_sort_order');
+                    write(ks.batch_starts, 'batch_starts');
+
+                    write(ks.W_batch, 'template_W_batch');
+
+                    write(ks.W_batch_US, 'template_W_batch_US');
+                    write(ks.W_batch_V, 'template_W_batch_V');
+                    write(ks.U_batch, 'template_U_batch');
+                    write(ks.U_batch_US, 'template_U_batch_US');
+                    write(ks.U_batch_V, 'template_U_batch_V');
+                    write(ks.mu_batch, 'template_mu_batch');
+
+                    if ks.hasPreSplitLoaded % mostly used for reextracting spikes
+                        write(ks.W_batch_preSplit, 'template_W_batch_presplit');
+                        write(ks.U_batch_preSplit, 'template_U_batch_presplit');
+                        write(ks.mu_batch_preSplit, 'template_mu_batch_presplit');
+                    end
+                end
+
+                write(ks.cluster_est_contam_rate, 'cluster_est_contam_rate');
+
+                if ~isempty(ks.cluster_merge_count) || ~isempty(ks.cluster_split_src)
+                    progIncrFn('Writing splitMergeInfo.mat');
+                    splitMergeInfo.mergecount = ks.cluster_merge_count;
+                    splitMergeInfo.mergedst = ks.cluster_merge_dst;
+                    splitMergeInfo.splitsrc = ks.cluster_split_src;
+                    splitMergeInfo.splitdst = ks.cluster_split_dst;
+                    splitMergeInfo.splitauc = ks.cluster_split_auc;
+                    splitMergeInfo.split_candidate = ks.cluster_split_candidate;
+                    splitMergeInfo.split_orig_template = ks.cluster_orig_template;
+                    splitMergeInfo.split_projections = ks.cluster_split_projections;
+                    save(newp('splitMergeInfo.mat'), 'splitMergeInfo');
+                end
+
+                if ks.hasCutoffLoaded
+                    write(ks.cutoff_thresholds, 'cutoff_thresholds');
+                    write(ks.cutoff_spike_times, 'cutoff_spike_times');
+                    write(ks.cutoff_spike_templates - ones(1, 'like', ks.cutoff_spike_templates), 'cutoff_spike_templates');
+                    write(ks.cutoff_spike_templates_preSplit - ones(1, 'like', ks.cutoff_spike_templates_preSplit), 'cutoff_spike_templates_preSplit');
+                    write(ks.cutoff_amplitudes, 'cutoff_amplitudes');
+                    
+                    write(ks.cutoff_spike_clusters, 'cutoff_spike_clusters');
+                    write(ks.cutoff_spike_clusters_ks2orig, 'cutoff_spike_clusters_ks2orig');
+                    if ks.hasFeaturesLoaded
+                        write(ks.cutoff_pc_features, 'cutoff_pc_features');
+                        write(ks.cutoff_template_features, 'cutoff_template_features');
+                    end
+                end
+            end
+
+            if exist('prog', 'var')
+                prog.finish();
+            end
+
+            function write(data, file)
+                if isempty(data)
+                    return
+                end
+                progIncrFn(sprintf('Writing %s', file));
+                ffile = fullfile(outpath, [file '.npy']);
+                Neuropixel.writeNPY(data, ffile);
+            end
+        end
     end
 end
