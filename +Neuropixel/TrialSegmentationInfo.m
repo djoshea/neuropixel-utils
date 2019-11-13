@@ -40,6 +40,11 @@ classdef TrialSegmentationInfo < handle & matlab.mixin.Copyable
             tsi.idxStop = tsi.idxStop(mask);
         end
         
+        function maskTrialsByTrialId(tsi, trialIds)
+            mask = ismember(tsi.trialId, trialIds);
+            tsi.maskTrials(mask);
+        end
+        
         function maskTrialsWithinTrialIdRange(tsi, trialIdLims)
             trialIdLims = uint32(trialIdLims);
             assert(numel(trialIdLims) == 2);

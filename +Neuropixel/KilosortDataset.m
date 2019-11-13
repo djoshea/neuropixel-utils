@@ -1009,7 +1009,7 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
             end
 
             [ks.spike_templates, ks.cutoff_spike_templates] = combineAndSort(ks.spike_templates, ks.cutoff_spike_templates);
-            [ks.spike_templates_preSplit, ks.cutoff_templates_preSplit] = combineAndSort(ks.spike_templates_preSplit, ks.cutoff_spike_templates_preSplit);
+            [ks.spike_templates_preSplit, ks.cutoff_spike_templates_preSplit] = combineAndSort(ks.spike_templates_preSplit, ks.cutoff_spike_templates_preSplit);
             [ks.amplitudes, ks.cutoff_amplitudes] = combineAndSort(ks.amplitudes, ks.cutoff_amplitudes);
             [ks.spike_clusters, ks.cutoff_spike_clusters] = combineAndSort(ks.spike_clusters, ks.cutoff_spike_clusters);
 
