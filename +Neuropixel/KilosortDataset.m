@@ -808,8 +808,15 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                 % strip leading zeros off of ks.templates based on size of W
                 if ~isempty(ks.W)
                     nTimeTemp = size(ks.W, 1);
-                else
+                elseif isfield(ks.ops, 'nt0')
                     nTimeTemp = ks.ops.nt0;
+                else
+                    W = readOr('template_W');
+                    if isempty(W)
+                        nTImeTemp = size(ks.templates, 2);
+                    else
+                        nTimeTemp = size(W, 1);
+                    end
                 end
                 assert(nTimeTemp ~= 0);    
                 
@@ -968,13 +975,15 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                 spike_clusters = apply_single_merge(spike_clusters, mergeInfo.new_cluster_ids(iM), mergeInfo.merges{iM});
                 cutoff_spike_clusters = apply_single_merge(cutoff_spike_clusters, mergeInfo.new_cluster_ids(iM), mergeInfo.merges{iM});
             end
-            ks.spike_clusters = ks.spike_clusters;
-            ks.cutoff_spike_clusters = ks.cutoff_spike_clusters;
+            ks.spike_clusters = spike_clusters;
+            ks.cutoff_spike_clusters = cutoff_spike_clusters;
 
             function spike_clusters = apply_single_merge(spike_clusters, dst_cluster_id, src_cluster_ids)
                 mask_assign_to_dst = ismember(spike_clusters, src_cluster_ids);
                 spike_clusters(mask_assign_to_dst) = dst_cluster_id;
             end
+            
+            ks.remove_zero_spike_clusters();
         end
 
         function accept_cutoff_spikes(ks, ratings_or_cluster_ids)
@@ -1017,6 +1026,10 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                 [ks.pc_features, ks.cutoff_pc_features] = combineAndSort(ks.pc_features, ks.cutoff_pc_features);
                 [ks.template_features, ks.cutoff_template_features] = combineAndSort(ks.template_features, ks.cutoff_template_features);
             end
+        end
+        
+        function remove_zero_spike_clusters(ks)
+            ks.cluster_ids = ks.cluster_ids(ks.cluster_spike_counts > 0 | ks.cutoff_cluster_spike_counts > 0);
         end
 
         function sort_spikes(ks)
@@ -1064,6 +1077,8 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                 ks.cutoff_pc_features = ks.cutoff_pc_features(mask_cutoff, :, :);
                 ks.cutoff_template_features = ks.cutoff_template_features(mask_cutoff, :);
             end
+            
+            ks.remove_zero_spike_clusters();
         end
         
         function mask_clusters(ks, cluster_ids)

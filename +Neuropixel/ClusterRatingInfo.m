@@ -1,4 +1,4 @@
-classdef ClusterRatingInfo < handle
+classdef ClusterRatingInfo < handle & matlab.mixin.Copyable
     
     properties(Constant)
         defaultRatingValueSet = ["unrated", "noise", "lowfr", "unstable", "good"]';
@@ -278,6 +278,38 @@ classdef ClusterRatingInfo < handle
             
             mask = mask_rating_accepted & mask_usable_all & mask_stable_across;
             cluster_ids = r.cluster_ids(mask);
+        end
+        
+        function apply_cluster_merge(r, mergeInfo)
+            ratings = r.ratings; %#ok<*NASGU>
+            usableWithin = r.usableWithin;
+            stableAcross = r.stableAcross;
+            includeCutoffSpikes = r.includeCutoffSpikes;
+            
+            new_cluster_ids = mergeInfo.new_cluster_ids;
+            new_cluster_inds = r.lookup_clusterIds(new_cluster_ids);
+            for iM = 1:mergeInfo.nMerges
+                cluster_ids = mergeInfo.merges{iM};
+                [this_ratings, this_usableWithin, this_stableAcross, this_includeCutoffSpikes] = r.lookupClusterRatings(cluster_ids);
+                
+                this_new_ind = new_cluster_inds(iM);
+                ratings(this_new_ind) = max(this_ratings);
+                usableWithin(this_new_ind, :) = any(this_usableWithin, 1);
+                if ~isempty(stableAcross)
+                    stableAcross(this_new_ind, :) = any(this_stableAcross, 1);
+                end
+                includeCutoffSpikes(this_new_ind) = any(this_includeCutoffSpikes);
+            end
+            
+            cluster_ids_removed_by_merge = setdiff(cat(2, mergeInfo.merges{:}), new_cluster_ids);
+            mask = ~ismember(r.cluster_ids, cluster_ids_removed_by_merge);
+            
+            % subselect by destination clusters only
+            r.ratings = ratings(mask);
+            r.usableWithin = usableWithin(mask, :);
+            r.stableAcross = stableAcross(mask, :);
+            r.includeCutoffSpikes = includeCutoffSpikes(mask);
+            r.cluster_ids = r.cluster_ids(mask);
         end
     end
 end
