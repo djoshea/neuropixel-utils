@@ -517,7 +517,11 @@ classdef KilosortTrialSegmentedDataset < handle & matlab.mixin.Copyable
             css.idxStart = seg.convertMsRelStartToIdx(tStart);
             css.fs = seg.fsAP;
         end
-
+        
+        function [nSpikes, nCutoffSpikes] = computeTotalSpikeCounts(seg)
+            nSpikes = sum(cellfun(@numel, seg.spike_idx), 'all');
+            nCutoffSpikes = sum(cellfun(@numel, seg.cutoff_spike_idx), 'all');
+        end
     end
 
 %     methods(Static)
