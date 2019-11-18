@@ -222,11 +222,11 @@ classdef ClusterRatingInfo < handle & matlab.mixin.Copyable
             % countsByRatingSubgroup is numel(ratingValueSet) x nSubgroups count of clusters
             % that have that rating and are listed as usableWithin that subgroup
             
-            if nargin < 2
+            if nargin < 2 || isempty(ratingValueSet)
                 ratingValueSet = r.ratingValueSet;
             end
             ratingValueSet = r.convertToRatingCategorical(ratingValueSet);
-            if nargin < 3
+            if nargin < 3 || isempty(countUsableOnlyMask)
                 ratingsMaskCountAlways = false(r.nClusters, 1);
             else
                 ratingsMaskCountAlways = ~ismember(r.ratings, ratingValueSet(countUsableOnlyMask));
@@ -240,6 +240,25 @@ classdef ClusterRatingInfo < handle & matlab.mixin.Copyable
                 ratingsCountable = r.usableWithin(:, iS) | ratingsMaskCountAlways;
                 countsByRatingSubgroup(:, iS) = histcounts(r.ratings(ratingsCountable), ratingValueSet);
             end
+        end
+        
+        function countsByRatingSubgroup = computeClusterCountsAfterApplyingMerges(r, mergeInfo, ratingValueSet, countUsableOnlyMask)
+            % countsByRatingSubgroup is numel(ratingValueSet) x nSubgroups count of clusters
+            % that have that rating and are listed as usableWithin that subgroup
+            
+            if nargin < 3
+                ratingValueSet = [];
+            end
+            if nargin < 4
+                countUsableOnlyMask = [];
+            end
+            
+            % apply merge on copy
+            r = copy(r);
+            r.apply_cluster_merge(mergeInfo);
+            
+            % then count clusters
+            countsByRatingSubgroup = r.computeClusterCounts(ratingValueSet, countUsableOnlyMask);
         end
         
         function cluster_ids = listClusterIdsUsableWithinSubgroup(r, subgroup, ratingsAccepted)

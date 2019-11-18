@@ -168,5 +168,13 @@ classdef ClusterMergeInfo < handle
         function cluster_ids = listClustersWillMerge(mi, mergeInds)
             cluster_ids = unique(cat(1, mi.merges{mergeInds}));
         end
+        
+        function cluster_ids_removed_by_merge = listClusterIdsRemovedByApplyingMerges(mi, merge_inds)
+            if nargin < 2
+                merge_inds = 1:mi.nMerges;
+            end
+            cluster_ids_removed_by_merge = setdiff(cat(2, mi.merges{merge_inds}), mi.new_cluster_ids);
+        end
+            
     end
 end
