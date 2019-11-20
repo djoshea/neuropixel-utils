@@ -661,7 +661,7 @@ classdef KilosortMetrics < handle
             lags = m.similar_clusters_best_lag(sim_cluster_inds, cluster_inds);
             
             [~, which_primary_cluster] = max(sim, [], 2);
-            lag_idx = sub2ind(size(lags), 1:numel(sim_cluster_inds), which_primary_cluster);
+            lag_idx = sub2ind(size(lags), (1:numel(sim_cluster_inds))', which_primary_cluster);
             best_lag = lags(lag_idx); 
         end
         
