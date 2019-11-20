@@ -64,6 +64,10 @@ classdef KilosortMetrics < handle
         % nTemplates x nChannelsSorted
         template_best_channels uint32 % nTemplates x nChannelsSorted matrix indicating the closest channels to the max (typically take first 20 cols)
         
+        % [nTemplates, nTemplates] = same as  similar_templates but updated using the final post-split, post-merge templates
+        similar_templates_recomputed(:, :) single
+        similar_templates_best_lag(:, :) int16
+        
         % per spike properties
         
         % nSpikes x 1
@@ -109,7 +113,12 @@ classdef KilosortMetrics < handle
         
         % [nClusters, nClusters] single matrix giving the similarity score (larger is more similar) between each pair of clusters, based on similar_templates
         similar_clusters(:, :) single
-
+        
+        % this version is based on similar_templates_recomputed and factors in adjusted
+        % templates after splits are made
+        similar_clusters_recomputed(:, :) single
+        similar_clusters_best_lag(:, :) int16
+        
         % nClusters x maxTemplatesPerCluster
         cluster_waveform_ch uint32
         cluster_amplitude single
@@ -269,7 +278,7 @@ classdef KilosortMetrics < handle
             assert(~isnan(ks.apScaleToUv));
             m.template_scale_factor = accumarray(ks.spike_templates, ks.amplitudes, [ks.nTemplates, 1], @mean) * ks.apScaleToUv;
             m.template_scaled = m.template_unw .* m.template_scale_factor;
-            
+                
             % F. determine template largest scaled waveform
             progIncrFn('Template waveforms');
             template_waveform_ch = nan(ks.nTemplates, 1);
@@ -306,6 +315,16 @@ classdef KilosortMetrics < handle
 %                     sum(pc1weight, 2), 2);
             end
             
+            % recompute template similarity from W and U in order to get best lags
+            if ks.hasFeaturesLoaded && ~isempty(ks.W)
+                progIncrFn('Recomputing template similarity scores');
+                % recompute cluster similarity from W and U
+                [m.similar_templates_recomputed, m.similar_templates_best_lag] = ...
+                    Neuropixel.Utils.computeTemplateSimilarity(ks.W, ks.U);
+            else
+                m.similar_templates_recomputed = [];
+                m.similar_templates_best_lag = zeros(size(ks.similar_templates), 'int16');
+            end
             % I. compute cluster weighting over templates and list of templates used by each cluster, sorted by number of uses
             progIncrFn('Cluster weighting over templates');
             [mask_spike_in_cluster, cluster_ind_each_spike] = ismember(ks.spike_clusters, ks.cluster_ids);
@@ -353,7 +372,18 @@ classdef KilosortMetrics < handle
             % computed template_use_count weighted similarity to other templates
             % similar_clusters_i,j = sum_t1 sum_t2 [ template_weight(i, t1) * template_weight(j, t2) * similar_templates(t1, t2) ]
             m.similar_clusters = m.cluster_template_weight * (m.cluster_template_weight * ks.similar_templates)';
-       
+            if ~isempty(m.similar_templates_recomputed)
+                tw = m.cluster_template_weight;
+                tsim = m.similar_templates_recomputed;
+                tlag = m.similar_templates_best_lag;
+                
+                m.similar_clusters_recomputed = tw * tsim * tw';
+                m.similar_clusters_best_lag = round(tw * single(tlag) * tw') .* (m.similar_clusters_recomputed >= 0.1);
+                
+            else
+                m.similar_clusters_recomputed = [];
+                m.similar_clusters_best_lag = zeros(size(m.similar_clusters), 'int16');
+            end
             if exist('prog', 'var')
                 prog.finish();
             end
@@ -577,14 +607,22 @@ classdef KilosortMetrics < handle
     end
     
     methods % Cluster statistics and CCGs
-        function [similar_cluster_ids, similarity] = computeSimilarClusters(m, cluster_ids, varargin)
+        function [similar_cluster_ids, similarity, best_lag] = computeSimilarClusters(m, cluster_ids, varargin)
             p = inputParser();
             p.addParameter('max_similar', m.nClusters-1, @isscalar);
             p.addParameter('min_similarity', 0, @isscalar);
             p.parse(varargin{:});
             
+            cluster_ids = Neuropixel.Utils.makecol(cluster_ids);
             [cluster_inds, ~] = m.lookup_clusterIds(cluster_ids);
-            similar_clusters = max(m.similar_clusters(:, cluster_inds), [], 2);
+            if isempty(m.similar_clusters_recomputed)
+                sim = m.similar_clusters;
+            else
+                sim = m.similar_clusters_recomputed;
+            end
+            lags = m.similar_clusters_best_lag;
+            
+            [similar_clusters, which_input_clusters] = max(sim(:, cluster_inds), [], 2);
             similar_clusters(cluster_inds) = -1; % clear the self-similarity terms within group so they aren't considered
             
             max_similar = p.Results.max_similar;
@@ -592,8 +630,39 @@ classdef KilosortMetrics < handle
             
             [similarity,  similar_cluster_inds] = maxk(similar_clusters, max_similar);
             mask = similarity >= min_similarity;
-            similar_cluster_ids = m.cluster_ids(similar_cluster_inds(mask));
+            similar_cluster_inds = similar_cluster_inds(mask);
+            similar_cluster_ids = m.cluster_ids(similar_cluster_inds);
             similarity = similarity(mask);
+
+            % figure out best lag using the
+            if isempty(lags)
+                best_lag = zeros(size(similarity), 'int16');
+            else
+                which_input_clusters = which_input_clusters(similar_cluster_inds);
+                lag_idx = sub2ind(size(lags), similar_cluster_inds, cluster_inds(which_input_clusters));
+                best_lag = lags(lag_idx); 
+            end
+        end
+        
+        function best_lag = computeBestLagForSimilarClusters(m, cluster_ids, similar_cluster_ids)
+            if isempty(m.similar_clusters_best_lag)
+                best_lag = zeros(size(similar_cluster_ids), 'int16');
+                return;
+            end
+            
+            cluster_inds = m.lookup_clusterIds(cluster_ids);
+            sim_cluster_inds = m.lookup_clusterIds(similar_cluster_ids);
+            
+            if isempty(m.similar_clusters_recomputed)
+                sim = m.similar_clusters(sim_cluster_inds, cluster_inds);
+            else
+                sim = m.similar_clusters_recomputed(sim_cluster_inds, cluster_inds);
+            end
+            lags = m.similar_clusters_best_lag(sim_cluster_inds, cluster_inds);
+            
+            [~, which_primary_cluster] = max(sim, [], 2);
+            lag_idx = sub2ind(size(lags), 1:numel(sim_cluster_inds), which_primary_cluster);
+            best_lag = lags(lag_idx); 
         end
         
         function [K, bins] = computeCCG(m, cluster_ids1, cluster_ids2, varargin)
@@ -758,7 +827,7 @@ classdef KilosortMetrics < handle
                 
                 times = spikeTimes(thisClu);
                 
-                nSp = histc(times, edges);
+                nSp = histcounts(times, edges);
                 nSp = nSp(1:end-1);
                 
                 counts(iC, :) = nSp;
@@ -951,7 +1020,7 @@ classdef KilosortMetrics < handle
             Neuropixel.Utils.configureDataTipsFromUserData(gcf);
                 
             function [xb, yb] = binsmooth(x, y, edges, smoothBy, minSpikesPerBin)
-                [nSp, whichBin] = histc(x, edges);
+                [nSp, whichBin] = histcounts(x, edges);
                 xb = 0.5 * (edges(1:end-1) + edges(2:end));
                 nSp = nSp(1:end-1);
 

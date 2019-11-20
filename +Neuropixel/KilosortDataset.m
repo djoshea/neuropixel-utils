@@ -106,7 +106,7 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
 
         % similar_templates.npy - [nTemplates, nTemplates] single matrix giving the similarity score (larger is more similar) between each pair of templates
         similar_templates(:, :) single
-
+        
         % spike_templates.npy - [nSpikes, ] uint32 vector specifying the identity of the template that was used to extract each spike
         spike_templates(:, 1) uint32
 

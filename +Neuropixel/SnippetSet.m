@@ -220,6 +220,7 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
             p.addParameter('xoffset', 0, @isscalar);
             p.addParameter('yoffset', 0, @isscalar);
             
+            p.addParameter('cluster_lags', [], @(x) isempty(x) || isvector(x));
             p.addParameter('xoffsetBetweenClusters', 0, @isscalar);
             p.addParameter('yoffsetBetweenClusters', 0, @isscalar);
             
@@ -249,15 +250,21 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
             yoffset = p.Results.yoffset;
             xoffsetBetweenClusters = p.Results.xoffsetBetweenClusters;
             yoffsetBetweenClusters = p.Results.yoffsetBetweenClusters;
+            cluster_lags = double(p.Results.cluster_lags);
+            if isempty(p.Results.cluster_ids) && ~isempty(cluster_lags)
+                error('Cluster_ids must be specified when cluster_lags is specified');l
+            end
+            specified_cluster_ids = p.Results.cluster_ids;
             
             axh = p.Results.axh;
             if isempty(axh), axh = gca; end
             
             % plot relative time vector
             tvec = linspace(0, xspacing * xmag, numel(ss.window(1) : ss.window(2)));
+            dt = tvec(2) - tvec(1);
             
-            if ~isempty(p.Results.cluster_ids)
-                maskSnippets = ismember(ss.cluster_ids, p.Results.cluster_ids) & ss.valid;
+            if ~isempty(specified_cluster_ids)
+                maskSnippets = ismember(ss.cluster_ids, specified_cluster_ids) & ss.valid;
             else
                 maskSnippets = p.Results.maskSnippets;
             end
@@ -302,6 +309,11 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
             
             for iClu = 1:nUniqueClusters
                 this_cluster_id = unique_cluster_ids(iClu);
+                if isempty(cluster_lags)
+                    this_cluster_lag = 0;
+                else
+                    this_cluster_lag = cluster_lags(find(specified_cluster_ids == this_cluster_id, 1));
+                end
                 
                 % data is already sliced using maskSnippets, so we have a subset (size of nnz(maskSnippets)) and full mask (size of nSnippets)
                 this_snippet_mask_subset = ss.cluster_ids(maskSnippets) == this_cluster_id;
@@ -325,7 +337,7 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
 
                 cmapIdx = mod(iClu-1, size(cmap, 1))+1;
                 
-                xc = xc + xoffset + xoffsetBetweenClusters*(iClu-1);
+                xc = xc + this_cluster_lag*dt + xoffset + xoffsetBetweenClusters*(iClu-1);
                 yc = yc + yoffset + yoffsetBetweenClusters*(iClu-1);
                 
                 for iC = 1:nChannels
@@ -390,6 +402,7 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
             settings.yoffset = yoffset;
             settings.xoffsetBetweenClusters = xoffsetBetweenClusters;
             settings.yoffsetBetweenClusters = yoffsetBetweenClusters;
+            settings.cluster_lags = cluster_lags;
         end
         
         function [bg, traceColor] = setupFigureAxes(~, dark)
