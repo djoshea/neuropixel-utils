@@ -201,6 +201,10 @@ classdef ClusterRatingInfo < handle & matlab.mixin.Copyable
             end
         end
         
+        function setClusterIncludeCutoffSpikes(r, cluster_ids, includeCutoffSpikes)
+            r.setClusterRatings(cluster_ids, [], [], [], includeCutoffSpikes);
+        end
+        
         function setClusterSubgroupUsableWithin(r, cluster_ids, subgroups, usableWithin)
             cluster_inds = r.lookup_clusterIds(cluster_ids);
             subgroup_inds = r.lookup_subgroups(subgroups);

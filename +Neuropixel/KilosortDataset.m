@@ -1086,7 +1086,7 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
             
             mask = ismember(ks.spike_clusters, cluster_ids);
             cutoff_mask = ismember(ks.cutoff_spike_clusters, cluster_ids);
-            ks.mask_spikes(mask, cutoff_mask);     
+            ks.mask_spikes(mask, cutoff_mask);            
         end
         
         function drop_cutoff_spikes(ks)

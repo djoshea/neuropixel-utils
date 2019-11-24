@@ -36,7 +36,7 @@ classdef ImecDataset < handle
 
     properties
         % will be cached after loading, can also be cleared by user
-        syncRaw int16 = [];
+        syncRaw uint16 = [];
     end
 
     properties(Constant)
@@ -305,13 +305,13 @@ classdef ImecDataset < handle
                     [~, f, e] = fileparts(imec.pathSyncCached);
                     fprintf('Loading sync from cached %s%s\n', f, e);
                     ld = load(imec.pathSyncCached);
-                    imec.syncRaw = ld.sync;
+                    imec.syncRaw = typecast(ld.sync, 'uint16');
                 else
                     % this will automatically redirect to a separate sync file
                     % or to the ap file depending on .syncInAPFile
                     fprintf('Loading sync channel (this will take some time)...\n');
                     mm = imec.memmapSync_full();
-                    imec.syncRaw = mm.Data.x(imec.syncChannelIndex, :)';
+                    imec.syncRaw = typecast(mm.Data.x(imec.syncChannelIndex, :)', 'uint16');
 
                     imec.saveSyncCached();
                 end
@@ -1769,7 +1769,7 @@ end
             file = [f, e];
 
 
-            match = regexp(file, '(?<stem>[\w\.]+).imec.(?<type>\w+).bin', 'names', 'once');
+            match = regexp(file, '(?<stem>[\w\-\.]+).imec.(?<type>\w+).bin', 'names', 'once');
             if ~isempty(match)
                 type = match.type;
                 fileStem = match.stem;

@@ -5,6 +5,7 @@ classdef KilosortPartialResort < handle
     end
     
     properties
+        fsAP % stored from ks
         sort_windows (:, 2) uint64 % nWindows x 2 list of start, stop samples which were actually resorted
         
         % spike_times.npy - [nSpikes, ] uint64 vector giving the spike time of each spike in samples. To convert to seconds, divide by sample_rate from params.py.
@@ -75,9 +76,8 @@ classdef KilosortPartialResort < handle
             n = sum(durations);
         end
         
-        function ks = splice_into_ks(kspr, ks)
+        function splice_into_ks(kspr, ks)
             assert(isa(ks, 'Neuropixel.KilosortDataset'));
-            ks = copy(ks);
             
             % compute mask of spikes to keep
             mask_keep = true(ks.nSpikes, 1);
@@ -92,6 +92,48 @@ classdef KilosortPartialResort < handle
             ks.mask_spikes(mask_keep, mask_keep_cutoff);
             ks.append_spikes(kspr);
             ks.sort_spikes();
+        end
+        
+        function [spike_idx_segmented, cutoff_spike_idx_segmented] = segment_into_windows_clusters(kspr, cluster_ids)
+            % used mostly for evaluating the response, quickly segments spike times into sort_windows and cluster_ids
+            % spike_idx_segmented is a nSortWindows x nClusters 
+            
+            windows = kspr.sort_windows;
+            nWindows = size(windows, 1);
+            nClusters = numel(cluster_ids);
+            
+            spike_idx_segmented = do_segment(kspr.spike_times, kspr.spike_clusters);
+            cutoff_spike_idx_segmented = do_segment(kspr.cutoff_spike_times, kspr.cutoff_spike_clusters);
+            
+            function idx_segmented = do_segment(times, clusters)
+                idx = (1:numel(times))';
+                [mask_in_cluster, cluster_ind] = ismember(clusters, cluster_ids);
+                window_ind = Neuropixel.Utils.discretize_windows(times, windows);
+                mask_in_window = ~isnan(window_ind);
+                
+                mask = mask_in_cluster & mask_in_window;
+                subs = [window_ind(mask), cluster_ind(mask)];
+                idx_segmented = Neuropixel.Utils.TensorUtils.splitAlongDimensionBySubscripts(idx(mask), 1, [nWindows, nClusters], subs);
+            end
+        end
+        
+        function [spike_counts_segmented, cutoff_spike_counts_segmented] = count_by_window_cluster(kspr, cluster_ids)
+            windows = kspr.sort_windows;
+            nWindows = size(windows, 1);
+            nClusters = numel(cluster_ids);
+            
+            spike_counts_segmented = do_count(kspr.spike_times, kspr.spike_clusters);
+            cutoff_spike_counts_segmented = do_count(kspr.cutoff_spike_times, kspr.cutoff_spike_clusters);
+            
+            function counts_segmented = do_count(times, clusters)
+                [mask_in_cluster, cluster_ind] = ismember(clusters, cluster_ids);
+                window_ind = Neuropixel.Utils.discretize_windows(times, windows);
+                mask_in_window = ~isnan(window_ind);
+                
+                mask = mask_in_cluster & mask_in_window;
+                subs = [window_ind(mask), cluster_ind(mask)];
+                counts_segmented = accumarray(subs, 1, [nWindows, nClusters]);
+            end
         end
     end
     
@@ -108,6 +150,7 @@ classdef KilosortPartialResort < handle
             assert(isa(ks, 'Neuropixel.KilosortDataset'));
             kspr = Neuropixel.KilosortPartialResort();
             kspr.ks = ks;
+            kspr.fsAP = ks.fsAP;
             
             data_replace = p.Results.data_replace;
             data_replace_windows = p.Results.data_replace_windows;

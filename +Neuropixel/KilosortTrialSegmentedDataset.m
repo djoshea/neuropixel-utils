@@ -195,15 +195,19 @@ classdef KilosortTrialSegmentedDataset < handle & matlab.mixin.Copyable
                 end
             end
             seg.spike_times_ms_rel_start = spike_times_grouped;
-            seg.cutoff_spike_times_ms_rel_start = cutoff_spike_times_grouped;
+            if loadCutoff
+                seg.cutoff_spike_times_ms_rel_start = cutoff_spike_times_grouped;
+            end
 
             prog.increment('Segmenting trials: spike_idx');
             spike_idx = (1:seg.dataset.nSpikes)';
             seg.spike_idx = Neuropixel.Utils.TensorUtils.splitAlongDimensionBySubscripts(...
                 spike_idx(spike_mask), 1, [nTrials, nUnits], subs(spike_mask, :));
-            cutoff_spike_idx = (1:seg.dataset.nSpikesCutoff)';
-            seg.cutoff_spike_idx = Neuropixel.Utils.TensorUtils.splitAlongDimensionBySubscripts(...
-                cutoff_spike_idx(cutoff_spike_mask), 1, [nTrials, nUnits], cutoff_subs(cutoff_spike_mask, :));
+            if loadCutoff
+                cutoff_spike_idx = (1:seg.dataset.nSpikesCutoff)';
+                seg.cutoff_spike_idx = Neuropixel.Utils.TensorUtils.splitAlongDimensionBySubscripts(...
+                    cutoff_spike_idx(cutoff_spike_mask), 1, [nTrials, nUnits], cutoff_subs(cutoff_spike_mask, :));
+            end
 
             if loadFeatures
                 % slice the other fields into trials x unit:
