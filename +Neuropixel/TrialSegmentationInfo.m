@@ -6,7 +6,7 @@ classdef TrialSegmentationInfo < handle & matlab.mixin.Copyable
         trialId(:, 1) uint32
         conditionId(:, 1) uint32
         idxStart(:, 1) uint64 % in samples
-        idxStop(:, 1) uint64 % in samples, may not be used        
+        idxStop(:, 1) uint64 % in samples, may not be used
     end
     
     properties(Dependent)

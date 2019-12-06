@@ -111,7 +111,7 @@ classdef ConcatenationInfo < handle
            for i = 1:numel(starts)
               mask = inds >= starts(i) & inds < stops(i);
               fileInds(mask) = i;
-              origSampleInds(mask) = inds(mask) - double(starts(i));
+              origSampleInds(mask) = inds(mask) - double(starts(i)) + 1;
            end
            
            % now unshift the original sampleInds

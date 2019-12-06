@@ -50,6 +50,7 @@ classdef TimeShiftSpec < handle
         
         function dur = get.intervalDurations(spec)
             dur = uint64(int64(spec.idxStop) - int64(spec.idxStart)) + uint64(1);
+            dur(spec.idxStart == uint64(0) | spec.idxStop == uint64(0)) = 0;
         end
         
         function n = get.nIntervals(spec)
@@ -82,6 +83,7 @@ classdef TimeShiftSpec < handle
             time_src = zeros(size(times), 'like', times);
             for iR = 1:spec.nIntervals
                 mask = times >= spec.idxShiftStart(iR) & times <= spec.idxShiftStart(iR) + dur(iR); % times in this interval
+                % no offset by 1 here, time == idxShiftStart should map to idxStart exactly
                 time_src(mask) = uint64(int64(times(mask)) - int64(spec.idxShiftStart(iR)) +  int64(spec.idxStart(iR)));
             end
 %             srcIdx = spec.computeSourceIndices();
@@ -160,7 +162,13 @@ classdef TimeShiftSpec < handle
     
     methods(Static)
         function spec = non_shift(nSamples)
+            % returns a TimeShiftSpec that takes all samples without any shifting
             spec = Neuropixel.TimeShiftSpec(1, nSamples, 1);
+        end
+        
+        function spec = take_no_samples()
+            % returns a TimeShiftSpec that takes no samples
+            spec = Neuropixel.TimeShiftSpec(0, 0, 1);
         end
         
         function spec = from_matrix(mat, nSamplesFull)
@@ -175,8 +183,11 @@ classdef TimeShiftSpec < handle
         
         function spec = from_string(str, nSamplesFull)
             % string is as generated from to_string, possibly multiple strings concatenated 
-            if isempty(str)
+            str = strtrim(string(str));
+            if str == ""
                 spec = Neuropixel.TimeShiftSpec.non_shift(nSamplesFull);
+            elseif str == "[]"
+                spec = Neuropixel.TimeShiftSpec.take_no_samples();
             else
                 mat = str2num(str); %#ok<ST2NM>
                 spec = Neuropixel.TimeShiftSpec.from_matrix(mat, nSamplesFull);
