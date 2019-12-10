@@ -1102,14 +1102,26 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
         end
 
         function append_spikes(ks, append)
+            nNew = numel(append.spike_times);
             ks.spike_times = cat(1, ks.spike_times, append.spike_times);
             ks.spike_templates = cat(1, ks.spike_templates, append.spike_templates);
             ks.spike_templates_preSplit = cat(1, ks.spike_templates_preSplit, append.spike_templates_preSplit);
             ks.amplitudes = cat(1, ks.amplitudes, append.amplitudes);
             ks.spike_clusters = cat(1, ks.spike_clusters, append.spike_clusters);
             if ks.hasFeaturesLoaded
-                ks.pc_features = cat(1, ks.pc_features, append.pc_features);
-                ks.template_features = cat(1, ks.template_features, append.template_features);
+                if isempty(append.pc_features)
+                    f = zeros([nNew, size(ks.pc_features, [2 3])], 'like', ks.pc_features);
+                else
+                    f = append.pc_features;
+                end 
+                ks.pc_features = cat(1, ks.pc_features, f);
+            
+                if isempty(append.template_features)
+                    f = zeros([nNew, size(ks.template_features, 2)], 'like', ks.template_features);
+                else
+                    f = append.template_features;
+                end 
+                ks.template_features = cat(1, ks.template_features, f);
             end
 
             ks.cutoff_spike_times = cat(1, ks.cutoff_spike_times, append.cutoff_spike_times);
@@ -1118,8 +1130,19 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
             ks.cutoff_amplitudes = cat(1, ks.cutoff_amplitudes, append.cutoff_amplitudes);
             ks.cutoff_spike_clusters = cat(1, ks.cutoff_spike_clusters, append.cutoff_spike_clusters);
             if ks.hasFeaturesLoaded
-                ks.cutoff_pc_features = cat(1, ks.cutoff_pc_features, append.cutoff_pc_features);
-                ks.cutoff_template_features = cat(1, ks.cutoff_template_features, append.cutoff_template_features);
+                if isempty(append.pc_features)
+                    f = zeros([nNew, size(ks.cutoff_pc_features, [2 3])], 'like', ks.cutoff_pc_features);
+                else
+                    f = append.cutoff_pc_features;
+                end 
+                ks.cutoff_pc_features = cat(1, ks.cutoff_pc_features, f);
+                
+                if isempty(append.template_features)
+                    f = zeros([nNew, size(ks.cutoff_template_features, 2)], 'like', ks.cutoff_template_features);
+                else
+                    f = append.cutoff_template_features;
+                end 
+                ks.cutoff_template_features = cat(1, ks.cutoff_template_features, f);
             end
         end
 
