@@ -1979,7 +1979,7 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
         end
 
         function stats = remove_duplicate_spikes(ks, varargin)
-            [mask_dup_spikes, mask_dup_spikes_cutoff, stats] = ks.identify_duplicate_spikes(ks, varargin{:});
+            [mask_dup_spikes, mask_dup_spikes_cutoff, stats] = ks.identify_duplicate_spikes(varargin{:});
             ks.mask_spikes(mask_dup_spikes, mask_dup_spikes_cutoff);
         end
     end
