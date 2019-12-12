@@ -1038,6 +1038,7 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
 %         end
 
         function sort_spikes(ks)
+            ks.metrics = [];
             [ks.spike_times, sortIdx] = sort(ks.spike_times);
             ks.spike_templates = ks.spike_templates(sortIdx);
             ks.spike_templates_preSplit = ks.spike_templates_preSplit(sortIdx);
@@ -1063,6 +1064,8 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
             assert(islogical(mask) && numel(mask) == ks.nSpikes);
             assert(islogical(mask_cutoff) && numel(mask_cutoff) == ks.nSpikesCutoff);
 
+            ks.metrics = [];
+            
             ks.spike_times = ks.spike_times(mask);
             ks.spike_templates = ks.spike_templates(mask);
             ks.spike_templates_preSplit = ks.spike_templates_preSplit(mask);
@@ -1093,6 +1096,7 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
         end
         
         function drop_cutoff_spikes(ks)
+            ks.metrics = [];
             ks.cutoff_spike_times = [];
             ks.cutoff_spike_templates = [];
             ks.cutoff_spike_templates_preSplit = [];
@@ -1105,6 +1109,8 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
         end
 
         function append_spikes(ks, append)
+            ks.metrics = [];
+            
             nNew = numel(append.spike_times);
             ks.spike_times = cat(1, ks.spike_times, append.spike_times);
             ks.spike_templates = cat(1, ks.spike_templates, append.spike_templates);
