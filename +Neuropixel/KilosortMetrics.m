@@ -645,7 +645,7 @@ classdef KilosortMetrics < handle
         end
         
         function best_lag = computeBestLagForSimilarClusters(m, cluster_ids, similar_cluster_ids)
-            if isempty(m.similar_clusters_best_lag)
+            if isempty(m.similar_clusters_best_lag) || isempty(cluster_ids) || isempty(similar_cluster_ids)
                 best_lag = zeros(size(similar_cluster_ids), 'int16');
                 return;
             end

@@ -240,6 +240,8 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
 
         cluster_spike_counts % (:, 1) uint32 % nClusters x 1 number of spikes assigned to each cluster
         cutoff_cluster_spike_counts % (:, 1) uint32 % nClusters x 1 number of spikes assigned to each cluster
+        
+        cluster_ids_have_spikes % list of cluster_ids with spikes (typically useful after spikes have been masked)
     end
 
     methods % Dependent properties
@@ -458,6 +460,11 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
             else
                 n = uint32(Neuropixel.Utils.discrete_histcounts(ks.cutoff_spike_clusters, ks.cluster_ids));
             end
+        end
+        
+        function ids = get.cluster_ids_have_spikes(ks)
+            mask = ks.cluster_spike_counts > 0 & ks.cutoff_cluster_spike_counts > 0;
+            ids = ks.cluster_ids(mask);
         end
     end
 
@@ -963,7 +970,7 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
         end
 
         function apply_cluster_merge(ks, mergeInfo)
-            ks.load();
+            ks.load('loadFeatures', false, 'loadBatchwise', false);
             ks.create_spike_clusters_ks2orig_if_missing();
 
             % apply the merges in clusterMergeInfo
@@ -982,8 +989,6 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                 mask_assign_to_dst = ismember(spike_clusters, src_cluster_ids);
                 spike_clusters(mask_assign_to_dst) = dst_cluster_id;
             end
-            
-            ks.remove_zero_spike_clusters();
         end
 
         function accept_cutoff_spikes(ks, ratings_or_cluster_ids)
@@ -1028,9 +1033,9 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
             end
         end
         
-        function remove_zero_spike_clusters(ks)
-            ks.cluster_ids = ks.cluster_ids(ks.cluster_spike_counts > 0 | ks.cutoff_cluster_spike_counts > 0);
-        end
+%         function remove_zero_spike_clusters(ks)
+%             ks.cluster_ids = ks.cluster_ids(ks.cluster_spike_counts > 0 | ks.cutoff_cluster_spike_counts > 0);
+%         end
 
         function sort_spikes(ks)
             [ks.spike_times, sortIdx] = sort(ks.spike_times);
@@ -1077,8 +1082,6 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                 ks.cutoff_pc_features = ks.cutoff_pc_features(mask_cutoff, :, :);
                 ks.cutoff_template_features = ks.cutoff_template_features(mask_cutoff, :);
             end
-            
-            ks.remove_zero_spike_clusters();
         end
         
         function mask_clusters(ks, cluster_ids)
@@ -1895,7 +1898,90 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                 end
             end
         end
+        
+        function [mask_dup_spikes, mask_dup_spikes_cutoff, stats] = identify_duplicate_spikes(ks, varargin)
+            p = inputParser();
+            p.addParameter('include_cutoff_spikes', true, @islogical);
+            p.addParameter('withinSamples', 5, @isscalar);
+            p.addParameter('withinDistance', 50, @isscalar);
+            p.parse(varargin{:});
+            
+            assert(issorted(ks.spike_times), 'call .sortSpikes first');
+            assert(issorted(ks.cutoff_spike_times), 'call .sortSpikes first');
+            
+            withinSamples = p.Results.withinSamples;
+            withinDistance = p.Results.withinDistance;
+            
+            % lookup best channels by templates
+            m = ks.computeMetrics();
+            template_best_sorted_channel_ind = m.lookup_sortedChannelIds(m.template_best_channels(:, 1));
+            
+            % determine which templates are withinDistance of each other templates
+            chchprox = squareform(pdist(ks.channel_positions_sorted, 'euclidean')) <= withinDistance;
+            [R, C] = ndgrid(template_best_sorted_channel_ind, template_best_sorted_channel_ind);
+            idx = sub2ind(size(chchprox), R, C);
+            temptempprox = chchprox(idx);
+            
+            % begin by combining spikes with spikes cutoff
+            if p.Results.include_cutoff_spikes
+                spikes = cat(1, ks.spike_times, ks.cutoff_spike_times);
+                templates = cat(1, ks.spike_templates, ks.cutoff_spike_templates);
+                
+                [spikes, sort_idx] = sort(spikes);
+                templates = templates(sort_idx);
+                
+                mask_from_cutoff = true(size(spikes));
+                mask_from_cutoff(1:ks.nSpikes) = false;
+                mask_from_cutoff = mask_from_cutoff(sort_idx);
+            else
+                spikes = ks.spike_times;
+                templates = ks.spike_templates;
+                mask_from_cutoff = false(size(spikes));
+            end
+            
+            mask_dup = false(size(spikes));
+            dup_from_template = zeros(size(spikes), 'like', templates);
+            prog = ProgressBar(numel(spikes), 'Checking for duplicate spikes');
+            for iS = 1:numel(spikes)
+                if mask_dup(iS), continue, end
+                temp1 = templates(iS);
+                iS2 = iS+1;
+                while iS2 < numel(spikes) && spikes(iS2) <= spikes(iS) + withinSamples
+                    temp2 = templates(iS2);
+                    if temptempprox(temp1, temp2)
+                        mask_dup(iS2) = true;
+                        dup_from_template(iS2) = temp1;
+                    end
+                    iS2 = iS2 + 1;
+                end
+                if mod(iS, 1000) == 0
+                    prog.update(iS);
+                end
+            end
+            prog.finish();
+            
+            if p.Results.include_cutoff_spikes
+                mask_dup_spikes = mask_dup(~mask_from_cutoff);
+                mask_dup_spikes_cutoff = mask_dup(mask_from_cutoff);
+            else
+                mask_dup_spikes = mask_dup;
+                mask_dup_spikes_cutoff = false(ks.nSpikesCutoff, 1);
+            end
+            
+            % compute stats
+            mask_dup_same_template = mask_dup & dup_from_template == templates;
+            stats.nSameTemplate = nnz(mask_dup_same_template);
+            stats.fracRemoved = mean(mask_dup);
+            stats.fracRemovedExcludingSameTemplate = mean(mask_dup & ~mask_dup_same_template);
+            
+            % accumulate (i, j) is the count of spikes with template j that were marked as duplicates of template i
+            stats.templatewiseDuplicateCounts = accumarray([dup_from_template(mask_dup), templates(mask_dup)], 1, [ks.nTemplates, ks.nTemplates], @sum);
+        end
 
+        function stats = remove_duplicate_spikes(ks, varargin)
+            [mask_dup_spikes, mask_dup_spikes_cutoff, stats] = ks.identify_duplicate_spikes(ks, varargin{:});
+            ks.mask_spikes(mask_dup_spikes, mask_dup_spikes_cutoff);
+        end
     end
     
     methods
