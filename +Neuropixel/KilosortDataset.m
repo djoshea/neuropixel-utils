@@ -1932,9 +1932,10 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
             if p.Results.include_cutoff_spikes
                 spikes = cat(1, ks.spike_times, ks.cutoff_spike_times);
                 templates = cat(1, ks.spike_templates, ks.cutoff_spike_templates);
-                
+                clusters = cat(1, ks.spike_clusters, ks.cutoff_spike_clusters);
                 [spikes, sort_idx] = sort(spikes);
                 templates = templates(sort_idx);
+                clusters = clusters(sort_idx);
                 
                 mask_from_cutoff = true(size(spikes));
                 mask_from_cutoff(1:ks.nSpikes) = false;
@@ -1942,21 +1943,26 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
             else
                 spikes = ks.spike_times;
                 templates = ks.spike_templates;
+                clusters = ks.spike_clusters;
                 mask_from_cutoff = false(size(spikes));
             end
             
+            cluster_inds = ks.lookup_clusterIds(clusters);
+            
             mask_dup = false(size(spikes));
             dup_from_template = zeros(size(spikes), 'like', templates);
+            dup_from_cluster_ind = zeros(size(spikes), 'like', cluster_inds);
             prog = ProgressBar(numel(spikes), 'Checking for duplicate spikes');
             for iS = 1:numel(spikes)
                 if mask_dup(iS), continue, end
                 temp1 = templates(iS);
                 iS2 = iS+1;
-                while iS2 < numel(spikes) && spikes(iS2) <= spikes(iS) + withinSamples
+                while iS2 < numel(spikes) && spikes(iS2) < spikes(iS) + withinSamples
                     temp2 = templates(iS2);
                     if temptempprox(temp1, temp2)
                         mask_dup(iS2) = true;
                         dup_from_template(iS2) = temp1;
+                        dup_from_cluster_ind(iS2) = cluster_inds(iS);
                     end
                     iS2 = iS2 + 1;
                 end
@@ -1980,13 +1986,25 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
             stats.fracRemoved = mean(mask_dup);
             stats.fracRemovedExcludingSameTemplate = mean(mask_dup & ~mask_dup_same_template);
             
-            % accumulate (i, j) is the count of spikes with template j that were marked as duplicates of template i
-            stats.templatewiseDuplicateCounts = accumarray([dup_from_template(mask_dup), templates(mask_dup)], 1, [ks.nTemplates, ks.nTemplates], @sum);
+            mask_dup_same_cluster = mask_dup & dup_from_cluster_ind == cluster_inds;
+            stats.fracRemovedExcludingSameCluster = mean(mask_dup & ~mask_dup_same_cluster);
+            
+            % accumulate (i, j) is the count of spikes with template i that were marked as duplicates of template j
+            stats.templateTemplateDuplicateCounts = accumarray([templates(mask_dup), dup_from_template(mask_dup)], 1, [ks.nTemplates, ks.nTemplates], @sum);
+            stats.templateDuplicateCounts = sum(stats.templateTemplateDuplicateCounts, 2);
+            template_spike_counts =  accumarray(templates, 1, [ks.nTemplates, 1], @sum);
+            stats.templateDuplicateFrac = stats.templateDuplicateCounts ./ template_spike_counts;
+            
+            % same stats but for clusters
+            stats.clusterClusterDuplicateCounts = accumarray([cluster_inds(mask_dup), dup_from_cluster_ind(mask_dup)], 1, [ks.nClusters, ks.nClusters], @sum);
+            stats.clusterDuplicateCounts = sum(stats.clusterClusterDuplicateCounts, 2);
+            cluster_spike_counts =  accumarray(cluster_inds, 1, [ks.nClusters, 1], @sum);
+            stats.clusterDuplicateFrac = stats.clusterDuplicateCounts ./ cluster_spike_counts;
         end
 
         function stats = remove_duplicate_spikes(ks, varargin)
             [mask_dup_spikes, mask_dup_spikes_cutoff, stats] = ks.identify_duplicate_spikes(varargin{:});
-            ks.mask_spikes(mask_dup_spikes, mask_dup_spikes_cutoff);
+            ks.mask_spikes(~mask_dup_spikes, ~mask_dup_spikes_cutoff);
         end
     end
     
