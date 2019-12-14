@@ -335,4 +335,14 @@ classdef ClusterRatingInfo < handle & matlab.mixin.Copyable
             r.cluster_ids = r.cluster_ids(mask);
         end
     end
+    
+    methods(Static)
+        function rating = convertToDefaultRatingCategorical(value)
+            rating = categorical(string(value), Neuropixel.ClusterRatingInfo.defaultRatingValueSet, 'Ordinal', true);
+        end
+        
+        function ratings = getVectorUnrated(n)
+            ratings = repmat(Neuropixel.ClusterRatingInfo.convertToDefaultRatingCategorical('unrated'), n, 1);
+        end
+    end
 end
