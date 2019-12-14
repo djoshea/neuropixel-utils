@@ -210,6 +210,7 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
             % and optionally these
             p.addParameter('maskTime', true(ss.nTimepoints, 1), @isvector);
             p.addParameter('maskChannels', true(ss.nChannels, 1), @isvector);
+            p.addParameter('maxChannelsPerCluster', NaN, @isscalar);
             
             p.addParameter('maxPerCluster', Inf, @isscalar);
             
@@ -226,7 +227,10 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
             
             p.addParameter('showIndividual', true, @islogical); 
             p.addParameter('showMean', false, @islogical);
-            p.addParameter('meanPlotArgs', {'LineWidth', 3}, @iscell);
+            p.addParameter('showMedian', false, @islogical);
+            p.addParameter('meanPlotArgs', {'LineWidth', 3}, @iscell); 
+            p.addParameter('medianPlotArgs', {'LineWidth', 3}, @iscell);
+            
             p.addParameter('plotArgs', {'LineWidth', 0.5}, @iscell);
             
             p.addParameter('showChannelLabels', true, @islogical);
@@ -274,7 +278,7 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
             
             % center and scale each channel
             if ~any(maskSnippets)
-                warning('No snippets for these clusters');
+                fprintf('Warning: no snippets for these clusters\n');
                 axis(axh, 'off');
                 return;
             end
@@ -298,8 +302,14 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
             
             holding = ishold(axh);
             nChannels = size(data, 1);
+            if isnan(p.Results.maxChannelsPerCluster)
+                nChannelsMaxPerCluster = nChannels;
+            else
+                nChannelsMaxPerCluster = min(nChannels, p.Results.maxChannelsPerCluster);
+            end
             handlesIndiv = cell(nChannels, nUniqueClusters);
             handlesMean = gobjects(nChannels, nUniqueClusters);
+            handlesMedian = gobjects(nChannels, nUniqueClusters);
             channels_plotted = false(ss.channelMap.nChannels, 1);
             
             cmap = p.Results.colormap;
@@ -340,7 +350,7 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
                 xc = xc + this_cluster_lag*dt + xoffset + xoffsetBetweenClusters*(iClu-1);
                 yc = yc + yoffset + yoffsetBetweenClusters*(iClu-1);
                 
-                for iC = 1:nChannels
+                for iC = 1:nChannelsMaxPerCluster
                     dmat = Neuropixel.Utils.TensorUtils.squeezeDims(data(iC, :, this_snippet_mask_subset), 1) + yc(iC);
                         
                     if p.Results.showIndividual
@@ -354,8 +364,19 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
                             'AlignVertexCenters', true, p.Results.meanPlotArgs{:});
                         hold(axh, 'on');
                     end
+                    if p.Results.showMedian
+                        handlesMedian(iC, iClu) = plot(axh, tvec + xc(iC), median(dmat, 2), 'Color', cmap(cmapIdx, :), ...
+                            'AlignVertexCenters', true, p.Results.medianPlotArgs{:});
+                        hold(axh, 'on');
+                    end
                     if iC == 1 
-                        Neuropixel.Utils.showFirstInLegend(handlesMean(iC, iClu), sprintf('cluster %d', this_cluster_id));
+                        if p.Results.showMean
+                            Neuropixel.Utils.showFirstInLegend(handlesMean(iC, iClu), sprintf('cluster %d', this_cluster_id));
+                        elseif p.Results.showMedian
+                            Neuropixel.Utils.showFirstInLegend(handlesMedian(iC, iClu), sprintf('cluster %d', this_cluster_id));
+                        else
+                            Neuropixel.Utils.showFirstInLegend(handlesIndiv{iC, iClu}, sprintf('cluster %d', this_cluster_id));
+                        end
                     else
                         Neuropixel.Utils.hideInLegend(handlesMean(iC, iClu));
                     end
@@ -389,6 +410,13 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
                 ylim(axh, p.Results.ylim);
             end
             box(axh, 'off');
+            
+%             if p.Results.showIndividual
+%                 hall = cat(1, handlesIndiv{:});
+%                 for iH = 1:numel(hall)
+%                     hall(iH).Color(4) = p.Results.alpha;
+%                 end
+%             end
             
             hdata.waveforms = handlesIndiv;
             hdata.waveformMeans = handlesMean;
