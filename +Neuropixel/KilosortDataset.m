@@ -1920,13 +1920,17 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
             
             % lookup best channels by templates
             m = ks.computeMetrics();
-            template_best_sorted_channel_ind = m.lookup_sortedChannelIds(m.template_best_channels(:, 1));
             
             % determine which templates are withinDistance of each other templates
-            chchprox = squareform(pdist(ks.channel_positions_sorted, 'euclidean')) <= withinDistance;
-            [R, C] = ndgrid(template_best_sorted_channel_ind, template_best_sorted_channel_ind);
-            idx = sub2ind(size(chchprox), R, C);
-            temptempprox = chchprox(idx);
+            temptempdist = squareform(pdist(m.template_centroid, 'euclidean'));
+            temptempprox = temptempdist < withinDistance;
+            
+            % mechanism originally described in Siegle et al. (2019) using template best channel
+%             template_best_sorted_channel_ind = m.lookup_sortedChannelIds(m.template_best_channels(:, 1));
+%             chchprox = squareform(pdist(ks.channel_positions_sorted, 'euclidean')) <= withinDistance;
+%             [R, C] = ndgrid(template_best_sorted_channel_ind, template_best_sorted_channel_ind);
+%             idx = sub2ind(size(chchprox), R, C);
+%             temptempprox = chchprox(idx);
             
             % begin by combining spikes with spikes cutoff
             if p.Results.include_cutoff_spikes

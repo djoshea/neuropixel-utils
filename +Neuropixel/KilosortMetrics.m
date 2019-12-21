@@ -606,7 +606,20 @@ classdef KilosortMetrics < handle
         end
     end
     
-    methods % Cluster statistics and CCGs
+    methods % Cluster distance stats
+        function cc_dist = computeClusterDistanceMatrix(m, varargin)
+            p = inputParser();
+            p.addParameter('cluster_ids', m.cluster_ids, @isvector);
+            p.parse(varargin{:});
+            
+            cluster_inds = m.lookup_clusterIds(p.Results.cluster_ids);
+            
+            pos = m.cluster_centroid(cluster_inds, :);
+            cc_dist = squareform(pdist(pos));
+        end
+    end
+    
+    methods % Cluster similarity statistics and CCGs
         function [similar_cluster_ids, similarity, best_lag] = computeSimilarClusters(m, cluster_ids, varargin)
             p = inputParser();
             p.addParameter('max_similar', m.nClusters-1, @isscalar);
@@ -763,7 +776,6 @@ classdef KilosortMetrics < handle
                 j = j+1;
             end
         end
-        
     end
     
     methods % Plotting stability over time
@@ -1703,7 +1715,7 @@ classdef KilosortMetrics < handle
                         
                     else
                         centroid = m.template_centroid(templateInds(iT), [1 2]);
-                        plot(axh, centroid(1), centroid(2), '+', 'MarkerSize', p.Results.centroidSize, 'Color', template_cmap(cmapIdx, :));
+                        plot(axh, centroid(1), centroid(2), '+', 'MarkerSize', p.Results.centroidSize, 'Color', template_cmap(iT, :));
                     end
                 end
                 

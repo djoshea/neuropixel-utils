@@ -3,6 +3,10 @@ classdef KilosortTrialSegmentedDataset < handle & matlab.mixin.Copyable
     % Properties that are copied over but not segmented into trials
     properties
         dataset % KilosortDataset
+        
+        % optional modes indicating which mode of segmentation is used
+        is_segmented_by_trials logical = true;
+        is_segmented_by_clusters logical = true;
 
         trial_ids(:, 1) uint32
 
@@ -68,6 +72,10 @@ classdef KilosortTrialSegmentedDataset < handle & matlab.mixin.Copyable
         % [nSpikes, ] uint32 vector specifying the identity of the template that was used to extract each spike
         spike_templates(:, :) cell
 
+        % these are only useful if segment_by_trials or segment_by_clusters are false
+        spike_trial_ind(:, :) cell
+        spike_cluster_inds(:, :) cell
+        
         % same as the above but for spikes dropped by set_cutoff, where nSpikes --> nSpikesCutoff
         cutoff_spike_idx(:, :) cell
         cutoff_amplitudes(:, :) cell
@@ -75,6 +83,9 @@ classdef KilosortTrialSegmentedDataset < handle & matlab.mixin.Copyable
         cutoff_spike_times_ms_rel_start(:, :) cell
         cutoff_spike_templates(:, :) cell
         cutoff_template_features(:, :) cell
+        
+        cutoff_spike_trial_inds(:, :) cell
+        cutoff_spike_cluster_inds(:, :) cell  
     end
 
     methods
@@ -86,11 +97,18 @@ classdef KilosortTrialSegmentedDataset < handle & matlab.mixin.Copyable
             p.addParameter('loadBatchwise', false, @islogical);
             p.addParameter('loadPreSplit', false, @islogical);
             p.addParameter('cluster_ids', [], @(x) isempty(x) || isvector(x)); % if specified, subselect the clusters
+            
+            % these may be turned off, in which case everythinng will be 1 x nClusters or nTrials x 1 instead of nTrials x nClusters
+            p.addParameter('segment_by_trials', true, @islogical);
+            p.addParameter('segment_by_clusters', true, @islogical);
+            
             p.parse(varargin{:});
 
             loadCutoff = p.Results.loadCutoff;
             loadFeatures = p.Results.loadFeatures;
             loadSync = p.Results.loadSync;
+            segment_by_trials = p.Results.segment_by_trials;
+            segment_by_clusters = p.Results.segment_by_clusters;
 
             % trial_ids specifies the id of each trial that will appear in
             % this segmented dataset. tsi has its own trialId field, and
@@ -147,13 +165,37 @@ classdef KilosortTrialSegmentedDataset < handle & matlab.mixin.Copyable
             [spike_mask, unit_idx_each_spike] = ismember(seg.dataset.spike_clusters, seg.cluster_ids);
 
             subs = [local_trial_ind_each_spike, unit_idx_each_spike];
-
+            
             % same for cutoff spikesks.
             if loadCutoff
                 cutoff_local_trial_ind_each_spike = get_local_trial_ind_each_time(tsi, trial_ids, seg.dataset.cutoff_spike_times);
                 [cutoff_spike_mask, cutoff_unit_idx_each_spike] = ismember(seg.dataset.cutoff_spike_clusters, seg.cluster_ids);
                 cutoff_subs = [cutoff_local_trial_ind_each_spike, cutoff_unit_idx_each_spike];
+            else
+                cutoff_subs = zeros(2, 0);
             end
+            
+            if segment_by_trials
+                nTrialsSegment = nTrials;
+                if ~segment_by_clusters
+                    subs(:, 2) = 1;
+                    cutoff_subs(:, 2) = 1;
+                    nUnitsSegment = 1;
+                else
+                    nUnitsSegment = nUnits;
+                end
+            else
+                nTrialsSegment = 1;
+                if segment_by_clusters
+                    subs(:, 1) = 1;
+                    cutoff_subs(:, 1) = 1;
+                    nUnitsSegment = nUnits;
+                else
+                    error('Either segment_by_trials or segment_by_clusters must be true');
+                end
+            end
+            seg.is_segmented_by_trials = segment_by_trials;
+            seg.is_segmented_by_clusters = segment_by_clusters;
 
             nToLoad = 3;
             if p.Results.loadFeatures
@@ -165,31 +207,36 @@ classdef KilosortTrialSegmentedDataset < handle & matlab.mixin.Copyable
             prog = Neuropixel.Utils.ProgressBar(nToLoad, 'Segmenting trials: spike_times');
             prog.increment();
             spike_times_grouped = Neuropixel.Utils.TensorUtils.splitAlongDimensionBySubscripts(...
-                ks.spike_times(spike_mask), 1, [nTrials, nUnits], subs(spike_mask, :));
+                ks.spike_times(spike_mask), 1, [nTrialsSegment, nUnitsSegment], subs(spike_mask, :));
 
             seg.spike_times = spike_times_grouped;
 
             if loadCutoff
                 cutoff_spike_times_grouped = Neuropixel.Utils.TensorUtils.splitAlongDimensionBySubscripts(...
-                    ks.cutoff_spike_times(cutoff_spike_mask), 1, [nTrials, nUnits], cutoff_subs(cutoff_spike_mask, :));
+                    ks.cutoff_spike_times(cutoff_spike_mask), 1, [nTrialsSegment, nUnitsSegment], cutoff_subs(cutoff_spike_mask, :));
                 seg.cutoff_spike_times = cutoff_spike_times_grouped;
             end
 
             % convert samples to ms relative to trial_start
-            for iT = 1:nTrials
-                if ~seg.trial_has_data(iT), continue, end
-                for iU = 1:nUnits
+            if segment_by_trials
+                trial_start = seg.trial_start;
+            else
+                trial_start = 0;
+            end
+            for iT = 1:nTrialsSegment
+                if segment_by_trials && ~seg.trial_has_data(iT), continue, end
+                for iU = 1:nUnitsSegment
                     if isempty(spike_times_grouped{iT, iU})
                         spike_times_grouped{iT, iU} = nan(0, 1, 'single');
                     else
-                        spike_times_grouped{iT, iU} = single(spike_times_grouped{iT, iU} - seg.trial_start(iT)) / single(seg.dataset.sample_rate / 1000);
+                        spike_times_grouped{iT, iU} = single(spike_times_grouped{iT, iU} - trial_start(iT)) / single(seg.dataset.sample_rate / 1000);
                     end
 
                     if loadCutoff
                         if isempty(cutoff_spike_times_grouped{iT, iU})
                             cutoff_spike_times_grouped{iT, iU} = nan(0, 1, 'single');
                         else
-                            cutoff_spike_times_grouped{iT, iU} = single(cutoff_spike_times_grouped{iT, iU} - seg.trial_start(iT)) / single(seg.dataset.sample_rate / 1000);
+                            cutoff_spike_times_grouped{iT, iU} = single(cutoff_spike_times_grouped{iT, iU} - trial_start(iT)) / single(seg.dataset.sample_rate / 1000);
                         end
                     end
                 end
@@ -202,58 +249,78 @@ classdef KilosortTrialSegmentedDataset < handle & matlab.mixin.Copyable
             prog.increment('Segmenting trials: spike_idx');
             spike_idx = (1:seg.dataset.nSpikes)';
             seg.spike_idx = Neuropixel.Utils.TensorUtils.splitAlongDimensionBySubscripts(...
-                spike_idx(spike_mask), 1, [nTrials, nUnits], subs(spike_mask, :));
+                spike_idx(spike_mask), 1, [nTrialsSegment, nUnitsSegment], subs(spike_mask, :));
             if loadCutoff
                 cutoff_spike_idx = (1:seg.dataset.nSpikesCutoff)';
                 seg.cutoff_spike_idx = Neuropixel.Utils.TensorUtils.splitAlongDimensionBySubscripts(...
-                    cutoff_spike_idx(cutoff_spike_mask), 1, [nTrials, nUnits], cutoff_subs(cutoff_spike_mask, :));
+                    cutoff_spike_idx(cutoff_spike_mask), 1, [nTrialsSegment, nUnitsSegment], cutoff_subs(cutoff_spike_mask, :));
             end
-
+            
+            if ~segment_by_trials
+                prog.increment('Segmenting trials: spike trial inds');
+                seg.spike_trial_ind = Neuropixel.Utils.TensorUtils.splitAlongDimensionBySubscripts(...
+                    local_trial_ind_each_spike(spike_mask), 1, [nTrialsSegment, nUnitsSegment], subs(spike_mask, :));
+                if loadCutoff
+                    seg.cutoff_spike_trial_ind = Neuropixel.Utils.TensorUtils.splitAlongDimensionBySubscripts(...
+                        cutoff_local_trial_ind_each_spike(cutoff_spike_mask), 1, [nTrialsSegment, nUnitsSegment], cutoff_subs(cutoff_spike_mask, :));
+                end
+            end
+            
+            if ~segment_by_clusters
+                prog.increment('Segmenting trials: spike cluster ids');
+                seg.spike_cluster_inds = Neuropixel.Utils.TensorUtils.splitAlongDimensionBySubscripts(...
+                    unit_idx_each_spike(spike_mask), 1, [nTrialsSegment, nUnitsSegment], subs(spike_mask, :));
+                if loadCutoff
+                    seg.cutoff_spike_cluster_inds = Neuropixel.Utils.TensorUtils.splitAlongDimensionBySubscripts(...
+                        cutoff_unit_idx_each_spike(cutoff_spike_mask), 1, [nTrialsSegment, nUnitsSegment], cutoff_subs(cutoff_spike_mask, :));
+                end
+            end
+            
             if loadFeatures
                 % slice the other fields into trials x unit:
                 prog.increment('Segmenting trials: amplitudes');
                 seg.amplitudes = Neuropixel.Utils.TensorUtils.splitAlongDimensionBySubscripts(...
-                ks.amplitudes(spike_mask), 1, [nTrials, nUnits], subs(spike_mask, :));
+                ks.amplitudes(spike_mask), 1, [nTrialsSegment, nUnitsSegment], subs(spike_mask, :));
                 if loadCutoff
                     seg.cutoff_amplitudes = Neuropixel.Utils.TensorUtils.splitAlongDimensionBySubscripts(...
-                        ks.cutoff_amplitudes(cutoff_spike_mask), 1, [nTrials, nUnits], cutoff_subs(cutoff_spike_mask, :));
+                        ks.cutoff_amplitudes(cutoff_spike_mask), 1, [nTrialsSegment, nUnitsSegment], cutoff_subs(cutoff_spike_mask, :));
                 end
 
-                prog.increment('Segmenting trials: pc_features');
+                prog.increment('Segmenting trials:  pc_features');
                 seg.pc_features = Neuropixel.Utils.TensorUtils.splitAlongDimensionBySubscripts(...
-                    ks.pc_features(spike_mask, :, :), 1, [nTrials, nUnits], subs(spike_mask, :));
+                    ks.pc_features(spike_mask, :, :), 1, [nTrialsSegment, nUnitsSegment], subs(spike_mask, :));
                 if loadCutoff
                     seg.cutoff_pc_features = Neuropixel.Utils.TensorUtils.splitAlongDimensionBySubscripts(...
-                        ks.cutoff_pc_features(cutoff_spike_mask, :, :), 1, [nTrials, nUnits], cutoff_subs(cutoff_spike_mask, :));
+                        ks.cutoff_pc_features(cutoff_spike_mask, :, :), 1, [nTrialsSegment, nUnitsSegment], cutoff_subs(cutoff_spike_mask, :));
                 end
 
                 prog.increment('Segmenting trials: template_features');
                 seg.template_features = Neuropixel.Utils.TensorUtils.splitAlongDimensionBySubscripts(...
-                    ks.template_features(spike_mask, :), 1, [nTrials, nUnits], subs(spike_mask, :));
+                    ks.template_features(spike_mask, :), 1, [nTrialsSegment, nUnitsSegment], subs(spike_mask, :));
                 if loadCutoff
                     seg.cutoff_template_features = Neuropixel.Utils.TensorUtils.splitAlongDimensionBySubscripts(...
-                        ks.cutoff_template_features(cutoff_spike_mask, :), 1, [nTrials, nUnits], cutoff_subs(cutoff_spike_mask, :));
+                        ks.cutoff_template_features(cutoff_spike_mask, :), 1, [nTrialsSegment, nUnitsSegment], cutoff_subs(cutoff_spike_mask, :));
                 end
             end
 
             prog.increment('Segmenting trials: spike_clusters');
             seg.spike_templates = Neuropixel.Utils.TensorUtils.splitAlongDimensionBySubscripts(...
-                ks.spike_templates(spike_mask), 1, [nTrials, nUnits], subs(spike_mask, :));
+                ks.spike_templates(spike_mask), 1, [nTrialsSegment, nUnitsSegment], subs(spike_mask, :));
             if loadCutoff
                 seg.cutoff_spike_templates = Neuropixel.Utils.TensorUtils.splitAlongDimensionBySubscripts(...
-                    ks.cutoff_spike_templates(cutoff_spike_mask), 1, [nTrials, nUnits], cutoff_subs(cutoff_spike_mask, :));
+                    ks.cutoff_spike_templates(cutoff_spike_mask), 1, [nTrialsSegment, nUnitsSegment], cutoff_subs(cutoff_spike_mask, :));
             end
 
             seg.syncBitNames = ks.syncBitNames;
 
-            if loadSync
+            if loadSync && segment_by_trials
                 prog.increment('Segmenting trials: sync');
                 sync = ks.readSync();
                 sample_vec = uint32(1:numel(sync))';
                 local_trial_ind_each_sample = get_local_trial_ind_each_time(tsi, trial_ids, sample_vec);
 
                 seg.sync = Neuropixel.Utils.TensorUtils.splitAlongDimensionBySubscripts(...
-                    sync, 1, nTrials, local_trial_ind_each_sample);
+                    sync, 1, nTrialsSegment, local_trial_ind_each_sample);
             else
                 seg.sync = {};
             end
@@ -543,7 +610,7 @@ classdef KilosortTrialSegmentedDataset < handle & matlab.mixin.Copyable
 %             seg.pc_features = c;
 %             seg.spike_times_ms_rel_start = c;
 %             seg.template_features = c;
-%             seg.spike_clusters = c;
+%             seg.spike_cluster_inds = c;
 %         end
 %
 %         % merge over trials
