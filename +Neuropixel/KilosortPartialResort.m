@@ -148,6 +148,9 @@ classdef KilosortPartialResort < handle
             p.addParameter('data_replace', {}, @iscell);
             p.addParameter('debug_ignore_replace_data', false, @islogical);
             p.addParameter('pad_spike_extract_windows', [0 0], @isvector); % pad spike-sorted windows by this amount [pre post] relative to the data_replace_windows
+            
+            % use this to simply reextract spikes from specific windows, useful when not replacing data in situ
+            p.addParameter('spike_extract_windows', zeros(0, 2), @(x) ismatrix(x) && size(x, 2) == 2);
             p.parse(varargin{:});
             
             assert(isa(ks, 'Neuropixel.KilosortDataset'));
@@ -158,7 +161,13 @@ classdef KilosortPartialResort < handle
             data_replace = p.Results.data_replace;
             data_replace_windows = p.Results.data_replace_windows;
             pad_spike_extract_windows = p.Results.pad_spike_extract_windows;
-            spike_extract_windows = [data_replace_windows(:, 1) - pad_spike_extract_windows(1), data_replace_windows(:, 2) + pad_spike_extract_windows(2)];
+            spike_extract_windows = p.Results.spike_extract_windows;
+            if isempty(spike_extract_windows)
+                assert(~isempty(data_replace_windows), 'Neighter data_replace_windows nor spike_extract_windows specified, not sure what to resort');
+                spike_extract_windows = [data_replace_windows(:, 1) - pad_spike_extract_windows(1), data_replace_windows(:, 2) + pad_spike_extract_windows(2)];
+            else
+                spike_extract_windows = [spike_extract_windows(:, 1) - pad_spike_extract_windows(1), spike_extract_windows(:, 2) + pad_spike_extract_windows(2)];
+            end
 
             if p.Results.debug_ignore_replace_data
                 data_replace = {};

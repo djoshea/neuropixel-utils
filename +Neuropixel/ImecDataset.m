@@ -1457,7 +1457,8 @@ end
                 end
 
                 data = mm.Data.x(chInds, source_idx);
-
+                data_pre = data;
+                
                 % ch_connected_mask indicates which channels are
                 % connected, which are the ones where scaling makes
                 % sense. chIdx is all channels being modified by procFnList
@@ -1478,7 +1479,7 @@ end
 
                 if useGpuArray
                     data = gpuArray(data);
-                end
+                end                
 
                 % apply each procFn sequentially
                 for iFn = 1:numel(procFnList)
@@ -1510,7 +1511,8 @@ end
 
                 data = int16(data);
 
-                if ~dryRun
+                changed = ~isequal(data, data_pre);
+                if ~dryRun && changed
                     % slice off extra at edges
                     data = data(:, keepIdx);
                     mm.Data.x(chInds, source_idx) = data;

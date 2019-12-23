@@ -740,8 +740,17 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
 
             ks.whitening_mat = read('whitening_mat');
             ks.whitening_mat_inv = read('whitening_mat_inv');
+            
+            % ensure that spike_clusters wont change if load_cutoff is false
             ks.spike_clusters = read('spike_clusters');
+            cutoff_spike_clusters = readOr('cutoff_spike_clusters');
+            ks.cluster_ids = unique(cat(1, ks.spike_clusters, cutoff_spike_clusters));
+            if loadCutoff
+                ks.cutoff_spike_clusters = cutoff_spike_clusters;
+            end
 
+            assert(~isempty(ks.cluster_ids));
+            
             if existp('spike_clusters_ks2orig.npy')
                 ks.spike_clusters_ks2orig = read('spike_clusters_ks2orig');
             else
@@ -759,9 +768,7 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                 ks.pc_features = ks.pc_features(mask, :, :);
                 ks.template_features = ks.template_features(mask, :);
             end
-            ks.cluster_ids = unique(ks.spike_clusters);
 
-            assert(~isempty(ks.cluster_ids));
 
             % load KS cluster labels
             ks.cluster_ks_label = repmat(categorical("unsorted"), numel(ks.cluster_ids), 1);
@@ -882,7 +889,8 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                     end
 
                     ks.cutoff_amplitudes = readOr('cutoff_amplitudes');
-                    ks.cutoff_spike_clusters = readOr('cutoff_spike_clusters'); % rez.st3_cutoff is 1 indexed, cluster ids are 0 indexed
+                    % now loaded above
+%                     ks.cutoff_spike_clusters = readOr('cutoff_spike_clusters'); % rez.st3_cutoff is 1 indexed, cluster ids are 0 indexed
                     if existp('cutoff_spike_clusters_ks2orig.npy')
                         ks.cutoff_spike_clusters_ks2orig = read('cutoff_spike_clusters_ks2orig');
                     else
@@ -2017,9 +2025,11 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
             p = inputParser();
             p.addParameter('progressInitializeFn', [], @(x) isempty(x) || isa(x, 'function_handle')); % f(nUpdates) to print update
             p.addParameter('progressIncrementFn', [], @(x) isempty(x) || isa(x, 'function_handle')); % f(updateString) to print update
+            p.addParameter('allowOverwriteSelf', false, @islogical);
             p.parse(varargin{:});
             
-            assert(~strcmp(outpath, ks.path));
+            overwriteSelf = strcmp(outpath, ks.path);
+            assert(p.Results.allowOverwriteSelf || ~overwriteSelf, 'Refusing to overwrite on disk, pass allowOverwriteSelf true to allow this');
 
             % copy params.py
             oldp = @(file) fullfile(ks.path, file);
@@ -2042,8 +2052,10 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                 progIncrFn = p.Results.progressIncrementFn;
             end
             
-            progIncrFn('Copying params.py');
-            copyfile(oldp('params.py'), newp('params.py'));
+            if ~overwriteSelf
+                progIncrFn('Copying params.py');
+                copyfile(oldp('params.py'), newp('params.py'));
+            end
 
             if ~isempty(ks.ops)
                 progIncrFn('Copying ops.mat');
