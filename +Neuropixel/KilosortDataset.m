@@ -685,8 +685,8 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
             existp = @(file) exist(fullfile(path, file), 'file') > 0;
 
             nProg = 15;
-            has_ccb = existp('batchwise_ccb.npy');
-            if has_ccb
+            has_tsv = existp('cluster_KSLabel.tsv');
+            if has_tsv
                 ks.kilosort_version = 2;
                 nProg = nProg + 24;
             else
@@ -722,8 +722,10 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
             ks.similar_templates = read('similar_templates');
             ks.spike_templates = read('spike_templates');
             ks.spike_templates = ks.spike_templates + ones(1, 'like', ks.spike_templates);
-            ks.spike_templates_preSplit = read('spike_templates_preSplit');
-            ks.spike_templates_preSplit = ks.spike_templates_preSplit + ones(1, 'like', ks.spike_templates_preSplit);
+            if existp('spike_templates_preSplit.npy')
+                ks.spike_templates_preSplit = read('spike_templates_preSplit');
+                ks.spike_templates_preSplit = ks.spike_templates_preSplit + ones(1, 'like', ks.spike_templates_preSplit);
+            end
             ks.spike_times = read('spike_times');
             if loadFeatures
                 ks.template_features = read('template_features');
@@ -827,14 +829,16 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                 else
                     W = readOr('template_W');
                     if isempty(W)
-                        nTImeTemp = size(ks.templates, 2);
+                        % first 21 tend to be zero in kilosort2
+                        firstNonZero = find(any(ks.templates ~= 0, [1 3]), 1, 'first');
+                        nStrip = firstNonZero - 1;
                     else
                         nTimeTemp = size(W, 1);
+                        assert(nTimeTemp ~= 0);
+                        nStrip = size(ks.templates, 2) - nTimeTemp;
                     end
                 end
-                assert(nTimeTemp ~= 0);    
-                
-                nStrip = size(ks.templates, 2) - nTimeTemp;
+
                 if nStrip > 0
                     ks.templates = ks.templates(:, nStrip+1:end, :);
                     ks.template_sample_offset = ks.template_sample_offset - uint64(nStrip);
