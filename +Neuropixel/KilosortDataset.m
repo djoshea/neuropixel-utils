@@ -151,6 +151,14 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
 
         % unique clusters in spike_clusters [nClusters]
         cluster_ids (:, 1) uint32
+        
+        % has the list of spikes already been deduplicated
+        is_deduplicated (1, 1) logical = false;
+        
+        deduplicate_spikes logical = false;
+        deduplicate_cutoff_spikes logical = false;
+        deduplicate_within_samples uint64 = 5;
+        deduplicate_within_distance single = 50;
     end
 
     properties % Secondary data, loaded from rez.mat for Kilosort2 only
@@ -479,6 +487,13 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
             p.addParameter('imecDataset', [], @(x) true);
             p.addParameter('fsAP', [], @(x) isempty(x) || isscalar(x));
             p.addParameter('apScaleToUv', [], @(x) isempty(x) || isscalar(x));
+            
+            % these will affect how load is performed
+            p.addParameter('deduplicate_spikes', true, @islogical);
+            p.addParameter('deduplicate_cutoff_spikes', true, @islogical);
+            p.addParameter('deduplicate_within_samples', 5, @isscalar);
+            p.addParameter('deduplicate_within_distance', 50, @isscalar);
+            
             p.parse(varargin{:});
 
             if isa(path, 'Neuropixel.ImecDataset')
@@ -535,6 +550,11 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                 ks.meta = ks.raw_dataset.readAPMeta();
                 ks.concatenationInfo = ks.raw_dataset.concatenationInfoAP;
             end
+            
+            ks.deduplicate_spikes = p.Results.deduplicate_spikes;
+            ks.deduplicate_cutoff_spikes = p.Results.deduplicate_cutoff_spikes;
+            ks.deduplicate_within_samples = p.Results.deduplicate_within_samples;
+            ks.deduplicate_within_distance = p.Results.deduplicate_within_distance;         
         end
 
         function s = computeBasicStats(ks, varargin)
@@ -908,9 +928,6 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                 end
             end
 
-            if exist('prog', 'var')
-                prog.finish();
-            end
             ks.metrics = []; % old metrics no longer valid
             ks.isLoaded = true;
             if loadBatchwise
@@ -925,7 +942,27 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
             if loadPreSplit
                 ks.isLoadedPreSplit = true;
             end
-
+            
+            if ks.deduplicate_spikes || ks.deduplicate_cutoff_spikes
+                if existp('spike_deduplication_mask.mat')
+                    progIncrFn('Applying saved spike_deduplication_mask.mat');
+                    temp = load(fullfile(path, 'spike_deduplication_mask.mat'), 'spike_deduplication_mask');
+                    mask = temp.spike_deduplication_mask;
+                    cutoff_mask = temp.cutoff_spike_deduplication_mask;
+                    ks.mask_spikes(mask, cutoff_mask);
+                    ks.is_deduplicated = true;
+                else
+                    progIncrFn('Deduplicating spikes');
+                    ks.remove_duplicate_spikes();
+                end
+            else
+                ks.is_deduplicated = false;
+            end
+            
+            if exist('prog', 'var')
+                prog.finish();
+            end
+            
             function out = readOr(file, default)
                 ffile = fullfile(path, [file '.npy']);
                 if exist(ffile, 'file') > 0
@@ -1919,9 +1956,9 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
         
         function [mask_dup_spikes, mask_dup_spikes_cutoff, stats] = identify_duplicate_spikes(ks, varargin)
             p = inputParser();
-            p.addParameter('include_cutoff_spikes', true, @islogical);
-            p.addParameter('withinSamples', 5, @isscalar);
-            p.addParameter('withinDistance', 50, @isscalar);
+            p.addParameter('include_cutoff_spikes', ks.deduplicate_cutoff_spikes, @islogical);
+            p.addParameter('withinSamples', ks.deduplicate_within_samples, @isscalar);
+            p.addParameter('withinDistance', ks.deduplicate_within_distance, @isscalar);
             p.parse(varargin{:});
             
             assert(issorted(ks.spike_times), 'call .sortSpikes first');
@@ -2019,8 +2056,33 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
         end
 
         function stats = remove_duplicate_spikes(ks, varargin)
-            [mask_dup_spikes, mask_dup_spikes_cutoff, stats] = ks.identify_duplicate_spikes(varargin{:});
+            p = inputParser();
+            p.addParameter('saveToDisk', true, @islogical);
+            p.KeepUnmatched = true;
+            p.parse(varargin{:});
+            saveToDisk = p.Results.saveToDisk;
+            
+            if ks.is_deduplicated
+                if saveToDisk
+                    error('Calling ks.remove_duplicate_spikes with saveToDisk true when ks.is_deduplicated is true');
+                else
+                    warning('Calling ks.remove_duplicate_spikes when ks.is_deduplicated is true');
+                end
+            end
+            
+            [mask_dup_spikes, mask_dup_spikes_cutoff, stats] = ks.identify_duplicate_spikes(p.Unmatched);
             ks.mask_spikes(~mask_dup_spikes, ~mask_dup_spikes_cutoff);
+            ks.is_deduplicated = true;
+            
+            if saveToDisk
+                toSave.spike_deduplication_mask = ~mask_dup_spikes;
+                toSave.cutoff_spike_deduplication_mask = ~mask_dup_spikes_cutoff;
+                toSave.deduplicate_cutoff_spikes = ks.deduplicate_cutoff_spikes;
+                toSave.deduplicate_within_samples = ks.deduplicate_within_samples;
+                toSave.deduplicate_within_distance = ks.deduplicate_within_distance;
+              
+                save(fullfile(ks.path, 'spike_deduplication_mask.mat'), '-v7.3', '-struct', 'toSave');
+            end
         end
     end
     
