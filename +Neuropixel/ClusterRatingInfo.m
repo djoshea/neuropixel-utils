@@ -87,11 +87,19 @@ classdef ClusterRatingInfo < handle & matlab.mixin.Copyable
             r.ks = ks;
             assert(~isempty(ks.cluster_ids));
             if ~isequal(r.cluster_ids, ks.cluster_ids)
-                warning('KilsortDataset cluster_ids do not match ClusterRatingInfo''s');
                 
                 % update my properties to avoid mismatch
                 [maskKeep, indSet] = ismember(r.cluster_ids, ks.cluster_ids);
+                indSet = indSet(maskKeep);
                 
+                nDropped = nnz(~maskKeep);
+                uniq_ratings_dropped = unique(string(r.ratings(~maskKeep)));
+                
+                missing = ~ismember(ks.cluster_ids, r.cluster_ids);
+                nMissing = nnz(missing);
+                warning('KilsortDataset cluster_ids do not match ClusterRatingInfo''s. Missing ratings for %d. Dropping %d with ratings %s', ...
+                    nMissing, nDropped, strjoin(uniq_ratings_dropped, '+'));
+     
                 ratings = r.ratings; %#ok<*PROPLC>
                 usableWithin = r.usableWithin;
                 stableAcross = r.stableAcross;
