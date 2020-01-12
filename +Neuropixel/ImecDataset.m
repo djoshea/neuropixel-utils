@@ -46,6 +46,7 @@ classdef ImecDataset < handle
     properties(Dependent)
         hasAP
         hasLF
+        hasSourceDatasets
 
         channelMapFile
         mappedChannels
@@ -141,15 +142,37 @@ classdef ImecDataset < handle
         end
 
         function readInfo(imec)
-            meta = imec.readAPMeta();
+            if imec.hasAP
+                metaAP = imec.readAPMeta();
+                if imec.hasLF
+                    metaLF = imec.readLFMeta();
+                else
+                    metaLF = struct();
+                end
+                meta = metaAP;
+                
+            elseif imec.hasLF
+                metaAP = struct();
+                metaLF = imec.readLFMeta();
+                meta = metaLF;
+            else
+                error('Must have either AP or LF data files');
+            end
+            
             imec.nChannels = meta.nSavedChans;
-            imec.fsAP = meta.imSampRate;
-            imec.highPassFilterHz = meta.imHpFlt;
             imec.creationTime = datenum(meta.fileCreateTime, 'yyyy-mm-ddTHH:MM:SS');
 
+            if imec.hasAP
+                imec.fsAP = metaAP.imSampRate;
+                imec.highPassFilterHz = metaAP.imHpFlt;
+            elseif imec.hasSourceDatasets
+                imec.fsAP = imec.sourceDatasets(1).fsAP;
+            end
+            
             if imec.hasLF
-                metaLF = imec.readLFMeta();
                 imec.fsLF = metaLF.imSampRate;
+            elseif imec.hasSourceDatasets
+                imec.fsLF = imec.sourceDatasets(1).fsLF;
             end
 
             % parse imroTable
@@ -157,9 +180,14 @@ classdef ImecDataset < handle
             gainVals = strsplit(m{2}{1}, ' ');
             imec.apGain = str2double(gainVals{4});
             imec.lfGain = str2double(gainVals{5});
-
-            imec.apRange = [meta.imAiRangeMin meta.imAiRangeMax];
-            imec.lfRange = [meta.imAiRangeMin meta.imAiRangeMax];
+            
+            if imec.hasAP
+                imec.apRange = [metaAP.imAiRangeMin metaAP.imAiRangeMax];
+            end
+            
+            if imec.hasLF
+                imec.lfRange = [metaLF.imAiRangeMin metaLF.imAiRangeMax];
+            end
 
             % look at AP meta fields that might have been set by us
             if isfield(meta, 'badChannels') && ~isempty(meta.badChannels)
@@ -207,6 +235,15 @@ classdef ImecDataset < handle
         function setSourceDatasets(imec, imecList)
             assert(isempty(imecList) || isa(imecList, 'Neuropixel.ImecDataset'));
             imec.sourceDatasets = imecList;
+            
+            % attempt to fill in missing metadata as well
+            if isnan(imec.fsAP)
+                imec.fsAP = imec.sourceDatasets(1).fsAP;
+            end
+            
+            if isnan(imec.fsLF)
+                imec.fsLF = imec.sourceDatasets(1).fsLF;
+            end
         end
 
         function idx = lookupSyncBitByName(imec, names, ignoreNotFound)
@@ -396,11 +433,30 @@ classdef ImecDataset < handle
             end 
         end
         
+        function idxLF = closestSampleLFForAP(imec, idxAP)
+            idxLF = floor(double(idxAP-1) * double(imec.fsLF) / double(imec.fsAP)) + 1;
+        end
+        
+        function idxAP = closestSampleAPForLF(imec, idxLF)
+            idxAP = floor(double(idxLF-1) * double(imec.fsAP) / double(imec.fsLF)) + 1;
+        end
+        
         function data = readAP_idx(imec, sampleIdx, varargin)
+            data = imec.internal_read_idx(sampleIdx, 'band', 'ap', varargin{:});
+        end
+        
+        function data = readLF_idx(imec, sampleIdx, varargin)
+            data = imec.internal_read_idx(sampleIdx, 'band', 'lf', varargin{:});
+        end
+        
+        function data = internal_read_idx(imec, sampleIdx, varargin)
             p = inputParser();
+            p.addParameter('band', 'ap', @ischar);
             p.addParameter('applyScaling', true, @islogical); % convert to uV before processing
             p.addParameter('fromSourceDatasets', false, @islogical);
             p.parse(varargin{:});
+            
+            source = p.Results.source;
             
             fromSource = p.Results.fromSourceDatasets;
             
@@ -433,6 +489,12 @@ classdef ImecDataset < handle
             mat = imec.readAP_idx(sampleIdx, varargin{:});
         end
         
+        function [mat, sampleIdx] = readLF_timeWindow(imec, timeWindowSec, varargin)
+            idxWindow = imec.closestSampleLFForTime(timeWindowSec);
+            sampleIdx = idxWindow(1):idxWindow(2);
+            mat = imec.readLF_idx(sampleIdx, varargin{:});
+        end
+        
         function [mat, sampleIdx] = readSyncBits_timeWindow(imec, bits, timeWindowSec)
             idxWindow = imec.closestSampleAPForTime(timeWindowSec);
             sampleIdx = idxWindow(1):idxWindow(2);
@@ -461,7 +523,16 @@ classdef ImecDataset < handle
         end
         
         function inspectAP_idxWindow(imec, idxWindow, varargin)
+            imec.internal_inspect_idxWindow(idxWindow, 'source', 'ap');
+        end
+        
+        function inspectLF_idxWindow(imec, idxWindow, varargin)
+            imec.internal_inspect_idxWindow(idxWindow, 'source', 'lf');
+        end
+        
+        function internal_inspect_idxWindow(imec, idxWindow, varargin)
             p = inputParser();
+            p.addParameter('source', 'ap', @ischar);
             p.addParameter('channels', imec.mappedChannels, @(x) isempty(x) || isvector(x));
             p.addParameter('invertChannels', false, @islogical);
             p.addParameter('goodChannelsOnly', false, @islogical);
@@ -482,10 +553,13 @@ classdef ImecDataset < handle
             p.addParameter('markSampleColor', [0.5 0 0.5], @(x) true);
             p.parse(varargin{:});
             
+            source = string(p.Results.ap);
+            
             if numel(idxWindow) > 2
                 idxWindow = [idxWindow(1), idxWindow(end)];
             end
             sampleIdx = idxWindow(1):idxWindow(2);
+            
             mat = imec.readAP_idx(sampleIdx, 'fromSourceDatasets', p.Results.fromSourceDatasets); % C x T
             labels = imec.channelNamesPadded;
             
@@ -1138,6 +1212,10 @@ classdef ImecDataset < handle
 
             meta.syncBitNames = imec.syncBitNames;
             meta.badChannels = imec.badChannels;
+        end
+        
+        function tf = get.hasSourceDatasets(imec)
+            tf = ~isempty(imec.sourceDatasets);
         end
 
         function writeModifiedAPMeta(imec, varargin)
