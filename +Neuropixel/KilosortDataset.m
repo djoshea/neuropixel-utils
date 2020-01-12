@@ -844,8 +844,12 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                 % strip leading zeros off of ks.templates based on size of W
                 if ~isempty(ks.W)
                     nTimeTemp = size(ks.W, 1);
+                    assert(nTimeTemp ~= 0);
+                    nStrip = size(ks.templates, 2) - nTimeTemp;
                 elseif isfield(ks.ops, 'nt0')
                     nTimeTemp = ks.ops.nt0;
+                    assert(nTimeTemp ~= 0);
+                    nStrip = size(ks.templates, 2) - nTimeTemp;
                 else
                     W = readOr('template_W');
                     if isempty(W)
@@ -1008,7 +1012,9 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
             dest_path = fullfile(ks.path, 'cutoff_spike_clusters_ks2orig.npy');
             if ~exist(dest_path, 'file')
                 src_path = fullfile(ks.path, 'cutoff_spike_clusters.npy');
-                copyfile(src_path, dest_path);
+                if exist(src_path, 'file')
+                    copyfile(src_path, dest_path);
+                end
             end
         end
 
@@ -1041,6 +1047,9 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
         end
 
         function accept_cutoff_spikes(ks, ratings_or_cluster_ids)
+            % assumes that cutoff spikes are already loaded
+            assert(ks.isLoadedCutoff, 'Must have loaded cutoff spikes');
+        
             % THIS WILL NEED TO BE UDPATED IF ADDITIONAL PROPS ARE ADDED
             if nargin < 2
                 cluster_ids = ks.cluster_ids;
@@ -1051,6 +1060,10 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                 cluster_ids = ks.cluster_ids(ratings_or_cluster_ids);
             else
                 cluster_ids = ratings_or_cluster_ids;
+            end
+            
+            if isempty(ks.cutoff_spike_times)
+                return;
             end
 
             accept_cutoff_mask = ismember(ks.cutoff_spike_clusters, cluster_ids);
@@ -1117,7 +1130,9 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
             
             ks.spike_times = ks.spike_times(mask);
             ks.spike_templates = ks.spike_templates(mask);
-            ks.spike_templates_preSplit = ks.spike_templates_preSplit(mask);
+            if ~isempty(ks.spike_templates_preSplit)
+                ks.spike_templates_preSplit = ks.spike_templates_preSplit(mask);
+            end
             ks.amplitudes = ks.amplitudes(mask);
             ks.spike_clusters = ks.spike_clusters(mask);
             if ks.hasFeaturesLoaded
