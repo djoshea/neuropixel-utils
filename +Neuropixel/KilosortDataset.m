@@ -28,6 +28,8 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
         isLoadedFeatures logical = false;
         isLoadedCutoff logical = false;
         isLoadedPreSplit logical = false;
+        
+        modifiedInMemory logical = false;
     end
 
     % Computed properties
@@ -697,6 +699,11 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                     return;
                 end
             end
+            
+            if ks.modifiedInMemory
+                error('Cannot reload aspects of KilosortDataset after in-memory modifications have been made');
+            end
+            
             ks.isLoaded = false;
 
             ks.readParamsPy();
@@ -790,7 +797,6 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                 ks.pc_features = ks.pc_features(mask, :, :);
                 ks.template_features = ks.template_features(mask, :);
             end
-
 
             % load KS cluster labels
             ks.cluster_ks_label = repmat(categorical("unsorted"), numel(ks.cluster_ids), 1);
@@ -950,9 +956,13 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
             if ks.deduplicate_spikes || ks.deduplicate_cutoff_spikes
                 if existp('spike_deduplication_mask.mat')
                     progIncrFn('Applying saved spike_deduplication_mask.mat');
-                    temp = load(fullfile(path, 'spike_deduplication_mask.mat'), 'spike_deduplication_mask');
+                    temp = load(fullfile(path, 'spike_deduplication_mask.mat'), 'spike_deduplication_mask', 'cutoff_spike_deduplication_mask');
                     mask = temp.spike_deduplication_mask;
-                    cutoff_mask = temp.cutoff_spike_deduplication_mask;
+                    if isfield(temp, 'cutoff_spike_deduplication_mask')
+                        cutoff_mask = temp.cutoff_spike_deduplication_mask;
+                    else
+                        cutoff_mask = false(0, 1);
+                    end
                     ks.mask_spikes(mask, cutoff_mask);
                     ks.is_deduplicated = true;
                 else
@@ -1039,6 +1049,8 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
             end
             ks.spike_clusters = spike_clusters;
             ks.cutoff_spike_clusters = cutoff_spike_clusters;
+            
+            ks.modifiedInMemory = true;
 
             function spike_clusters = apply_single_merge(spike_clusters, dst_cluster_id, src_cluster_ids)
                 mask_assign_to_dst = ismember(spike_clusters, src_cluster_ids);
@@ -1093,6 +1105,8 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                 [ks.pc_features, ks.cutoff_pc_features] = combineAndSort(ks.pc_features, ks.cutoff_pc_features);
                 [ks.template_features, ks.cutoff_template_features] = combineAndSort(ks.template_features, ks.cutoff_template_features);
             end
+            
+            ks.modifiedInMemory = true;
         end
         
 %         function remove_zero_spike_clusters(ks)
@@ -1120,6 +1134,8 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                 ks.cutoff_pc_features = ks.cutoff_pc_features(sortIdx, :, :);
                 ks.cutoff_template_features = ks.cutoff_template_features(sortIdx, :);
             end
+            
+            ks.modifiedInMemory = true;
         end
 
         function mask_spikes(ks, mask, mask_cutoff)
@@ -1149,6 +1165,8 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                 ks.cutoff_pc_features = ks.cutoff_pc_features(mask_cutoff, :, :);
                 ks.cutoff_template_features = ks.cutoff_template_features(mask_cutoff, :);
             end
+            
+            ks.modifiedInMemory = true;
         end
         
         function mask_clusters(ks, cluster_ids)
@@ -1170,6 +1188,8 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                 ks.cutoff_pc_features = [];
                 ks.cutoff_template_features = [];
             end
+            
+            ks.modifiedInMemory = true;
         end
 
         function append_spikes(ks, append)
@@ -1217,6 +1237,8 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                 end 
                 ks.cutoff_template_features = cat(1, ks.cutoff_template_features, f);
             end
+            
+            ks.modifiedInMemory = true;
         end
 
 %         function loadFromRez(ks, rez)
@@ -2077,6 +2099,10 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
             p.parse(varargin{:});
             saveToDisk = p.Results.saveToDisk;
             
+            if ks.modifiedInMemory
+                error('Calling ks.remove_duplicate_spikes after modified in memory');
+            end
+            
             if ks.is_deduplicated
                 if saveToDisk
                     error('Calling ks.remove_duplicate_spikes with saveToDisk true when ks.is_deduplicated is true');
@@ -2088,6 +2114,7 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
             [mask_dup_spikes, mask_dup_spikes_cutoff, stats] = ks.identify_duplicate_spikes(p.Unmatched);
             ks.mask_spikes(~mask_dup_spikes, ~mask_dup_spikes_cutoff);
             ks.is_deduplicated = true;
+            ks.modifiedInMemory = true;
             
             if saveToDisk
                 toSave.spike_deduplication_mask = ~mask_dup_spikes;

@@ -456,8 +456,6 @@ classdef ImecDataset < handle
             p.addParameter('fromSourceDatasets', false, @islogical);
             p.parse(varargin{:});
             
-            source = p.Results.source;
-            
             fromSource = p.Results.fromSourceDatasets;
             
             if ~fromSource
