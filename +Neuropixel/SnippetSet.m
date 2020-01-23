@@ -31,7 +31,7 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
         valid (:, 1) logical
         
         channelMap % ChannelMap for coordinates
-        scaleToUv (1, 1) double
+        scaleToUv (:, 1) single % one value for each snippet (will auto inflate to nSnippets if set to be scalar
         fs
     end
     
@@ -144,6 +144,16 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
             end
         end
         
+        function v = get.scaleToUv(ss)
+            v = ss.scaleToUv;
+            if isempty(v)
+                v = NaN;
+            end
+            if numel(v) == 1
+                v = repmat(v, ss.nSnippets, 1);
+            end
+        end
+        
         function colormap = generateOverlayColormap(~, overlay_labels, backgroundColor)
             if nargin < 3
                 backgroundColor = [0 0 0; 1 1 1];
@@ -183,6 +193,8 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
             if ~isempty(ss.trial_idx)
                 ss.trial_idx = ss.trial_idx(maskSnippets);
             end
+            
+            ss.scaleToUv = ss.scaleToUv(maskSnippets);
         end
         
         function [cluster_inds, cluster_ids] = lookup_clusterIds(ss, cluster_ids)
@@ -217,6 +229,9 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
             p.addParameter('xmag', 0.8, @isscalar);
             p.addParameter('ymag', 0.8, @isscalar);
             p.addParameter('gain', NaN, @isscalar);
+            
+            p.addParameter('center', true, @islogical);
+            p.addParameter('applyScaling', false, @islogical);
             
             p.addParameter('xoffset', 0, @isscalar);
             p.addParameter('yoffset', 0, @isscalar);
@@ -288,7 +303,14 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
             else
                 data = ss.data(p.Results.maskChannels, p.Results.maskTime, maskSnippets);
             end
-            data = data - mean(data, 2); %#ok<*PROPLC>
+            
+            if p.Results.applyScaling
+                data = single(data) .* single(ss.scaleToUv(maskSnippets));
+            end
+            
+            if p.Results.center
+                data = data - mean(data, 2); %#ok<*PROPLC>
+            end
             
             gain = p.Results.gain;
             if isnan(gain)
@@ -778,6 +800,24 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
             
             axis off;
             hold off;
+        end
+        
+        function plotHeatmap(ss, snippet_ind, varargin)
+            % plots one snippet as a heatmap with each of the clusters that occur during that period
+            
+            p = inputParser();
+            p.addParameter('timeInMilliseconds', false, @islogical);
+            p.parse(varargin{:});
+            
+            if p.Results.timeInMilliseconds
+                time = ss.time_ms;
+            else
+                time = ss.time_samples;
+            end
+            data = ss.data(:, :, snippet_ind, 1);
+            
+            Neuropixel.Utils.pmatbal(data, 'x', time);
+            yline(0.5, '-', sprintf('snippet %d', snippet_ind), 'LabelVerticalAlignment', 'bottom');
         end
         
         function plotHeatmapWithTemplates(ss, snippet_ind, varargin)

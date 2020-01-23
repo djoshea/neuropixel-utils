@@ -8,7 +8,8 @@ classdef ImecDataset < handle
         nChannels = NaN;
 
         fileTypeAP = 'ap'; % typically ap or ap_CAR
-
+        fileTypeLF = 'lf'; % typically lf or lf_CAR
+        
         nSamplesAP = 0;
         nSamplesLF = 0;
         fsAP = NaN; % samples_per_second
@@ -46,7 +47,12 @@ classdef ImecDataset < handle
     properties(Dependent)
         hasAP
         hasLF
+        hasSync
+        
         hasSourceDatasets
+        hasSourceAP
+        hasSourceLF
+        hasSourceSync
 
         channelMapFile
         mappedChannels
@@ -105,18 +111,38 @@ classdef ImecDataset < handle
             p.parse(varargin{:})
 
             fileOrFileStem = char(fileOrFileStem);
-            file = Neuropixel.ImecDataset.findImecFileInDir(fileOrFileStem, 'ap');
+            file = Neuropixel.ImecDataset.findImecFileInDir(fileOrFileStem, 'ap', false, false);
             if isempty(file)
-                error('No AP Imec file found at or in %s', fileOrFileStem);
-            end
-            [imec.pathRoot, imec.fileStem, imec.fileTypeAP] = Neuropixel.ImecDataset.parseImecFileName(file);
-            if exist(imec.pathAP, 'file')
-                if ~exist(imec.pathAPMeta, 'file')
-                    error('Could not find AP meta file %s', imec.pathAPMeta);
+                file = Neuropixel.ImecDataset.findImecFileInDir(fileOrFileStem, 'lf', false, false);
+                if isempty(file)
+                    error('No AP or LF Imec file found at or in %s', fileOrFileStem);
+                else
+                    isLFOnly = true;
+                    [imec.pathRoot, imec.fileStem, imec.fileTypeLF] = Neuropixel.ImecDataset.parseImecFileName(file);
                 end
-                imec.readInfo();
             else
-                error('Could not find AP bin file %s', imec.pathAP);
+                [imec.pathRoot, imec.fileStem, imec.fileTypeAP] = Neuropixel.ImecDataset.parseImecFileName(file);
+                isLFOnly= false;
+            end
+            
+            if ~isLFOnly
+                if exist(imec.pathAP, 'file')
+                    if ~exist(imec.pathAPMeta, 'file')
+                        error('Could not find AP meta file %s', imec.pathAPMeta);
+                    end
+                    imec.readInfo();
+                else
+                    error('Could not find AP bin file %s', imec.pathAP);
+                end
+            else
+                if exist(imec.pathLF, 'file')
+                    if ~exist(imec.pathLFMeta, 'file')
+                        error('Could not find LF meta file %s', imec.pathLFMeta);
+                    end
+                    imec.readInfo();
+                else
+                    error('Could not find LF bin file %s', imec.pathLF);
+                end
             end
 
             channelMap = p.Results.channelMap;
@@ -137,7 +163,7 @@ classdef ImecDataset < handle
             
             if ~isempty(p.Results.sourceDatasets)
                 assert(isa(p.Results.sourceDatasets, 'Neuropixel.ImecDataset'));
-                imec.sourceDatasets = p.Results.sourceDatasets;
+                imec.setSourceDatasets(p.Results.sourceDatasets);
             end
         end
 
@@ -205,10 +231,10 @@ classdef ImecDataset < handle
 
                 imec.nSamplesAP = bytes / imec.bytesPerSample / imec.nChannels;
                 assert(round(imec.nSamplesAP) == imec.nSamplesAP, 'AP bin file size is not an integral number of samples');
+                
+                imec.concatenationInfoAP = Neuropixel.ConcatenationInfo(imec, 'ap', metaAP);
             end
             
-            imec.concatenationInfoAP = Neuropixel.ConcatenationInfo(imec, 'ap', meta);
-
             if imec.hasLF
                 fid = imec.openLFFile();
                 fseek(fid, 0, 'eof');
@@ -217,8 +243,8 @@ classdef ImecDataset < handle
                 imec.nSamplesLF = bytes / imec.bytesPerSample / imec.nChannels;
                 assert(round(imec.nSamplesAP) == imec.nSamplesAP, 'LF bin file size is not an integral number of samples');
               
-                imec.concatenationInfoLF = Neuropixel.ConcatenationInfo(imec, 'lf', meta);
-            end
+                imec.concatenationInfoLF = Neuropixel.ConcatenationInfo(imec, 'lf', metaLF);
+            end 
         end
 
         function setSyncBitNames(imec, idx, names)
@@ -243,6 +269,33 @@ classdef ImecDataset < handle
             
             if isnan(imec.fsLF)
                 imec.fsLF = imec.sourceDatasets(1).fsLF;
+            end
+            
+            % attempt to cross infer concatenation info if missing
+            if imec.hasAP && ~imec.hasLF && imec.hasSourceLF
+                % infer LF concatenation info from AP info to enable source LF data access through concatInfo lookup
+                if ~isempty(imecList)
+                    imec.concatenationInfoLF = Neuropixel.ConcatenationInfo.inferFromOtherBand(imec, 'lf', 'ap');
+                    imec.nSamplesLF = imec.concatenationInfoLF.nSamples;
+                    imec.lfRange = imec.concatenationInfoLF.ranges(1, :); % we assume that the ranges are shared across all datasets
+                else
+                    % clear existing info
+                    imec.concatenationInfoLF = [];
+                    imec.nSamplesLF = 0;
+                    imec.lfRange = [];
+                end
+            elseif imec.hasLF && ~imec.hasAP && imec.hasSourceAP
+                if ~isempty(imecList)
+                    % infer AP concatenation info from LF info to enable source AP data access through concatInfo lookup
+                    imec.concatenationInfoAP = Neuropixel.ConcatenationInfo.inferFromOtherBand(imec, 'ap', 'lf');
+                    imec.nSamplesAP = imec.concatenationInfoAP.nSamples;
+                    imec.apRange = imec.concatenationInfoLF.ranges(1, :); % we assume that the ranges are shared across all datasets
+                else
+                    % clear existing info
+                    imec.concatenationInfoAP = [];
+                    imec.nSamplesAP = 0;
+                    imec.apRange = [];
+                end
             end
         end
 
@@ -451,15 +504,40 @@ classdef ImecDataset < handle
         
         function data = internal_read_idx(imec, sampleIdx, varargin)
             p = inputParser();
-            p.addParameter('band', 'ap', @ischar);
+            p.addParameter('band', 'ap', @isstringlike);
             p.addParameter('applyScaling', true, @islogical); % convert to uV before processing
             p.addParameter('fromSourceDatasets', false, @islogical);
             p.parse(varargin{:});
             
             fromSource = p.Results.fromSourceDatasets;
+            band = string(p.Results.band);
+            switch band
+                case 'ap'
+                    if ~fromSource
+                        assert(imec.hasAP, 'ImecDataset does not have AP band');
+                    else
+                        assert(imec.hasSourceAP, 'ImecDataset does not have source datasets with AP band');
+                    end
+                case 'lf'
+                    if ~fromSource
+                        assert(imec.hasLF, 'ImecDataset does not have LF band');
+                    else
+                        assert(imec.hasSourceLF, 'ImecDataset does not have source datasets with LF band');
+                    end
+                otherwise
+                    error('Unknown band %s', band);
+            end
+            
+            ch_conn_mask = imec.lookup_channelIds(imec.connectedChannels);
             
             if ~fromSource
-                mm = imec.memmapAP_full();
+                if band == "ap"
+                    mm = imec.memmapAP_full();
+                    scaleToUv = imec.apScaleToUv;
+                else
+                    mm = imec.memmapLF_full();
+                    scaleToUv = imec.lfScaleToUv;
+                end
             
                 if any(isnan(sampleIdx))
                     mask = ~isnan(sampleIdx);
@@ -468,16 +546,28 @@ classdef ImecDataset < handle
                 else
                     data = mm.Data.x(:, sampleIdx);
                 end
+                
+                if p.Results.applyScaling
+                    data = single(data);
+                    data(ch_conn_mask, :) = data(ch_conn_mask, :) * single(scaleToUv);
+                end
             else
-                mmSet = imec.memmap_sourceAP_full();
-                [sourceFileInds, sourceSampleInds] = imec.concatenationInfoAP.lookup_sampleIndexInSourceFiles(sampleIdx);
-                data = Neuropixel.ImecDataset.multi_mmap_extract_sample_idx(mmSet, sourceFileInds, sourceSampleInds);
-            end
-
-            if p.Results.applyScaling
-                data = single(data);
-                ch_conn_mask = imec.lookup_channelIds(imec.connectedChannels);
-                data(ch_conn_mask, :) = data(ch_conn_mask, :) * single(imec.apScaleToUv);
+                if band == "ap"
+                    mmSet = imec.memmap_sourceAP_full();
+                    [sourceFileInds, sourceSampleInds] = imec.concatenationInfoAP.lookup_sampleIndexInSourceFiles(sampleIdx);
+                    scalingByFile = imec.concatenationInfoAP.scaleToUvs;
+                else
+                    mmSet = imec.memmap_sourceLF_full();
+                    [sourceFileInds, sourceSampleInds] = imec.concatenationInfoLF.lookup_sampleIndexInSourceFiles(sampleIdx);
+                    scalingByFile = imec.concatenationInfoAP.scaleToUvs;
+                end
+                
+                % if applyScaling, use the per-file scalings to produce uv, scaling only the connected channels
+                % otherwise we pass [] so that no scaling is done
+                if ~p.Results.applyScaling
+                    scalingByFile = [];
+                end
+                data = Neuropixel.ImecDataset.multi_mmap_extract_sample_idx(mmSet, sourceFileInds, sourceSampleInds, imec.channelIds, scalingByFile, ch_conn_mask);
             end
         end
        
@@ -521,26 +611,33 @@ classdef ImecDataset < handle
         end
         
         function inspectAP_idxWindow(imec, idxWindow, varargin)
-            imec.internal_inspect_idxWindow(idxWindow, 'source', 'ap');
+            imec.internal_inspect_idxWindow(idxWindow, 'band', 'ap', varargin{:});
         end
         
         function inspectLF_idxWindow(imec, idxWindow, varargin)
-            imec.internal_inspect_idxWindow(idxWindow, 'source', 'lf');
+            imec.internal_inspect_idxWindow(idxWindow, 'band', 'lf', varargin{:});
+        end
+        
+        function inspectLF_timeWindow(imec, timeWindowSec, varargin)
+            idxWindow = imec.closestSampleLFForTime(timeWindowSec);
+            imec.inspectLF_idxWindow(idxWindow, 'timeInSeconds', true, varargin{:});
         end
         
         function internal_inspect_idxWindow(imec, idxWindow, varargin)
             p = inputParser();
-            p.addParameter('source', 'ap', @ischar);
+            p.addParameter('band', 'ap', @ischar);
             p.addParameter('channels', imec.mappedChannels, @(x) isempty(x) || isvector(x));
-            p.addParameter('invertChannels', false, @islogical);
+            p.addParameter('invertChannels', imec.channelMap.invertChannelsY, @islogical);
             p.addParameter('goodChannelsOnly', false, @islogical);
             p.addParameter('connectedChannelsOnly', false, @islogical);
             p.addParameter('showSync', true, @isvector);
             p.addParameter('syncBits', imec.syncBitsNamed, @isvector);
             p.addParameter('showLabels', true, @islogical);
             p.addParameter('gain', 0.95, @isscalar);
-            p.addParameter('car', false, @islogical);
+            p.addParameter('car', false, @islogical); % subtract median of all channels at each time
+            p.addParameter('center', false, @islogical); % subtract median of each channel over time
             p.addParameter('fromSourceDatasets', false, @islogical);
+            p.addParameter('syncFromSourceDatasets', [], @(x) isempty(x) || islogical(x));
             p.addParameter('downsample',1, @isscalar); 
             p.addParameter('timeInSeconds', false, @islogical);
             p.addParameter('timeRelativeTo', 0, @isscalar);
@@ -549,16 +646,35 @@ classdef ImecDataset < handle
             p.addParameter('markSampleIdx', [], @isvector);
             p.addParameter('markSampleMode', 'rug', @ischar);
             p.addParameter('markSampleColor', [0.5 0 0.5], @(x) true);
+            
+            p.addParameter('style', 'traces', @isstringlike);
+            
             p.parse(varargin{:});
             
-            source = string(p.Results.ap);
+            % by default, sync comes from same source v. processed data as the data being plotted, 
+            % but this can be overrriden
+            fromSource = p.Results.fromSourceDatasets;
+            syncFromSource = p.Results.syncFromSourceDatasets;
+            if isempty(syncFromSource)
+                syncFromSource = fromSource;
+            end
+            
+            band = string(p.Results.band);
+            switch band
+                case 'ap'
+                    fsBand = imec.fsAP;
+                case 'lf'
+                    fsBand = imec.fsLF;
+                otherwise
+                    error('Unknown band %s', band);
+            end
             
             if numel(idxWindow) > 2
                 idxWindow = [idxWindow(1), idxWindow(end)];
             end
             sampleIdx = idxWindow(1):idxWindow(2);
             
-            mat = imec.readAP_idx(sampleIdx, 'fromSourceDatasets', p.Results.fromSourceDatasets); % C x T
+            mat = imec.internal_read_idx(sampleIdx, 'band', band, 'fromSourceDatasets', fromSource); % C x T
             labels = imec.channelNamesPadded;
             
             [channelInds, channelIds] = imec.lookup_channelIds(p.Results.channels); %#ok<*PROPLC>
@@ -582,9 +698,17 @@ classdef ImecDataset < handle
                 mat = mat(:, 1:p.Results.downsample:end);
                 sampleIdx = sampleIdx(1:p.Results.downsample:end);
             end
-            mat = double(mat);
+            mat = single(mat);
+            if p.Results.center
+                mat = mat - median(mat, 2);
+            end
             if p.Results.car
                 mat = mat - median(mat, 1);
+            end
+            
+            if p.Results.invertChannels
+                mat = flipud(mat);
+                labels = flipud(labels);
             end
             
             colors = zeros(size(mat, 1), 3);
@@ -594,9 +718,14 @@ classdef ImecDataset < handle
             normalizeMask = true(size(mat, 1), 1);
             
             % append sync bit info to plot in purple
+            showSync = p.Results.showSync;
+            if (syncFromSource && ~imec.hasSourceSync) || (~syncFromSource && ~imec.hasSync)
+                warning('Cannot show sync data since no sync data present');
+                showSync = false;
+            end
             syncBits = p.Results.syncBits;
-            if ~isempty(syncBits) && p.Results.showSync
-                syncBitMat = imec.readSyncBits_idx(syncBits, sampleIdx, 'fromSourceDatasets', p.Results.fromSourceDatasets);
+            if ~isempty(syncBits) && showSync
+                syncBitMat = imec.readSyncBits_idx(syncBits, sampleIdx, 'fromSourceDatasets', syncFromSource);
                 mat = cat(1, mat, syncBitMat);
                 syncColor = [0.75 0 0.9];
                 colors = cat(1, colors, repmat(syncColor, size(syncBitMat, 1), 1));
@@ -611,10 +740,30 @@ classdef ImecDataset < handle
             timeRelativeTo = p.Results.timeRelativeTo;
             time = int64(sampleIdx) - int64(timeRelativeTo);
             if p.Results.timeInSeconds
-                time = double(time) / imec.fsAP;
+                time = double(time) / fsBand;
             end
-            Neuropixel.Utils.plotStackedTraces(time, mat', 'colors', colors, 'labels', labels, ...
-                'gain', p.Results.gain, 'invertChannels', p.Results.invertChannels, 'normalizeMask', normalizeMask, 'normalizeEach', false);
+            
+            style = string(p.Results.style);
+            
+            switch style
+                case 'traces'
+                    Neuropixel.Utils.plotStackedTraces(time, mat', 'colors', colors, 'labels', labels, ...
+                        'gain', p.Results.gain, 'invertChannels', false, ...
+                        'normalizeMask', normalizeMask, 'normalizeEach', false);
+                case 'pmatbal'
+                    if p.Results.invertChannels
+                        mat = flipud(mat);
+                        labelsF = flipud(labels);
+                    else
+                        labelsF = labels;
+                    end
+                    ytick = 1:size(mat, 1);
+                    Neuropixel.Utils.pmatbal(mat, 'x', time, 'y', ytick);
+                    set(gca, 'YTick', ytick, 'YTickLabel', labelsF);
+                    
+                otherwise
+                    error('Unknown style %s', style);
+            end
             
             tsi = p.Results.tsi;
             if ~isempty(tsi)
@@ -630,7 +779,7 @@ classdef ImecDataset < handle
                 
                 markSampleIdx = int64(markSampleIdx) - int64(timeRelativeTo);
                 if p.Results.timeInSeconds
-                    markTimes = double(markSampleIdx) / imec.fsAP;
+                    markTimes = double(markSampleIdx) / fsBand;
                 else
                     markTimes = markSampleIdx;
                 end
@@ -721,15 +870,9 @@ classdef ImecDataset < handle
     end
     
     methods(Static)
-        function out = multi_mmap_extract_sample_idx(mmSet, fileInds, origSampleInds, chInds)
+        function out = multi_mmap_extract_sample_idx(mmSet, fileInds, origSampleInds, chInds, scalingByFile, scalingChMask)
             % given [fileInds, origSampleInds] as returned by ConcatenationInfo/lookup_sampleIndexInSourceFiles
             % extract those samples from the set of memory mapped files in mmSet (returned by memmap**_all)
-            
-            
-            assert(numel(fileInds) == numel(origSampleInds));
-            nSamplesOut = numel(origSampleInds);
-            cls = mmSet{1}.Format{1};
-            nFiles = numel(mmSet);
             
             if nargin < 4
                 nCh = mmSet{1}.Format{2}(1);
@@ -741,22 +884,50 @@ classdef ImecDataset < handle
                     nCh = numel(chInds);
                 end
             end
+            
+            % if scalingByFile is non-empty vector with length nFiles, samples will be scaled by these factors
+            % on a per-file basis and converted to singles
+            if nargin < 5
+                scalingByFile = [];
+            else
+                scalingByFile = single(scalingByFile);
+            end
+            if nargin < 6
+                scalingChMask = true(numel(chInds), 1);
+            end
+            
+            assert(numel(fileInds) == numel(origSampleInds));
+            nSamplesOut = numel(origSampleInds);
+            
+            if isempty(scalingByFile)
+                cls = mmSet{1}.Format{1};
+            else
+                cls = 'single';
+                assert(numel(scalingByFile) == numel(mmSet));
+            end
+            nFiles = numel(mmSet);
+            
             out = zeros(nCh, nSamplesOut, cls);
             
             for iF = 1:nFiles
                 mask = fileInds == iF;
-                out(:, mask) = mmSet{iF}.Data.x(chInds, origSampleInds(mask));
+                if isempty(scalingByFile)
+                    out(:, mask) = mmSet{iF}.Data.x(chInds, origSampleInds(mask));
+                else
+                    out(:, mask) = single(mmSet{iF}.Data.x(chInds, origSampleInds(mask)));
+                    out(scalingChMask, mask) = out(scalingChMask, mask) * scalingByFile(iF);
+                end
             end
         end
     end
 
     methods(Hidden) % Read data at specified times
-        function [data_ch_by_time_by_snippet, cluster_ids, channel_ids_by_snippet] = readSnippetsRaw(imec, times, window, varargin)
+        function [data_ch_by_time_by_snippet, cluster_ids, channel_ids_by_snippet, scaleToUv_by_snippet] = readSnippetsRaw(imec, times, window, varargin)
             % for each sample index in times, read the window times + window(1):window(2)
             % of samples around this time from some channels
 
             p = inputParser();
-            p.addParameter('source', 'ap', @ischar);
+            p.addParameter('band', 'ap', @isstringlike);
             p.addParameter('fromSourceDatasets', false, @islogical);
             
             % specify one of THESE (same channels every snippet or nChannels x numel(times))
@@ -769,6 +940,7 @@ classdef ImecDataset < handle
             p.addParameter('cluster_ids_by_snippet', [], @isvector); % same length as numel(times), corresponding to which cluster was pulled out (e.g. as a waveform)
             
             p.addParameter('car', false, @islogical); % subtract median over channels
+            p.addParameter('center', false, @islogical); % subtract median over time
             p.parse(varargin{:});
 
             channel_ids = p.Results.channel_ids;
@@ -796,40 +968,54 @@ classdef ImecDataset < handle
             
             channel_inds_by_snippet = imec.lookup_channelIds(channel_ids_by_snippet);
 
-            source = p.Results.source;
+            band = string(p.Results.band);
             fromSourceDatasets = p.Results.fromSourceDatasets;
-            switch source
+            switch band
                 case 'ap'
                     nSamples = imec.nSamplesAP;
                     if ~fromSourceDatasets
                         mm = imec.memmapAP_full();
+                        scaleToUv = imec.apScaleToUv;
                     else
                         mmSet = imec.memmap_sourceAP_full();
                         concatInfo = imec.concatenationInfoAP;
+                        scaleToUv_by_source = cat(1, imec.sourceDatasets.apScaleToUv);
                     end
                 case 'lf'
                     nSamples = imec.nSamplesLF;
                     if ~fromSourceDatasets
                         mm = imec.memmapLF_full();
+                        scaleToUv = imec.lfScaleToUv;
                     else
                         mmSet = imec.memmap_sourceLF_full();
                         concatInfo = imec.concatenationInfoLF;
+                        scaleToUv_by_source = cat(1, imec.sourceDatasets.lfScaleToUv);
                     end 
                 otherwise
                     error('Unknown source');
             end
+            
+            assert(nSamples > 0, 'nSamples inferred for dataset is 0');
+            
             times = Neuropixel.Utils.makecol(uint64(times));
             nC = size(channel_ids_by_snippet, 1);
             nC_all = imec.nChannels;
             nS = numel(times);
             nT = numel(window(1):window(2));
             out = zeros(nC, nT, nS, 'int16');
+            
+            if ~fromSourceDatasets
+                scaleToUv_by_snippet = repmat(single(scaleToUv), nS, 1);
+            else
+                % populated below
+                scaleToUv_by_snippet = nan(nS, 1, 'single');
+            end
 
             if numel(times) > 10
                 if exist('ProgressBar', 'class') == 8
-                    prog = ProgressBar(numel(times), 'Extracting %s snippets', upper(source));
+                    prog = ProgressBar(numel(times), 'Extracting %s snippets', upper(band));
                 else
-                    prog = Neuropixel.Utils.ProgressBar(numel(times), 'Extracting %s snippets', upper(source));
+                    prog = Neuropixel.Utils.ProgressBar(numel(times), 'Extracting %s snippets', upper(band));
                 end
             else
                 prog = [];
@@ -839,54 +1025,6 @@ classdef ImecDataset < handle
             idx_request = int64(times') + int64(window(1):window(2))'; % nWindow x nTimes indices
             mask_idx_okay = idx_request >= int64(1) & idx_request <= nSamples;
             idx_request(~mask_idx_okay) = 1; % we'll clear out later
-                
-%             allAtOnce = true;
-%             % two versions of the algorithm, one loops over snippets, one does all indexing at one time
-%             if ~allAtOnce
-%                 if ~fromSourceDatasets
-%                     for iS = 1:numel(times)
-%                         if mod(iS, 20) == 0 && ~isempty(prog), prog.update(iS); end
-% 
-%                         extract_all_ch = mm.Data.x(:, idx_request(:, iS));
-%                         if p.Results.car
-%                             ar = median(extract_all_ch(good_ch_inds, :), 1);
-%                             out(:, :, iS) = extract_all_ch(channel_inds_by_snippet(:, iS), :) - ar; % which channels for this spike
-%                         else
-%                             out(:, :, iS) = extract_all_ch(channel_inds_by_snippet(:, iS), :);
-%                         end
-%                     end
-% 
-%                 else
-%                     [sourceFileInds, sourceSampleInds] = concatInfo.lookup_sampleIndexInSourceFiles(idx_request);
-%                     for iS = 1:numel(times)
-%                         if mod(iS, 20) == 0 && ~isempty(prog), prog.update(iS); end
-%                         extract_all_ch = Neuropixel.ImecDataset.multi_mmap_extract_sample_idx(mmSet, sourceFileInds(:, iS), sourceSampleInds(:, iS));
-%                         if p.Results.car
-%                             ar = median(extract_all_ch(good_ch_inds, :), 1);
-%                             out(:, :, iS) = extract_all_ch(channel_inds_by_snippet(:, iS), :) - ar; % which channels for this spike
-%                         else
-%                             out(:, :, iS) = extract_all_ch(channel_inds_by_snippet(:, iS), :);
-%                         end
-%                     end
-%                 end
-%             else
-%                 if ~fromSourceDatasets
-%                     extract_all_ch = reshape(mm.Data.x(:, idx_request(:)), [nC_all nT, nS]);
-%                 else
-%                     [sourceFileInds, sourceSampleInds] = concatInfo.lookup_sampleIndexInSourceFiles(idx_request);
-%                     extract_all_ch = reshape(Neuropixel.ImecDataset.multi_mmap_extract_sample_idx(mmSet, ...
-%                         sourceFileInds(:), sourceSampleInds(:)), [nC_all nT nS]);
-%                 end
-%                 if p.Results.car
-%                     ar = median(extract_all_ch(good_ch_inds, :, :), 1);
-%                 else
-%                     ar = zeros([1 nT nS], 'like', extract_all_ch);
-%                 end
-%                 for iS = 1:numel(times)
-%                     if mod(iS, 20) == 0 && ~isempty(prog), prog.update(iS); end
-%                     out(:, :, iS) = extract_all_ch(channel_inds_by_snippet(:, iS), :, iS) - ar(1, :, iS); % which channels for this spike
-%                 end
-%             end
             
             nPerGroup = 50; 
             nGroups = ceil(nS / nPerGroup);
@@ -900,6 +1038,7 @@ classdef ImecDataset < handle
                     [sourceFileInds, sourceSampleInds] = concatInfo.lookup_sampleIndexInSourceFiles(idx_request_this);
                     extract_all_ch = reshape(Neuropixel.ImecDataset.multi_mmap_extract_sample_idx(mmSet, ...
                         sourceFileInds(:), sourceSampleInds(:)), [nC_all nT nS_this]);
+                    scaleToUv_by_snippet(idxS) = scaleToUv_by_source(sourceFileInds(1, :)');
                 end
                 if p.Results.car
                     ar = median(extract_all_ch(good_ch_inds, :, :), 1);
@@ -908,6 +1047,9 @@ classdef ImecDataset < handle
                 end
                 for iiS = 1:nS_this
                     out(:, :, idxS(iiS)) = extract_all_ch(channel_inds_by_snippet(:, idxS(iiS)), :, iiS) - ar(1, :, iiS); % which channels for this spike
+                end
+                if p.Results.center
+                    out(:, :, idxS) = out(:, :, idxS(iiS)) - median(out(:, :, idxS), 2);
                 end
                 if ~isempty(prog), prog.increment(nPerGroup); end
             end
@@ -920,10 +1062,11 @@ classdef ImecDataset < handle
     
     methods  % Read data at specified times
         function snippet_set = readAPSnippetSet(imec, times, window, varargin)
-            [data_ch_by_time_by_snippet, cluster_ids, channel_ids_by_snippet] = ...
-                imec.readSnippetsRaw(times, window, 'source', 'ap', varargin{:});
+            [data_ch_by_time_by_snippet, cluster_ids, channel_ids_by_snippet, scaleToUv_by_snippet] = ...
+                imec.readSnippetsRaw(times, window, 'band', 'ap', varargin{:});
             snippet_set = Neuropixel.SnippetSet(imec, 'ap');
             snippet_set.data = data_ch_by_time_by_snippet;
+            snippet_set.scaleToUv = scaleToUv_by_snippet;
             snippet_set.sample_idx = times;
             snippet_set.channel_ids_by_snippet = channel_ids_by_snippet;
             snippet_set.cluster_ids = cluster_ids;
@@ -931,10 +1074,11 @@ classdef ImecDataset < handle
         end
 
         function snippet_set = readLFSnippetSet(imec, times, window, varargin)
-            [data_ch_by_time_by_snippet, cluster_ids, channel_ids_by_snippet] = ...
-                imec.readSnippetsRaw(times, window, 'source', 'lf', varargin{:});
+            [data_ch_by_time_by_snippet, cluster_ids, channel_ids_by_snippet, scaleToUv_by_snippet] = ...
+                imec.readSnippetsRaw(times, window, 'band', 'lf', varargin{:});
             snippet_set = Neuropixel.SnippetSet(imec, 'lf');
             snippet_set.data = data_ch_by_time_by_snippet;
+            snippet_set.scaleToUv = scaleToUv_by_snippet;
             snippet_set.sample_idx = times;
             snippet_set.channel_ids_by_snippet = channel_ids_by_snippet;
             snippet_set.cluster_ids = cluster_ids;
@@ -1075,7 +1219,7 @@ classdef ImecDataset < handle
         function tf = get.hasLF(imec)
             tf = exist(imec.pathLF, 'file') == 2;
         end
-
+        
         function fileSync = get.fileSync(imec)
             if imec.syncInAPFile
                 fileSync = imec.fileAP;
@@ -1087,6 +1231,14 @@ classdef ImecDataset < handle
         function pathSync = get.pathSync(imec)
             pathSync = fullfile(imec.pathRoot, imec.fileSync);
         end
+        
+        function tf = get.hasSync(imec)
+            tf = exist(imec.pathSync, 'file') == 2;
+        end
+        
+        function tf = get.hasSourceSync(imec)
+            tf = imec.hasSourceDatasets && all([imec.sourceDatasets.hasSync]);
+        end
 
         function fileSyncCached = get.fileSyncCached(imec)
             fileSyncCached = [imec.fileStem '.sync.mat'];
@@ -1097,11 +1249,19 @@ classdef ImecDataset < handle
         end
 
         function scale = get.apScaleToUv(imec)
-            scale = (imec.apRange(2) - imec.apRange(1)) / (2^imec.adcBits) / imec.apGain * 1e6;
+            if isempty(imec.apRange)
+                scale = NaN;
+            else
+                scale = (imec.apRange(2) - imec.apRange(1)) / (2^imec.adcBits) / imec.apGain * 1e6;
+            end
         end
 
         function scale = get.lfScaleToUv(imec)
-            scale = (imec.apRange(2) - imec.apRange(1)) / (2^imec.adcBits) / imec.apGain * 1e6;
+            if isempty(imec.lfRange)
+                scale = NaN;
+            else
+                scale = (imec.lfRange(2) - imec.lfRange(1)) / (2^imec.adcBits) / imec.lfGain * 1e6;
+            end
         end
 
         function file = get.channelMapFile(imec)
@@ -1214,6 +1374,14 @@ classdef ImecDataset < handle
         
         function tf = get.hasSourceDatasets(imec)
             tf = ~isempty(imec.sourceDatasets);
+        end
+        
+        function tf = get.hasSourceAP(imec)
+            tf = imec.hasSourceDatasets && all([imec.sourceDatasets.hasAP]);
+        end
+        
+        function tf = get.hasSourceLF(imec)
+            tf = imec.hasSourceDatasets && all([imec.sourceDatasets.hasLF]);
         end
 
         function writeModifiedAPMeta(imec, varargin)
@@ -1685,9 +1853,18 @@ end
         
         function [tf, candidates] = pathPointsToSingleValidDataset(fileOrFileStem, type)
             if nargin < 2
-                type = 'ap';
+                type = "any";
             end
-            candidates = Neuropixel.ImecDataset.findImecFileInDir(fileOrFileStem, type, true, false);
+            type = string(type);
+            
+            if type == "any"
+                candidates = Neuropixel.ImecDataset.findImecFileInDir(fileOrFileStem, 'ap', true, false);
+                if numel(candidates) == 0
+                    candidates = Neuropixel.ImecDataset.findImecFileInDir(fileOrFileStem, 'lf', true, false);
+                end
+            else
+                candidates = Neuropixel.ImecDataset.findImecFileInDir(fileOrFileStem, type, true, false);
+            end
             tf = numel(candidates) == 1;
         end
 
@@ -1925,31 +2102,6 @@ end
                 Neuropixel.Utils.mkdirRecursive(outPath);
             end
 
-            % determine the gains that we will use
-            function [multipliers, gain] = determineCommonGain(gains)
-                uGains = unique(gains);
-
-                if numel(uGains) == 1
-                    gain = uGains;
-                    multipliers = ones(nFiles, 1);
-                    if numel(gains) > 1
-                        fprintf('All files have common gain of %d\n', gain);
-                    end
-                else
-                    % find largest gain that we can achieve by multiplying each
-                    % file by an integer (GCD)
-                    gain = uGains(1);
-                    for g = uGains(2:end)
-                        gain = lcm(gain, g);
-                    end
-                    multipliers = gain ./ gains;
-                    assert(all(multipliers==round(multipliers)));
-                    fprintf('Converting all files to gain of %d\n', gain);
-                end
-
-                multipliers = int16(multipliers);
-            end
-
             % figure out which channels to keep
             [chIndsByFile, ~] = Neuropixel.ImecDataset.multiFile_build_channelSelectors_internal(imecList, 'goodChannelsOnly', p.Results.goodChannelsOnly, ...
                 'connectedChannelsOnly', p.Results.connectedChannelsOnly, 'mappedChannelsOnly', p.Results.mappedChannelsOnly);
@@ -1969,7 +2121,7 @@ end
             
             if p.Results.writeAP || ~isempty(p.Results.transformAP)
                 gains = cellfun(@(imec) imec.apGain, imecList);
-                [multipliers, gain] = determineCommonGain(gains);
+                [multipliers, gain] = Neuropixel.ImecDataset.determineCommonGain(gains);
 
                 outFile = fullfile(outPath, [leaf '.imec.ap.bin']);
                 metaOutFile = fullfile(outPath, [leaf '.imec.ap.meta']);
@@ -2029,7 +2181,7 @@ end
 
             if p.Results.writeLF || ~isempty(p.Results.transformLF)
                 gains = cellfun(@(imec) imec.lfGain, imecList);
-                [multipliers, gain] = determineCommonGain(gains);
+                [multipliers, gain] = Neuropixel.ImecDataset.determineCommonGain(gains);
 
                 outFile = fullfile(outPath, [leaf '.imec.lf.bin']);
                 metaOutFile = fullfile(outPath, [leaf '.imec.lf.meta']);
@@ -2183,7 +2335,7 @@ end
                                 % pass as many inputs to fn as it can handle, including user provided args at the end
                                 extraArgs = {chIds, source_idx};
                                 if ~isempty(transformExtraArg)
-                                    extraArgs{end+1} = transformExtraArg;
+                                    extraArgs{end+1} = transformExtraArg; %#ok<AGROW>
                                 end
                                 
                                 ninputs = nargin(fn);
@@ -2223,6 +2375,38 @@ end
                     fclose(fidOut);
                 end
             end
+        end
+        
+        % determine the gains that will equalize scale across multiple datasets
+        function [multipliers, gain] = determineCommonGain(gains, quiet)
+            if nargin < 2
+                quiet = false;
+            end
+            
+            nFiles = numel(gains);
+            uGains = unique(gains);
+
+            if numel(uGains) == 1
+                gain = uGains;
+                multipliers = ones(nFiles, 1);
+                if numel(gains) > 1 && ~quiet
+                    fprintf('All files have common gain of %d\n', gain);
+                end
+            else
+                % find largest gain that we can achieve by multiplying each
+                % file by an integer (GCD)
+                gain = uGains(1);
+                for g = uGains(2:end)
+                    gain = lcm(gain, g);
+                end
+                multipliers = gain ./ gains;
+                assert(all(multipliers==round(multipliers)));
+                if ~quiet
+                    fprintf('Converting all files to gain of %d\n', gain);
+                end
+            end
+
+            multipliers = int16(multipliers);
         end
     end
 end

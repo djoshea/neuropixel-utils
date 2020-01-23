@@ -7,7 +7,7 @@ classdef ConcatenationInfo < handle
         gains (:, 1) 
         multipliers (:, 1) 
         adcBits (:, 1)
-        apRange (:, 2)
+        ranges (:, 2)
         nSamples
     end
     
@@ -16,6 +16,8 @@ classdef ConcatenationInfo < handle
         samples % nDatasets x 1 number of samples in resultant file, factoring in time shifts
         startIdx
         stopIdx
+        
+        scaleToUvs
     end
     
     methods
@@ -34,6 +36,8 @@ classdef ConcatenationInfo < handle
                         ci.fs = imec.fsLF;
                         ci.nSamples = imec.nSamplesLF;
                         ci.samplesPreShift = getor(meta, 'concatenatedSamples', imec.nSamplesLF);
+                    otherwise
+                        error ('unknown mode');
                 end
                 
                 nC = numel(ci.samplesPreShift);
@@ -64,9 +68,18 @@ classdef ConcatenationInfo < handle
                 ci.gains = getor(meta, 'concatenatedGains', imec.apGain * ones(nC, 1));
                 ci.multipliers = getor(meta, 'concatenatedMultipliers', ones(nC, 1));
                 ci.adcBits = getor(meta, 'concatenatedAdcBits', imec.adcBits * ones(nC, 1));
-                rmin = Neuropixel.Utils.makecol(getor(meta, 'concatenatedAiRangeMin', imec.apRange(1) * ones(nC, 1)));
-                rmax = Neuropixel.Utils.makecol(getor(meta, 'concatenatedAiRangeMax', imec.apRange(2) * ones(nC, 1)));
-                ci.apRange = cat(2, rmin, rmax);
+                
+                switch mode
+                    case 'ap'
+                        rmin = Neuropixel.Utils.makecol(getor(meta, 'concatenatedAiRangeMin', imec.apRange(1) * ones(nC, 1)));
+                        rmax = Neuropixel.Utils.makecol(getor(meta, 'concatenatedAiRangeMax', imec.apRange(2) * ones(nC, 1)));
+                    case 'lf'
+                        rmin = Neuropixel.Utils.makecol(getor(meta, 'concatenatedAiRangeMin', imec.lfRange(1) * ones(nC, 1)));
+                        rmax = Neuropixel.Utils.makecol(getor(meta, 'concatenatedAiRangeMax', imec.lfRange(2) * ones(nC, 1)));
+                    otherwise
+                        error ('unknown mode');
+                end 
+                ci.ranges = cat(2, rmin, rmax);
             end
             
             function v = getor(s, fld, def)
@@ -77,8 +90,81 @@ classdef ConcatenationInfo < handle
                 end
             end
         end
-            
+    end
     
+    methods(Static)
+        function ci = inferFromOtherBand(imec, bandInfer, bandRef)
+            ci = Neuropixel.ConcatenationInfo();
+            
+            bandInfer = string(bandInfer);
+            bandRef = string(bandRef);
+            switch bandInfer
+                case "ap"
+                    assert(imec.hasSourceAP, 'Must have source AP datasets to infer AP concatenationInfo');
+                    fsInfer = imec.sourceDatasets(1).fsAP;
+                    ci.samplesPreShift = arrayfun(@(src) src.nSamplesAP, imec.sourceDatasets);
+                    
+                case "lf"
+                    assert(imec.hasSourceLF, 'Must have source AP datasets to infer LF concatenationInfo');
+                    fsInfer = imec.sourceDatasets(1).fsLF;
+                    ci.samplesPreShift = arrayfun(@(src) src.nSamplesLF, imec.sourceDatasets);
+                    
+                otherwise
+                    error('Unknown bandInfer %s', bandInfer);
+            end
+            
+            assert(bandInfer ~= bandRef, 'bandInfer and bandRef must be different');
+            
+            switch bandRef
+                case "ap"
+                    assert(imec.hasAP, 'ImecDataset lacks AP band');
+                    ciRef = imec.concatenationInfoAP;
+                    fsRef = imec.fsAP;
+                case "lf"
+                    assert(imec.hasLF, 'ImecDataset lacks LF band');
+                    ciRef = imec.concatenationInfoLF;
+                    fsRef = imec.fsLF;
+                otherwise
+                    error('Unknown bandSource %s', bandSource);
+            end
+            
+            function samplesInfer = samplesRefToInfer(samplesRef)
+                samplesInfer = cast(floor(double(samplesRef) ./ double(fsRef) .* double(fsInfer)), 'like', samplesRef);
+            end
+            
+            ci.fs = fsInfer;
+            ci.timeShifts = ciRef.timeShifts;
+            nSamplesInfer = uint64(0);
+            for iTS = 1:numel(ci.timeShifts)
+                ci.timeShifts(iTS).idxStart = samplesRefToInfer(ci.timeShifts(iTS).idxStart);
+                ci.timeShifts(iTS).idxStop = samplesRefToInfer(ci.timeShifts(iTS).idxStop);
+                ci.timeShifts(iTS).idxShiftStart = samplesRefToInfer(ci.timeShifts(iTS).idxShiftStart);
+                
+                nSamplesInfer = nSamplesInfer + ci.timeShifts(iTS).nShiftedTimes;
+            end
+            ci.nSamples = nSamplesInfer;
+            ci.names = ciRef.names;
+
+            switch bandInfer
+                case 'ap'
+                    ci.gains = cat(1, imec.sourceDatasets.apGain);
+                    rmin = arrayfun(@(src) src.apRange(1), imec.sourceDatasets);
+                    rmax = arrayfun(@(src) src.apRange(2), imec.sourceDatasets);
+                    ci.ranges = cat(2, rmin, rmax);
+                    
+                case 'lf'
+                    ci.gains = cat(1, imec.sourceDatasets.lfGain);
+                    rmin = arrayfun(@(src) src.lfRange(1), imec.sourceDatasets);
+                    rmax = arrayfun(@(src) src.lfRange(2), imec.sourceDatasets);
+                    ci.ranges = cat(2, rmin, rmax);
+            end
+            
+            [ci.multipliers, ~] = Neuropixel.ImecDataset.determineCommonGain(ci.gains);
+            ci.adcBits = cat(1, imec.sourceDatasets.adcBits);
+        end
+    end
+    
+    methods
         function n = get.nDatasets(ds)
             n = numel(ds.samplesPreShift);
         end
@@ -100,6 +186,10 @@ classdef ConcatenationInfo < handle
             v = [ci.startIdx(2:end); ci.nSamples];
         end
         
+        function v = get.scaleToUvs(ci)
+            v = (ci.ranges(:, 2) - ci.ranges(:, 1)) ./ (2^ci.adcBits) ./ ci.gains * 1e6;
+        end
+        
         function [fileInds, origSampleInds] = lookup_sampleIndexInSourceFiles(ci, inds)
            % convert from a time index in this file to which of the concatenated files that index came from
            % factoring in the time shifts that were used to excise regions from those individual files before concatenating
@@ -109,7 +199,7 @@ classdef ConcatenationInfo < handle
            stops = ci.stopIdx;
 
            for i = 1:numel(starts)
-              mask = inds >= starts(i) & inds < stops(i);
+              mask = inds >= starts(i) & inds <= stops(i);
               fileInds(mask) = i;
               origSampleInds(mask) = inds(mask) - double(starts(i)) + 1;
            end
