@@ -7,7 +7,7 @@ function data = commonAverageReferenceEachBank(imec, data, chIds, timeIdx) %#ok<
     % subtract median across good channels
     data(chanMask, :) = bsxfun(@minus, data(chanMask, :), median(data(chanMask, :), 1));
     
-     then do Siegle et al. 2019 style median subtraction over simultaneously acquired samples
+    % then do Siegle et al. 2019 style median subtraction over simultaneously acquired samples
     if contains(imec.channelMap.name, 'phase3a', 'IgnoreCase', true)
         for n = 1:24
             chIdsThisGroup = n:24:384;

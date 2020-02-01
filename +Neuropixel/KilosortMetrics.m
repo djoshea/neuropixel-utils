@@ -30,7 +30,7 @@ classdef KilosortMetrics < handle
         centroidMethod char
         extThreshLocalizedTemplate (1, 1) single
         distThreshLocalizedTemplate (1, 1) single
-
+        
         % copied over from ks
         fs
         channelMap
@@ -96,7 +96,7 @@ classdef KilosortMetrics < handle
         
         % nClusters x nTemplates
         cluster_template_useCount uint64 % nClusters x nTemplates number of spikes in cluster i using template j
-        cluster_template_weight single % nClusters x nTemplates fraction of spikes using template j of all cluster i's spikes 
+        cluster_template_weight single % nClusters x nTemplates fraction of spikes using template j of all cluster i's spikes
         cluster_num_templates uint32 % nClusters x 1 number of templates
         
         % nClusters x nChannelsSorted channel ids
@@ -148,7 +148,7 @@ classdef KilosortMetrics < handle
         
         % nClusters x nSpatialCoord x nBatchesComputed
         cluster_centroid_batchwise(:, :, :) single
-
+        
         % nClusters x nTimePoint x maxTemplatesPerCluster x nBatchesComputed
         cluster_waveform_batchwise(:, :, :) single
         
@@ -166,7 +166,7 @@ classdef KilosortMetrics < handle
         cluster_depth
     end
     
-    methods
+    methods % Constructor / metrics and batchwise metrics computation
         function m = KilosortMetrics(ks, varargin)
             p = inputParser();
             p.addParameter('ampRelativeThreshCentroid', 0.3, @isscalar);
@@ -235,25 +235,25 @@ classdef KilosortMetrics < handle
                 [~, bestChannelInd] = max(range(m.template_unw(iT, :, :), 2));
                 m.template_best_channels(iT, :) = closest_lookup(bestChannelInd, :)';
             end
-             
+            
             progIncrFn('Template center of mass');
             % B. determine template center of mass
             %   1. compute template amp on each channel, zeroing out small (< 0.3 max) faraway channels
             templateUnscaledAmps = squeeze(max(m.template_unw,[],2) - min(m.template_unw,[],2)); % nTemplates x nTemplateChannels
             [templateUnscaledMaxAmp, templateMaxChInd] = max(templateUnscaledAmps, [], 2);
-%             threshAmp = templateUnscaledMaxAmp * ampRelativeThreshCentroid;
-%             templateUnscaledAmps(templateUnscaledAmps < threshAmp) = 0;
+            %             threshAmp = templateUnscaledMaxAmp * ampRelativeThreshCentroid;
+            %             templateUnscaledAmps(templateUnscaledAmps < threshAmp) = 0;
             
             %   2. compute template channel Centroids (nTemplates x nCh x nSpatialDim)
             m.template_centroid = Neuropixel.Utils.computeWaveformImageCentroid(m.template_unw, ...
                 1:ks.nChannelsSorted, ks.channel_positions_sorted, ...
                 'method', m.centroidMethod, 'relativeThreshold', m.ampRelativeThreshCentroid);
             
-%             templateChannelPos = reshape(ks.channel_positions_sorted(ks.templates_ind(:), :), [size(ks.templates_ind), size(ks.channel_positions_sorted, 2)]);
+            %             templateChannelPos = reshape(ks.channel_positions_sorted(ks.templates_ind(:), :), [size(ks.templates_ind), size(ks.channel_positions_sorted, 2)]);
             
             %   3. compute template center of mass
-%             m.template_centroid = Neuropixel.Utils.TensorUtils.squeezeDims(sum(templateUnscaledAmps .* templateChannelPos, 2) ./ ...
-%                 sum(templateUnscaledAmps, 2), 2);
+            %             m.template_centroid = Neuropixel.Utils.TensorUtils.squeezeDims(sum(templateUnscaledAmps .* templateChannelPos, 2) ./ ...
+            %                 sum(templateUnscaledAmps, 2), 2);
             
             % C. determine which templates are localized
             m.template_is_localized = false(ks.nTemplates, 1);
@@ -278,7 +278,7 @@ classdef KilosortMetrics < handle
             assert(~isnan(ks.apScaleToUv));
             m.template_scale_factor = accumarray(ks.spike_templates, ks.amplitudes, [ks.nTemplates, 1], @mean) * ks.apScaleToUv;
             m.template_scaled = m.template_unw .* m.template_scale_factor;
-                
+            
             % F. determine template largest scaled waveform
             progIncrFn('Template waveforms');
             template_waveform_ch = nan(ks.nTemplates, 1);
@@ -304,15 +304,15 @@ classdef KilosortMetrics < handle
                 pc1proj = squeeze(ks.pc_features(:, 1, :)); % nSpikes x nPCFeatures
                 pc1proj(pc1proj < 0) = 0; % only positive entries contribute
                 pc1weight = pc1proj.^2;
-
+                
                 %   2. compute center of mass. (spikeFeatureChannelPos is nSpikes x nCh x nSpatialDim)
                 spike_pcfeat_chind = ks.pc_feature_ind(ks.spike_templates, :);
                 m.spike_centroid = Neuropixel.Utils.computeWaveformImageCentroid(reshape(pc1weight, [size(pc1weight, 1), 1, size(pc1proj, 2)]), ...
                     spike_pcfeat_chind, ks.channel_positions_sorted, ...
                     'method', 'com_via_provided_amplitudes', 'relativeThreshold', m.ampRelativeThreshCentroid);
-%                 spikeFeatureChannelPos = reshape(ks.channel_positions_sorted(spike_pcfeat_chind(:), :), [size(spike_pcfeat_chind), size(ks.channel_positions_sorted, 2)]);
-%                 m.spike_centroid = Neuropixel.Utils.TensorUtils.squeezeDims(sum(pc1weight .* spikeFeatureChannelPos, 2) ./ ...
-%                     sum(pc1weight, 2), 2);
+                %                 spikeFeatureChannelPos = reshape(ks.channel_positions_sorted(spike_pcfeat_chind(:), :), [size(spike_pcfeat_chind), size(ks.channel_positions_sorted, 2)]);
+                %                 m.spike_centroid = Neuropixel.Utils.TensorUtils.squeezeDims(sum(pc1weight .* spikeFeatureChannelPos, 2) ./ ...
+                %                     sum(pc1weight, 2), 2);
             end
             
             % recompute template similarity from W and U in order to get best lags
@@ -397,7 +397,7 @@ classdef KilosortMetrics < handle
             p.addParameter('progressInitializeFn', [], @(x) isempty(x) || isa(x, 'function_handle')); % f(nUpdates) to print update
             p.addParameter('progressIncrementFn', [], @(x) isempty(x) || isa(x, 'function_handle')); % f(updateString) to print update
             p.parse(varargin{:});
-
+            
             % decide if we need to recompute anything
             ks = m.ks;
             recompute = p.Results.recompute;
@@ -409,7 +409,7 @@ classdef KilosortMetrics < handle
                 return;
             end
             m.batchesComputed = batchesComputed;
-            help 
+            help
             nBatchesComputed = numel(m.batchesComputed);
             
             average_skipped_batches = p.Results.average_skipped_batches;
@@ -432,20 +432,20 @@ classdef KilosortMetrics < handle
                 % compute batch membership to include all spikes until the next counted batch
                 batch_ind_each_spike = discretize(batch_each_spike, [batchesComputed; ks.nBatches]);
                 mask_spike_in_batch = ~isnan(batch_ind_each_spike);
-%                 [mask_spike_in_batch, batch_ind_each_spike] = ismember(batch_each_spike, m.batchesComputed);
+                %                 [mask_spike_in_batch, batch_ind_each_spike] = ismember(batch_each_spike, m.batchesComputed);
                 
                 mask_spike = mask_spike_in_batch;
                 m.template_useCount_batchwise = accumarray(...
                     [ks.spike_templates(mask_spike), batch_ind_each_spike(mask_spike)], ...
-                    ones(nnz(mask_spike), 1, 'uint64'), [m.nTemplates, nBatchesComputed]); 
+                    ones(nnz(mask_spike), 1, 'uint64'), [m.nTemplates, nBatchesComputed]);
                 
                 [mask_spike_in_cluster, cluster_ind_each_spike] = ismember(ks.spike_clusters, ks.cluster_ids);
                 mask_spike = mask_spike_in_batch & mask_spike_in_cluster;
                 m.cluster_template_useCount_batchwise = accumarray(...
                     [cluster_ind_each_spike(mask_spike), ks.spike_templates(mask_spike), batch_ind_each_spike(mask_spike)], ...
-                    ones(nnz(mask_spike), 1, 'uint64'), [m.nClusters, m.nTemplates, nBatchesComputed]);   
+                    ones(nnz(mask_spike), 1, 'uint64'), [m.nClusters, m.nTemplates, nBatchesComputed]);
             end
-
+            
             if recompute || isempty(m.template_centroid_batchwise)
                 template_centroid_batchwise = nan(m.nTemplates, nBatchesComputed, m.nSpatialDims, 'single');
                 template_waveform_batchwise = nan(m.nTemplates, m.nTemplateTimepoints, nBatchesComputed, 'single');
@@ -453,20 +453,20 @@ classdef KilosortMetrics < handle
                 
                 for iT = 1:m.nTemplates
                     progIncrFn();
-
+                    
                     % 1 x time x channels x batch --> batch x time x channels
                     % these templates are all on all channel_ids_sorted
                     template_batch_time_channel = permute(m.construct_scaled_template_batchwise(iT, 'batches', m.batchesComputed, ...
                         'average_skipped_batches', average_skipped_batches), [4 2 3 1]);
                     template_centroid_batchwise(iT, :, :) = Neuropixel.Utils.computeWaveformImageCentroid(...
                         template_batch_time_channel, 1:m.nChannelsSorted, m.ks.channel_positions_sorted);
-
+                    
                     template_waveform_batchwise(iT, :, :) = template_batch_time_channel(:, :, m.template_waveform_ch(iT))';
-
+                    
                     % for amplitude, we take the global max range over all channels, not just the best tempalte_waveform_ch
                     template_amplitude_batchwise(iT, :) = max(max(template_batch_time_channel, [], 2) - min(template_batch_time_channel, [], 2), [], 3);
                 end
-
+                
                 m.template_centroid_batchwise = template_centroid_batchwise;
                 m.template_waveform_batchwise = template_waveform_batchwise;
                 m.template_amplitude_batchwise = template_amplitude_batchwise;
@@ -476,7 +476,7 @@ classdef KilosortMetrics < handle
                 cluster_centroid_batchwise  = nan(m.nClusters, m.nBatchesComputed, m.nSpatialDims, 'single');
                 cluster_waveform_batchwise = nan(m.nClusters, m.nTemplateTimepoints, m.nBatches, 'single');
                 cluster_amplitude_batchwise =  nan(m.nClusters, m.nBatchesComputed, 'single');
-            
+                
                 % nClusters x nSpatialCoord x nBatches
                 for iC = 1:m.nClusters
                     progIncrFn();
@@ -486,7 +486,7 @@ classdef KilosortMetrics < handle
                         weights_temp_batch = single(m.cluster_template_useCount_batchwise(iC, :, iB)) ./ sum(m.cluster_template_useCount_batchwise(iC, :, iB), 2);
                         cluster_centroid_batchwise(iC, iB, :) =  weights_temp_batch * permute(m.template_centroid_batchwise(:, iB, :), [1 3 2]);
                         
-                        cluster_waveform_batchwise(iC, :, iB) = weights_temp_batch * m.template_waveform_batchwise(:, :, iB); 
+                        cluster_waveform_batchwise(iC, :, iB) = weights_temp_batch * m.template_waveform_batchwise(:, :, iB);
                         cluster_amplitude_batchwise(iC, iB) = weights_temp_batch * m.template_amplitude_batchwise(:, iB);
                     end
                 end
@@ -505,15 +505,6 @@ classdef KilosortMetrics < handle
             templates = m.ks.construct_batchwise_templates(template_inds, varargin{:});
             templates = templates .* m.template_scale_factor(template_inds);
         end
-        
-        function driftDistanceByCluster = computeClusterDriftDistance(m)
-            driftDistanceByCluster = nan(m.nClusters, 1);
-            for iC = 1:m.nClusters
-                centroids = permute(m.cluster_centroid_batchwise(iC, :, :), [2 3 1]); % nBatch x spatial dim
-                driftDistanceByCluster(iC) = max(pdist2(centroids, centroids, 'euclidean', 'Largest', 1));
-            end
-        end
-
     end
     
     methods % Dependent prop get impl
@@ -531,7 +522,7 @@ classdef KilosortMetrics < handle
         
         function n = get.nTemplateTimepoints(m)
             n = size(m.template_unw, 2);
-        end 
+        end
         
         function n = get.nTemplateChannels(m)
             n = size(m.template_unw, 3);
@@ -567,7 +558,7 @@ classdef KilosortMetrics < handle
         function d = get.cluster_depth(m)
             d = m.cluster_centroid(:, 2);
         end
-
+        
         function tvec = get.templateTimeRelative(m)
             T = int64(m.nTemplateTimepoints);
             off = int64(m.ks.template_sample_offset);
@@ -646,14 +637,14 @@ classdef KilosortMetrics < handle
             similar_cluster_inds = similar_cluster_inds(mask);
             similar_cluster_ids = m.cluster_ids(similar_cluster_inds);
             similarity = similarity(mask);
-
+            
             % figure out best lag using the
             if isempty(lags)
                 best_lag = zeros(size(similarity), 'int16');
             else
                 which_input_clusters = which_input_clusters(similar_cluster_inds);
                 lag_idx = sub2ind(size(lags), similar_cluster_inds, cluster_inds(which_input_clusters));
-                best_lag = lags(lag_idx); 
+                best_lag = lags(lag_idx);
             end
         end
         
@@ -675,7 +666,7 @@ classdef KilosortMetrics < handle
             
             [~, which_primary_cluster] = max(sim, [], 2);
             lag_idx = sub2ind(size(lags), (1:numel(sim_cluster_inds))', which_primary_cluster);
-            best_lag = lags(lag_idx); 
+            best_lag = lags(lag_idx);
         end
         
         function [K, bins] = computeCCG(m, cluster_ids1, cluster_ids2, varargin)
@@ -751,9 +742,9 @@ classdef KilosortMetrics < handle
             ilow = 1;
             ihigh = 1;
             j = 1;
-
-            K = zeros(2*nbins+1, 1); 
-
+            
+            K = zeros(2*nbins+1, 1);
+            
             while j<=numel(st2)
                 while (ihigh<=numel(st1)) && (double(st1(ihigh)) < double(st2(j))+dt)
                     ihigh = ihigh + 1;
@@ -778,7 +769,15 @@ classdef KilosortMetrics < handle
         end
     end
     
-    methods % Plotting stability over time
+    methods % Computing / plotting stability over time
+        function driftDistanceByCluster = computeClusterDriftDistance(m)
+            driftDistanceByCluster = nan(m.nClusters, 1);
+            for iC = 1:m.nClusters
+                centroids = permute(m.cluster_centroid_batchwise(iC, :, :), [2 3 1]); % nBatch x spatial dim
+                driftDistanceByCluster(iC) = max(pdist2(centroids, centroids, 'euclidean', 'Largest', 1));
+            end
+        end
+        
         function [fracBinsValid, fracBinsValidExcludingEdges] = computeClusterValidTimeSpan(m, varargin)
             % fracBinsValid is the total fraction of bins that had at least threshSpikes
             % Then we divide up the day into any zeros at the beginning and end of the file, and the middle region between these bands of zeros
@@ -810,7 +809,7 @@ classdef KilosortMetrics < handle
             p.addParameter('cluster_ids', [], @isvector);
             p.addParameter('tsi', [], @(x) isempty(x) || isa(x, 'Neuropixel.TrialSegmentationInfo')); % to mark trial boundaries
             p.addParameter('maskRegionsOutsideTrials', true, @islogical);
-            p.addParameter('binWidth', 10, @isscalar); 
+            p.addParameter('binWidth', 10, @isscalar);
             p.parse(varargin{:});
             
             tsi = p.Results.tsi;
@@ -861,7 +860,7 @@ classdef KilosortMetrics < handle
         
         function meanFR = computeClusterMeanFR(m, varargin)
             p = inputParser();
-            p.addParameter('binWidth', 10, @isscalar); 
+            p.addParameter('binWidth', 10, @isscalar);
             p.KeepUnmatched = true;
             p.parse(varargin{:});
             
@@ -873,15 +872,103 @@ classdef KilosortMetrics < handle
         function mask = computeSpikeMaskWithinTrials(m, tsi)
             mask = false(numel(m.spike_times), 1);
             [idxStart, idxStop, ~] = tsi.computeActiveRegions();
-
+            
             for iR = 1:numel(idxStart)
                 mask(m.spike_times >= idxStart(iR) & m.spike_times <= idxStop(iR)) = true;
             end
         end
-        
     end
     
     methods % Plotting drift maps
+        function [probe_offsets, time_samples] = computeProbeDrift(m, varargin)
+            % compute a single estimate of probe dist along a specific dimension (typically 2)
+            p = inputParser();
+            p.addParameter('spatial_dimension', 2, @isscalar);
+            p.addParameter('spikeAmpQuantile', 0.5, @isscalar); % consider only spikes larger than quantile fo amplitude
+            p.addParameter('depth_bin', 2, @isscalar); % um for building histogram depth
+            p.addParameter('time_bin_sec', 20, @isscalar); % seconds for producing depth estimates
+            p.addParameter('weight_by_amp', true, @islogical); % instead of counting spikes, use amplitude-weighted counts for alignment
+            p.addParameter('max_drift', 200, @isscalar) % max allowable drift in um
+            
+            % for plotting
+            p.addParameter('show_plot', false, @islogical);
+            p.addParameter('markerSize', 4, @isscalar);
+            p.addParameter('timeInSeconds', true, @islogical);
+            p.addParameter('show_all_spikes', true, @islogical);
+            p.parse(varargin{:});
+            
+            spikeAmpQuantile = p.Results.spikeAmpQuantile;
+            spikeAmpStdThresh = erfinv(2*(spikeAmpQuantile-0.5));
+            drift_dim = p.Results.spatial_dimension;
+            D = p.Results.depth_bin; % um
+            T = p.Results.time_bin_sec * m.ks.fsAP; % samples
+            weight_by_amp = p.Results.weight_by_amp;
+            max_drift = p.Results.max_drift;
+            
+            time_samples = uint64(0:T:m.spike_times(end)-T)';
+            n_time_bins = numel(time_samples);
+            
+            spikeTimes = m.spike_times;
+            spikeAmps = m.spike_amplitude;
+            spikePos = m.spike_centroid(:, drift_dim);
+            
+            % mask out spikes whose amplitude is >= mean + spikeAmpStdThresh * std
+            amp_thresh = mean(spikeAmps) + spikeAmpStdThresh*std(spikeAmps);
+            mask_spikes = m.spike_is_localized & spikeAmps > amp_thresh; % large spikes in current segment
+            spikeAmps = spikeAmps(mask_spikes);
+            spikePos = spikePos(mask_spikes);
+            spikeTimes = spikeTimes(mask_spikes);
+            
+            bins = min(spikePos)-D:D:max(spikePos)+D;
+            bin_pos = bins(1:end - 1) + D/2;
+            n_depth_bins = numel(bin_pos);
+            
+            histmat = zeros(n_depth_bins, n_time_bins);
+            for iT = 1:n_time_bins
+                if iT == n_time_bins
+                    mask_time = spikeTimes > time_samples(iT);
+                else
+                    mask_time = spikeTimes > time_samples(iT) & spikeTimes <= time_samples(iT+1);
+                end
+                
+                if weight_by_amp
+                    [~, ~, which_bin] = histcounts(spikePos(mask_time), bins);
+                    h = accumarray(which_bin, spikeAmps(mask_time), [n_depth_bins, 1]);
+                else
+                    h = histcounts(spikePos(mask_time), bins);
+                end
+                histmat(:, iT) = h;
+            end
+            
+            ref_col = histmat(:, floor(n_time_bins/2));
+            delays = finddelay(ref_col, histmat, floor(max_drift / D));
+            
+            probe_offsets = single((delays - delays(1)) * D)';
+            
+            if p.Results.show_plot
+                cla
+                if p.Results.show_all_spikes
+                    spike_mask_args = {};
+                else
+                    spike_mask_args = {'spike_mask', mask_spikes};
+                end
+                m.plotSpikesByAmplitude('spatial_dimension', drift_dim, 'timeInSeconds', p.Results.timeInSeconds, ...
+                    spike_mask_args{:}, 'localizedOnly',true, 'markerSize', p.Results.markerSize);
+                
+                if p.Results.timeInSeconds
+                    time_plot = [time_samples / m.ks.fsAP; (time_samples(end) + T) / m.ks.fsAP];
+                else
+                    time_plot = [time_samples; time_samples(end)+T];
+                end
+                probe_offsets_plot = [probe_offsets; probe_offsets(end)] + bin_pos(floor(n_depth_bins/2));
+                hold on;
+                stairs(time_plot, probe_offsets_plot, 'Color', 'r', 'LineWidth', 2);
+                hold off;
+                ylabel('position');
+                xlabel('time')
+            end
+            
+        end
         
         function plotClusterDriftmap(m, varargin)
             p = inputParser();
@@ -950,9 +1037,9 @@ classdef KilosortMetrics < handle
             
             if colorByAmplitude
                 cluAmpMax = quantile(clusterAmps, 0.95);
-                cluAmpNormalized = min(1, clusterAmps / cluAmpMax);  
-%                 
-%                 cmap = amplitudeCmap(clusterAmpsSortOrder / numel(clusterAmps));
+                cluAmpNormalized = min(1, clusterAmps / cluAmpMax);
+                %
+                %                 cmap = amplitudeCmap(clusterAmpsSortOrder / numel(clusterAmps));
                 [cmap, cmap_base] = amplitudeCmap(cluAmpNormalized);
                 cmap_lims = [0 cluAmpMax];
             else
@@ -960,7 +1047,7 @@ classdef KilosortMetrics < handle
                 cmap_base = cmap;
                 cmap_lims = [1 nClu];
             end
-
+            
             rng(1);
             
             if ~isinf(p.Results.maxClustersPlot) && p.Results.maxClustersPlot < nClu
@@ -994,12 +1081,12 @@ classdef KilosortMetrics < handle
                 
                 if showIndividual
                     h = plot(x, y, '.', 'Color', cmap(iC,:), 'MarkerSize', sz, 'UserData', ud);
-                   TrialDataUtilities.Plotting.setMarkerOpacity(h, alpha);
- 
-                   hold on;
+                    TrialDataUtilities.Plotting.setMarkerOpacity(h, alpha);
+                    
+                    hold on;
                 end
                 if showSmooth
-%                     if showIndividual, width = 2; else, width = 1; end
+                    %                     if showIndividual, width = 2; else, width = 1; end
                     width = 2;
                     [x, y] = binsmooth(x, y, spikeTimeBins, 5, smoothBinWidth); % min 10 spikes in 10 second increments
                     plot(x, y, '-', 'Color', cmap(iC,:), 'LineWidth', width, 'UserData', ud);
@@ -1030,12 +1117,12 @@ classdef KilosortMetrics < handle
             end
             
             Neuropixel.Utils.configureDataTipsFromUserData(gcf);
-                
+            
             function [xb, yb] = binsmooth(x, y, edges, smoothBy, minSpikesPerBin)
                 [nSp, whichBin] = histcounts(x, edges);
                 xb = 0.5 * (edges(1:end-1) + edges(2:end));
                 nSp = nSp(1:end-1);
-
+                
                 mask = whichBin > 0;
                 yb = accumarray(whichBin(mask), y(mask), [numel(xb), 1], @mean, single(NaN));
                 
@@ -1044,11 +1131,11 @@ classdef KilosortMetrics < handle
                 if smoothBy > 0
                     yb = smooth(yb, smoothBy, 'lowess', 2);
                 end
-
+                
                 mask = nSp >= minSpikesPerBin;
                 xb = xb(mask);
                 yb = yb(mask);
-            end  
+            end
             
             function [cmap, cmap_base] = amplitudeCmap(amp)
                 cmap_base = Neuropixel.Utils.cmocean('thermal');
@@ -1056,17 +1143,17 @@ classdef KilosortMetrics < handle
                 lerp = @(x, a, b) x*(b-a) + a; % map x from [0 1] to [a b]
                 cmap_ind = round(lerp(amp, 1, N));
                 cmap = cmap_base(cmap_ind, :);
-%                 
-%                 cmap_hsl = cat(2, rand(N, 1), repmat(0.7, N, 1), repmat(0.5, N, 1));
-%                 
-%                 lum = lerp(amp, 0, 0.9);
-% %                 sat = lerp(amp, 0, 0.9);
-% %                 cmap_hsl(:, 2) = sat;
-%                 cmap_hsl(:, 3) = lum;
-%                 cmap = Neuropixel.Utils.hsl2rgb(cmap_hsl);
+                %
+                %                 cmap_hsl = cat(2, rand(N, 1), repmat(0.7, N, 1), repmat(0.5, N, 1));
+                %
+                %                 lum = lerp(amp, 0, 0.9);
+                % %                 sat = lerp(amp, 0, 0.9);
+                % %                 cmap_hsl(:, 2) = sat;
+                %                 cmap_hsl(:, 3) = lum;
+                %                 cmap = Neuropixel.Utils.hsl2rgb(cmap_hsl);
             end
         end
-            
+        
         % Inputs: spikeTimes, spikeAmps, spikeYpos - names self explanatory
         %         opt - optional, empty by default; 'mark' - will mark detected drifts, 'show' - will generate a different plot,
         %               where only large spikes are used, and the detection of drift locations is demonstrated
@@ -1096,7 +1183,7 @@ classdef KilosortMetrics < handle
             
             p.addParameter('timeInSeconds', true, @islogical);
             p.addParameter('sample_window', [], @(x) isempty(x) || isvector(x)); % subselect a window to plot
-
+            
             p.addParameter('plotDriftEventsInline', false, @islogical);
             p.addParameter('plotDriftEventTicks', true, @islogical);
             p.addParameter('configureDataTips', true, @islogical);
@@ -1152,11 +1239,11 @@ classdef KilosortMetrics < handle
                 'ampRange', p.Results.ampRange, 'timeInSeconds', timeInSeconds, ...
                 'localizedOnly', p.Results.localizedOnly, 'tsi', p.Results.tsi, 'xOffset', xOffset, ...
                 'markerSize', p.Results.markerSize, 'configureDataTips', p.Results.configureDataTips);
-
+            
             ylim(m.channelMap.ylim);
             set(gca, 'XLimSpec', 'tight');
             box off;
-
+            
             if p.Results.plotDriftEventsInline || p.Results.plotDriftEventTicks
                 nD = floor(max(spikeYpos) / segDepth);
                 driftEventsAll = cell(nD, 1);
@@ -1173,7 +1260,7 @@ classdef KilosortMetrics < handle
                         plot(driftEvents(:,1) + xOffset, driftEvents(:,2), 'o', 'MarkerEdgeColor', 'none', 'MarkerFaceColor', 'r')
                         % text(driftEvents(:,1)+1, driftEvents(:,2), num2str(round(driftEvents(:,3))), 'Color', 'r') % the magnitude of the drift
                     end
-                end  
+                end
                 
                 driftEvents = cat(1, driftEventsAll{:});
                 if ~isempty(driftEvents)
@@ -1289,13 +1376,14 @@ classdef KilosortMetrics < handle
                         plot(driftEvents(:,1), driftEvents(:,2), 'o', 'MarkerEdgeColor', 'none', 'MarkerFaceColor', 'r')
                         text(driftEvents(:,1)+1, driftEvents(:,2), num2str(round(driftEvents(:,3))), 'Color', 'r') % the magnitude of the drift
                     end
-                end % loop on peak locations 
+                end % loop on peak locations
             end
         end
         
         function plotSpikesByAmplitude(m, varargin)
             % this plots each clusters' spikes in their own color, either as markers or as a line with smoothing
             p = inputParser();
+            p.addParameter('spatial_dimension', 2, @isscalar);
             p.addParameter('spike_mask', [], @(x) isempty(x) || isvector(x));
             p.addParameter('localizedOnly', true, @islogical);
             p.addParameter('nAmpBins', 20, @isscalar);
@@ -1319,6 +1407,7 @@ classdef KilosortMetrics < handle
             spikeTimes = m.spike_times(mask);
             spikeTimesOrig = spikeTimes;
             timeInSeconds = p.Results.timeInSeconds;
+            spatial_dim = p.Results.spatial_dimension;
             
             if ~isempty(timeShifts)
                 spikeTimes = timeShifts.shiftTimes(spikeTimes);
@@ -1329,7 +1418,7 @@ classdef KilosortMetrics < handle
             end
             spikeClusters = m.spike_clusters(mask);
             spikeAmps = m.spike_amplitude(mask);
-            spikeYpos = m.spike_depth(mask);
+            spikeYpos = m.spike_centroid(mask, spatial_dim);
             
             nAmpBins = p.Results.nAmpBins;
             if ~isempty(p.Results.ampRange)
@@ -1340,11 +1429,11 @@ classdef KilosortMetrics < handle
             colorBins = linspace(ampRange(1), ampRange(2), nAmpBins);
             xOffset = p.Results.xOffset;
             
-            colors = gray(nAmpBins+1); 
+            colors = gray(nAmpBins+1);
             colors = colors(end-1:-1:1, :); % first bin is smalles spikes, starts white
             for b = 1:nAmpBins-1
                 theseSpikes = spikeAmps>=colorBins(b) & spikeAmps<=colorBins(b+1);
-
+                
                 h = plot(spikeTimes(theseSpikes) + xOffset, spikeYpos(theseSpikes), '.', 'Color', colors(b,:), 'MarkerSize', p.Results.markerSize);
                 
                 if ~verLessThan('matlab', '9.6.0') && p.Results.configureDataTips % R2019a
@@ -1358,7 +1447,7 @@ classdef KilosortMetrics < handle
                     h.DataTipTemplate.DataTipRows(end+1) = row;
                     row = dataTipTextRow('Amplitude', double(spikeAmps(theseSpikes)'), '%.2f mV');
                     h.DataTipTemplate.DataTipRows(end+1) = row;
-
+                    
                     if ~isempty(p.Results.tsi)
                         [~, spikeTrialIds] = p.Results.tsi.segmentTimes(spikeTimesOrig(theseSpikes));
                         row = dataTipTextRow('Trial Id', double(spikeTrialIds), '%d');
@@ -1371,9 +1460,9 @@ classdef KilosortMetrics < handle
                     [fileInd, origInd] = m.lookup_sampleIndexInConcatenatedFile(spikeTimesOrig(theseSpikes));
                     
                     % grab associated file name (too slow)
-%                     fileNames = strings(numel(spikeTimesOrig), 1);
-%                     mask = ~isnan(fileInd);
-%                     fileNames(mask) = m.concatenatedNames(fileInd(mask));
+                    %                     fileNames = strings(numel(spikeTimesOrig), 1);
+                    %                     mask = ~isnan(fileInd);
+                    %                     fileNames(mask) = m.concatenatedNames(fileInd(mask));
                     
                     if ~verLessThan('matlab', '9.6.0')  && p.Results.configureDataTips % R2019a
                         row = dataTipTextRow('Orig File Ind', double(fileInd), '%d');
@@ -1391,7 +1480,7 @@ classdef KilosortMetrics < handle
             h = zoom;
             h.Motion = 'horizontal';
         end
-
+        
         function [fileInds, origSampleInds] = lookup_sampleIndexInConcatenatedFile(m, inds)
             if ~isempty(m.concatenationInfo)
                 [fileInds, origSampleInds] = m.concatenationInfo.lookup_sampleIndexInSourceFiles(inds);
@@ -1474,7 +1563,7 @@ classdef KilosortMetrics < handle
                     end
                     h.DataTipTemplate.DataTipRows(2).Format = fmat;
                 end
-
+                
                 if p.Results.timeInSeconds
                     h.DataTipTemplate.DataTipRows(1).Label = 'Time';
                     h.DataTipTemplate.DataTipRows(1).Format = '%.03f sec';
@@ -1486,7 +1575,7 @@ classdef KilosortMetrics < handle
                 h.DataTipTemplate.DataTipRows(end+1) = dataTipTextRow('Cluster', double(spike_clusters), '%d');
                 h.DataTipTemplate.DataTipRows(end+1) = dataTipTextRow('Spike Ind', double(spike_inds), '%d');
             end
-                
+            
             if p.Results.timeInSeconds
                 xlabel('time (sec)')
             else
@@ -1543,7 +1632,7 @@ classdef KilosortMetrics < handle
         end
         
         function channel_ids_by_template = plotTemplateImage(m, templateInds, varargin)
-            channel_ids_by_template = m.plotTemplateImageInternal(templateInds, varargin{:}); 
+            channel_ids_by_template = m.plotTemplateImageInternal(templateInds, varargin{:});
         end
         
         function channel_ids_by_template = plotTemplateImageBatchwise(m, templateInds, varargin)
@@ -1551,7 +1640,7 @@ classdef KilosortMetrics < handle
         end
         
         function cmap = getDefaultLinearColormap(~, N)
-%             cmap = Neuropixel.Utils.colorcet('CBL2', 'N', N);
+            %             cmap = Neuropixel.Utils.colorcet('CBL2', 'N', N);
             cmap = Neuropixel.Utils.cmocean('thermal', N);
         end
         
@@ -1559,7 +1648,7 @@ classdef KilosortMetrics < handle
             if nargin < 2
                 nBatch = m.nBatchesComputed;
             end
-%             cmap = Neuropixel.Utils.colorcet('d6', 'N', nBatch);
+            %             cmap = Neuropixel.Utils.colorcet('d6', 'N', nBatch);
             cmap = Neuropixel.Utils.cmocean('-deep', nBatch);
         end
         
@@ -1574,7 +1663,7 @@ classdef KilosortMetrics < handle
                 cmap = Neuropixel.Utils.distinguishable_colors(nItems);
             end
         end
-
+        
         function channel_ids_by_template = plotTemplateImageInternal(m, templateInds, varargin)
             p = inputParser();
             p.addParameter('xmag', 1.5, @isscalar);
@@ -1654,7 +1743,7 @@ classdef KilosortMetrics < handle
                 elseif isa(batch_cmap, 'function_handle')
                     batch_cmap = batch_cmap(nBatchesPlotted);
                 end
-            else 
+            else
                 template_cmap = p.Results.template_colormap;
                 if isempty(template_cmap)
                     template_cmap = m.getDefaultCategoricalColormap(nTemp);
@@ -1667,18 +1756,18 @@ classdef KilosortMetrics < handle
             if isempty(templateLabels)
                 templateLabels = arrayfun(@(ind) sprintf("template %d", ind), templateInds);
             end
-
-%             if batchwise
-%                 if ~isholding
-%                     cla(axh);
-%                 end
-%                 axh.ColorOrder = batch_cmap;
-%                 axh.ColorOrderIndex = 1;      
-%             end
-%             
+            
+            %             if batchwise
+            %                 if ~isholding
+            %                     cla(axh);
+            %                 end
+            %                 axh.ColorOrder = batch_cmap;
+            %                 axh.ColorOrderIndex = 1;
+            %             end
+            %
             for iT = 1:nTemp
                 this_channel_ind = channel_ind_by_template(iT, :);
-%                 this_channel_ids = channel_ids_by_template(iT, :);
+                %                 this_channel_ids = channel_ids_by_template(iT, :);
                 xc = m.ks.channel_positions_sorted(this_channel_ind, 1);
                 yc = m.ks.channel_positions_sorted(this_channel_ind, 2);
                 
@@ -1691,15 +1780,15 @@ classdef KilosortMetrics < handle
                         end
                     else
                         wave = Neuropixel.Utils.TensorUtils.squeezeDims(data(iT, :, iC), 1) + yc(iC);
-
-    %                     ud = struct('template_ind', template_inds(iT), 'template_amplitude', sprintf('%.1f uV', m.template_amplitude(template_inds(iT)),
-    %                     'channel_id', this_channel_ids(iC), 'template_is_localized', m.template_is_localized(template_inds(iT)), ...
-    %                     'xname', 'Time', 'yname', 'Voltage', 'xoffset', xc(iC) - mean(tvec), 'yoffset', yc(iC) + dataOffset(iT, 1, iC), 'xscale', 1, 'yscale', waveScalingFactor_umtouV, 'xunits', 'ms', 'yunits', 'uV');
-    %                     
-                        h = plot(axh, tvec_shift + xc(iC), wave, 'Color', template_cmap(iT, :), 'LineWidth', 0.5); 
-                            
+                        
+                        %                     ud = struct('template_ind', template_inds(iT), 'template_amplitude', sprintf('%.1f uV', m.template_amplitude(template_inds(iT)),
+                        %                     'channel_id', this_channel_ids(iC), 'template_is_localized', m.template_is_localized(template_inds(iT)), ...
+                        %                     'xname', 'Time', 'yname', 'Voltage', 'xoffset', xc(iC) - mean(tvec), 'yoffset', yc(iC) + dataOffset(iT, 1, iC), 'xscale', 1, 'yscale', waveScalingFactor_umtouV, 'xunits', 'ms', 'yunits', 'uV');
+                        %
+                        h = plot(axh, tvec_shift + xc(iC), wave, 'Color', template_cmap(iT, :), 'LineWidth', 0.5);
+                        
                     end
-                    if iC == 1 
+                    if iC == 1
                         Neuropixel.Utils.showFirstInLegend(h, templateLabels{iT});
                     else
                         Neuropixel.Utils.hideInLegend(h);
@@ -1733,7 +1822,7 @@ classdef KilosortMetrics < handle
                     ylabel(h, 'Batches');
                 end
             end
-%             axh.Color = [0.92 0.92 0.95];
+            %             axh.Color = [0.92 0.92 0.95];
             box(axh, 'off');
             if ~isholding, hold(axh, 'off'), end
         end
@@ -1754,7 +1843,7 @@ classdef KilosortMetrics < handle
             if isempty(axh), axh = gca; end
             isholding = ishold(axh);
             
-            if nargin < 2 || isempty(template_inds) 
+            if nargin < 2 || isempty(template_inds)
                 template_inds = find(m.template_is_localized);
             end
             
@@ -1765,7 +1854,7 @@ classdef KilosortMetrics < handle
                 elseif isa(batch_cmap, 'function_handle')
                     batch_cmap = batch_cmap(nBatchesPlotted);
                 end
-            else 
+            else
                 template_cmap = p.Results.template_colormap;
                 if isempty(template_cmap)
                     template_cmap = m.getDefaultCategoricalColormap(numel(template_inds));
@@ -1824,7 +1913,7 @@ classdef KilosortMetrics < handle
                 elseif isa(batch_cmap, 'function_handle')
                     batch_cmap = batch_cmap(nBatchesPlotted);
                 end
-            else 
+            else
                 cluster_cmap = p.Results.cluster_colormap;
                 if isempty(cluster_cmap)
                     cluster_cmap = m.getDefaultCategoricalColormap(numel(cluster_inds));
@@ -1838,7 +1927,7 @@ classdef KilosortMetrics < handle
                 for iT = 1:numel(cluster_inds)
                     mask_valid = cluster_count_batchwise(cluster_inds(iT), 1, :) >= p.Results.batchMinSpikes;
                     centroid = Neuropixel.Utils.TensorUtils.squeezeDims(m.cluster_centroid_batchwise(cluster_inds(iT), :, [1 2]), 1);
-                   
+                    
                     xv = centroid(mask_valid, 1);
                     if p.Results.ignoreDriftX && ~isempty(xv)
                         xv(2:end) = xv(1);
@@ -1871,7 +1960,7 @@ classdef KilosortMetrics < handle
             
             m.plotClusterCentroids(m.cluster_ids(cluster_mask), 'batchwise', true, varargin{:});
         end
-            
+        
         function plotClusterDriftSummary(m, varargin)
             p = inputParser();
             p.addParameter('spatialDim', 2, @isscalar); % 1 is x, 2 is y, 3 is z
@@ -1904,7 +1993,7 @@ classdef KilosortMetrics < handle
             
             compressed_offsets = (binmedian_ref_pos - mean(binmedian_ref_pos)) / p.Results.compressInitialOffsetsBy;
             compressed_offsets = compressed_offsets(bins);
-                        
+            
             pos_shift = centroids(cluster_mask, :, sdim) - ref_pos + compressed_offsets;
             
             % now histogram each time slice by bin
@@ -1922,14 +2011,14 @@ classdef KilosortMetrics < handle
             
             tvals = m.ks.batch_starts(m.batchesComputed) / m.fs;
             for iB = 1:nBins
-%                  TrialDataUtilities.Plotting.errorshadeInterval(m.batchesComputed, binnedQuantiles(iB, :, 1), binnedQuantiles(iB, :, 3), cmap(iB, :));
-%                hold on
+                %                  TrialDataUtilities.Plotting.errorshadeInterval(m.batchesComputed, binnedQuantiles(iB, :, 1), binnedQuantiles(iB, :, 3), cmap(iB, :));
+                %                hold on
                 yvals = binnedQuantiles(iB, :, 2);
-                 if p.Results.smoothBy > 1
-                     yvals = smooth(yvals, p.Results.smoothBy);
-                 end
-                 plot(tvals, yvals, '-', 'Color', cmap(iB, :), 'LineWidth', 2);
-                 hold on
+                if p.Results.smoothBy > 1
+                    yvals = smooth(yvals, p.Results.smoothBy);
+                end
+                plot(tvals, yvals, '-', 'Color', cmap(iB, :), 'LineWidth', 2);
+                hold on
             end
             
             axis tight
@@ -1957,13 +2046,13 @@ classdef KilosortMetrics < handle
             if p.Results.showChannelLabels
                 for iC = 1:numel(channelInds)
                     text(xc(iC), yc(iC), sprintf('ch %d', channel_ids(iC)), ...
-                            'HorizontalAlignment', 'right', 'VerticalAlignment', 'middle', ...
-                            'Background', 'none', ...
-                            p.Results.labelArgs{:});
+                        'HorizontalAlignment', 'right', 'VerticalAlignment', 'middle', ...
+                        'Background', 'none', ...
+                        p.Results.labelArgs{:});
                 end
             end
         end
-
+        
         function plotClusterWaveformAtCentroid(m, varargin)
             p = inputParser();
             p.addParameter('waveformScale', 10, @isscalar);
@@ -1971,7 +2060,7 @@ classdef KilosortMetrics < handle
             p.addParameter('waveformHeight', m.channelMap.yspacing*3, @isscalar);
             p.addParameter('cluster_ids', m.cluster_ids, @isvector);
             p.addParameter('colormap', [], @(x) isempty(x) || ismatrix(x));
-            
+            p.addParameter('plotRecordingSites', false, @islogical);
             p.addParameter('useAutoAxis', false, @islogical);
             p.parse(varargin{:});
             
@@ -1992,14 +2081,16 @@ classdef KilosortMetrics < handle
                 [~, sortIdx] = sort(m.cluster_amplitude(clusterInds), 'ascend');
                 colormap = colormap(sortIdx, :);
             end
-           
+            
             % nClusters x 2 or 3
             com = m.cluster_centroid(clusterInds, :);
             
             holding = ishold;
             
             % plot recording sites
-            m.plotRecordingSites('color', [0.5 0.5 0.5]);
+            if p.Results.plotRecordingSites
+                m.plotRecordingSites('color', [0.5 0.5 0.5]);
+            end
             ax = gca;
             ax.Color = [0.92 0.92 0.95];
             ax.TickDir = 'out';
@@ -2016,22 +2107,22 @@ classdef KilosortMetrics < handle
                     'cluster_is_localized', m.cluster_is_localized(clusterInds(iC)), ...
                     'xname', 'Time', 'yname', 'Voltage', 'xoffset', xvec(1) + com(iC, 1), 'yoffset', com(iC, 2), 'xscale', timeScaleFactor_umtoms, 'yscale', waveScalingFactor_umtouV, 'xunits', 'ms', 'yunits', 'uV');
                 plot(xvec + com(iC, 1), waves(iC, :) + com(iC, 2), '-', 'Color', color, 'UserData', ud, 'LineWidth', 2);
-                hold on;    
+                hold on;
             end
             
             if ~holding, hold off; end
             
             if p.Results.useAutoAxis
                 AutoAxis.replaceScaleBars('xUnits', 'ms', 'xLength', 1, 'xScaleFactor', timeScaleFactor_umtoms, ...
-                    'yUnits', 'uV', 'yLength', 200, 'yScaleFactor', waveScalingFactor_umtouV); 
+                    'yUnits', 'uV', 'yLength', 200, 'yScaleFactor', waveScalingFactor_umtouV);
             else
                 xlabel('x (um)');
                 ylabel('y (um)');
             end
-%             
-%             bgcolor = [0.9 0.9 0.9];
-%             axh = gca;
-%             axh.Color = bgcolor;
+            %
+            %             bgcolor = [0.9 0.9 0.9];
+            %             axh = gca;
+            %             axh.Color = bgcolor;
             box off;
             
             Neuropixel.Utils.configureDataTipsFromUserData(gcf);
@@ -2059,7 +2150,7 @@ classdef KilosortMetrics < handle
             else
                 time = m.templateTimeRelative;
             end
-                        
+            
             nChannels = p.Results.reconstruct_best_channels;
             ch_ids_by_proximity = m.template_best_channels(template_inds(1), 1:nChannels);
             ch_ids_sorted = m.channelMap.sortChannelsVertically(ch_ids_by_proximity);
@@ -2084,7 +2175,7 @@ classdef KilosortMetrics < handle
         end
     end
     
-    methods % Pairwise cluster comparison  
+    methods % Pairwise cluster comparison
         function ss = inspect_spike_heatmap(m, spike_ind, varargin)
             ss = m.ks.getWaveformsFromRawData('spike_idx', spike_ind, 'best_n_channels', 24, varargin{:});
             ss.plotHeatmapWithTemplates(1);
@@ -2096,7 +2187,7 @@ classdef KilosortMetrics < handle
             p.KeepUnmatched = true;
             p.parse(varargin{:})
             ss = m.ks.getWaveformsFromRawData('spike_idx', spike_ind, 'best_n_channels', 24, p.Unmatched);
-
+            
             if p.Results.overlay_all_clusters
                 ss.overlay_cluster_ids = m.ks.cluster_ids;
             end
@@ -2109,7 +2200,7 @@ classdef KilosortMetrics < handle
         end
         
         function [times1, times2, lags] = pairwiseClusterFindSpikesWithLag(m, cluster_ids, varargin)
-            % find spikes with a 
+            % find spikes with a
             p = inputParser();
             p.addParameter('lagWindowMs', [-5 5], @isvector); % in ms
             p.addParameter('N', Inf, @isscalar);
@@ -2117,17 +2208,17 @@ classdef KilosortMetrics < handle
             p.parse(varargin{:});
             lagWindow = p.Results.lagWindowMs / 1000 * m.fs; % convert to samples
             
-            assert(numel(cluster_ids) == 2);            
+            assert(numel(cluster_ids) == 2);
             [~, which_cluster] = ismember(m.spike_clusters, cluster_ids);
-
-            % now we want to find the set of pairs of spikes where spikes 
+            
+            % now we want to find the set of pairs of spikes where spikes
             times1 = double(m.spike_times(which_cluster == 1));
             times2 = double(m.spike_times(which_cluster == 2));
-           
+            
             lagCentral = (lagWindow(2) + lagWindow(1)) / 2;
-            lagRadius = (lagWindow(2) - lagWindow(1)) / 2;   
+            lagRadius = (lagWindow(2) - lagWindow(1)) / 2;
             inds2 = rangesearch(times2 - lagCentral, times1, lagRadius);
-              
+            
             [inds2, inds1] = Neuropixel.Utils.TensorUtils.catWhich(2, inds2{:});
             inds1 = inds1';
             inds2 = inds2';
@@ -2163,10 +2254,10 @@ classdef KilosortMetrics < handle
                 lagWindow = [0 lagWindow];
             end
             
-            assert(numel(cluster_id) == 1);            
+            assert(numel(cluster_id) == 1);
             [~, which_cluster] = ismember(m.spike_clusters, cluster_id);
-
-            % now we want to find the set of pairs of spikes where spikes 
+            
+            % now we want to find the set of pairs of spikes where spikes
             times = double(m.spike_times(which_cluster == 1));
             dt = diff(times);
             inds1 = find(dt >= lagWindow(1) & dt <= lagWindow(2));
@@ -2232,7 +2323,7 @@ classdef KilosortMetrics < handle
             snippetSet = m.ks.readAPSnippsetSet_clusterIdSubset(times, window, cluster_id, ...
                 'best_n_channels', p.Results.best_n_channels, p.Unmatched);
         end
-            
+        
         function [timesByCluster, indsByCluster, windowWidth] = multiClusterFindSpikesWithinWindow(m, cluster_ids, varargin)
             p = inputParser();
             p.addParameter('window', 20, @isvector);
@@ -2248,9 +2339,9 @@ classdef KilosortMetrics < handle
             times1 = double(m.spike_times(which_cluster == 1));
             mask_other = which_cluster > 1;
             indsOther = find(mask_other);
-            timesOther = double(m.spike_times(mask_other)); 
+            timesOther = double(m.spike_times(mask_other));
             indsIntoTimesOtherNearest = rangesearch(timesOther, times1, window, 'SortIndices', false);
-                                    
+            
             valid = false(numel(times1), 1);
             windowWidth = nan(numel(times1), 1);
             indsByCluster = nan(numel(times1), nClusters);
@@ -2266,7 +2357,7 @@ classdef KilosortMetrics < handle
                 
                 [valid(i), tempInds, windowWidth(i)] = bestWindowCover(relTimesOtherThis, whichClusterThis);
                 indsByCluster(i, 2:end) = indsOtherThis(tempInds);
-            end 
+            end
             
             indsByCluster = indsByCluster(valid, :);
             windowWidth = windowWidth(valid);
@@ -2281,7 +2372,7 @@ classdef KilosortMetrics < handle
             function [valid, indsByCluster, windowWidth] = bestWindowCover(relativeTimes, whichCluster)
                 % given a set of nSpikes relative times between +/- window and cluster identities whichCluster
                 % return the ind from each cluster that fall within the smallest max - min window
-
+                
                 
                 % offsets defines time windows running from offsets(i):offsets(i)+window-1
                 % indMat temporary assignment of this spike for a given cluster and a given window start
@@ -2302,7 +2393,7 @@ classdef KilosortMetrics < handle
                 end
                 
                 % now pick the best window
-                [windowWidth, whichOffset] = min(max(deltaMat, [], 1, 'includenan')); 
+                [windowWidth, whichOffset] = min(max(deltaMat, [], 1, 'includenan'));
                 if isnan(windowWidth)
                     valid = false;
                     indsByCluster = nan(nClusters, 1);
@@ -2318,24 +2409,24 @@ classdef KilosortMetrics < handle
             p.addParameter('channel_ids', m.channelMap.channelIdsMapped, @isvector);
             p.addParameter('channel_ids_by_cluster', [], @ismatrix); % specify this manually
             p.addParameter('best_n_channels', 24, @isscalar); % or take the best n channels based on this clusters template when cluster_id is scalar
-
+            
             p.addParameter('invertChannels', true, @islogical);
             p.addParameter('showLabels', true, @islogical);
             p.addParameter('gain', 0.95, @isscalar);
             p.addParameter('car', false, @islogical);
-            p.addParameter('downsample',1, @isscalar); 
+            p.addParameter('downsample',1, @isscalar);
             p.addParameter('timeInSeconds', true, @islogical);
             
             p.addParameter('waveform_window', [-40 41], @isvector); % Number of samples before and after spiketime to include in waveform
             p.addParameter('cluster_colormap', Neuropixel.Utils.distinguishable_colors(numel(cluster_ids)), @(x) ismatrix(x));
             p.parse(varargin{:});
             waveform_window = p.Results.waveform_window;
-
+            
             df = m.ks.raw_dataset;
             sampleIdx = Neuropixel.Utils.makecol(sampleIdx);
             mat = df.readAP_idx(sampleIdx); % C x T
             
-            [channelInds, channelIds] = df.lookup_channelIds(p.Results.channel_ids); 
+            [channelInds, channelIds] = df.lookup_channelIds(p.Results.channel_ids);
             channelsHighlightByCluster = p.Results.channel_ids_by_cluster;
             clusterInds = m.lookup_clusterIds(cluster_ids);
             if isempty(channelsHighlightByCluster)
@@ -2354,7 +2445,7 @@ classdef KilosortMetrics < handle
             if p.Results.car
                 mat = mat - median(mat, 1);
             end
-
+            
             if ~p.Results.showLabels
                 labels = [];
             end
@@ -2383,9 +2474,9 @@ classdef KilosortMetrics < handle
             
             out = Neuropixel.Utils.plotStackedTraces(time, mat', 'labels', labels, ...
                 'gain', p.Results.gain, 'invertChannels', p.Results.invertChannels, 'normalizeEach', false, ...
-                'colorOverlayLabels', waveformOverlayLabels', 'colorOverlayMap', p.Results.cluster_colormap); 
+                'colorOverlayLabels', waveformOverlayLabels', 'colorOverlayMap', p.Results.cluster_colormap);
         end
-
+        
         
     end
     

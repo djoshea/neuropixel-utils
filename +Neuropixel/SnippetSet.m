@@ -10,7 +10,7 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
     end
     
     properties
-        data (:, :, :, :) int16 % channels x time x snippets x layers
+        data % (:, :, :, :) int16 % channels x time x snippets x layers - we deactivate the size checking here 
         
         % optional, set if each snippet corresponds to a specific cluster
         cluster_ids (:, 1) uint32 % nSnippets x 1, array indicating which cluster is extracted in each snippet, if this makes sense. otherwise will just be 1s
@@ -620,10 +620,52 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
                 recon(:, insert_idx, iSp) = templates(:, take_mask, iSp); 
             end
         end
+        
+        function plotStackedTraces(ss, varargin)
+            p = inputParser();
+            p.addParameter('maskSnippets', ss.valid, @isvector);
+            p.addParameter('maskChannels', true(ss.nChannels, 1), @isvector);
+            p.addParameter('showLabels', true, @islogical);
+            p.addParameter('gain', 1.95, @isscalar);
+%             p.addParameter('car', false, @islogical);
+%             p.addParameter('downsample',1, @isscalar); 
+            p.addParameter('timeInMilliseconds', false, @islogical);
+            p.addParameter('dark', false, @islogical);
+            p.addParameter('lineOpacity', 1, @isscalar);
+            p.addParameter('showChannelDataTips', false, @islogical);
+            p.parse(varargin{:});
+            
+            dark = p.Results.dark;
+            [bg, traceColor] = ss.setupFigureAxes(dark);
+
+            if p.Results.timeInMilliseconds
+                time = ss.time_ms;
+            else
+                time = ss.time_samples;
+            end
+            mask_snippets = p.Results.maskSnippets;
+
+            mask_channels = p.Results.maskChannels;
+            data = ss.data(mask_channels, :, mask_snippets, :);
+            channel_ids = ss.channel_ids_by_snippet(mask_channels, mask_snippets);
+            
+            % data is ch x time x snippets x layers
+            % plot stacked traces wants time x ch x layers
+            data_txcxl = permute(data(:, :, :), [2 1 3]);
+            
+            [~, transform] = Neuropixel.Utils.plotStackedTraces(time, data_txcxl, 'colors', traceColor, ...
+                'lineWidth', 0.5, 'lineOpacity', p.Results.lineOpacity, ...
+                'gain', p.Results.gain, 'invertChannels', ss.channelMap.invertChannelsY, 'normalizeEach', false, ...
+                'channel_ids', channel_ids, 'showChannelDataTips', p.Results.showChannelDataTips);
+             
+            axis off;
+            hold off;
+        end
        
         function plotStackedTracesWithOverlays(ss, varargin)
             p = inputParser();
             p.addParameter('maskSnippets', ss.valid, @isvector);
+            p.addParameter('maskChannels', true(ss.nChannels, 1), @isvector);
             p.addParameter('showLabels', true, @islogical);
             p.addParameter('gain', 1.95, @isscalar);
 %             p.addParameter('car', false, @islogical);
