@@ -14,6 +14,7 @@ classdef ImecDataset < handle
         nSamplesLF = 0;
         fsAP = NaN; % samples_per_second
         fsLF = NaN; % samples_per_second
+        fsSync = NaN;
         highPassFilterHz = NaN;
         apGain = NaN;
         apRange = [];
@@ -97,9 +98,12 @@ classdef ImecDataset < handle
         apScaleToUv % multiply raw int16 by this to get uV
         lfScaleToUv
 
-        % from channel map (although syncChannelIndex will be 1 if sync not in AP file)
+        % from channel map (although syncChannelIndex will be 1 if sync not in AP or LF file)
         syncChannelIndex % if sync in AP file, at one index
-        syncInAPFile % is the sync info in the ap file, or in a separate .sync file
+        
+        % sync will come from either AP, LF, or separate file depending on these flags
+        syncInAPFile % is the sync info in the ap file?
+        syncInLFFile % is the sync info in the lf file?
     end
 
     methods
@@ -384,7 +388,7 @@ classdef ImecDataset < handle
 %     end
     
     methods % Sync channel read / cache
-        function syncRaw = readSync(imec, varargin)
+        function [syncRaw, fsSync] = readSync(imec, varargin)
             p = inputParser();
             p.addOptional('reload', false, @islogical); % if true, ignore cache in memory imec.syncRaw 
             p.addParameter('ignoreCached', false, @islogical); % if true, ignore cache on disk in imec.pathSyncCached
@@ -396,22 +400,29 @@ classdef ImecDataset < handle
                     fprintf('Loading sync from cached %s%s\n', f, e);
                     ld = load(imec.pathSyncCached);
                     imec.syncRaw = typecast(ld.sync, 'uint16');
+                    if isfield(ld, 'fsSync')
+                        imec.fsSync = ld.fsSync;
+                    else
+                        % assume from AP if not specified since I added sync from LF later
+                        imec.fsSync = imec.fsAP;
+                    end
                 else
                     % this will automatically redirect to a separate sync file
                     % or to the ap file depending on .syncInAPFile
                     fprintf('Loading sync channel (this will take some time)...\n');
                     mm = imec.memmapSync_full();
                     imec.syncRaw = typecast(mm.Data.x(imec.syncChannelIndex, :)', 'uint16');
-
                     imec.saveSyncCached();
                 end
             end
             syncRaw = imec.syncRaw;
+            fsSync = imec.fsSync;
         end
 
         function saveSyncCached(imec)
             sync = imec.readSync();
-            save(imec.pathSyncCached, 'sync');
+            fsSync = imec.fsSync; %#ok<PROP>
+            save(imec.pathSyncCached, 'sync', 'fsSync');
         end
         
         function clearSyncCached(imec)
@@ -420,13 +431,17 @@ classdef ImecDataset < handle
                 delete(imec.pathSyncCached);
             end
             imec.syncRaw = [];
+            imec.fsSync = NaN;
         end
         
         function updateSyncCached(imec, varargin)
             imec.syncRaw = [];
+            imec.fsSync = [];
             if exist(imec.pathSyncCached, 'file')
-                sync = imec.readSync('reload', true, 'ignoreCached', true);
-                save(imec.pathSyncCached, 'sync');
+                [sync, fsSync] = imec.readSync('reload', true, 'ignoreCached', true);
+                save(imec.pathSyncCached, 'sync', 'fsSync');
+                imec.syncRaw = sync;
+                imec.fsSync = fsSync;
             end
         end
 
@@ -449,10 +464,16 @@ classdef ImecDataset < handle
                     mm = imec.memmapSync_full();
                     vec = mm.Data.x(imec.syncChannelIndex, idx)';
                 end
-            else
+            elseif imec.syncInAPFile
                 mmSet = imec.memmap_sourceAP_full();
                 [sourceFileInds, sourceSampleInds] = imec.concatenationInfoAP.lookup_sampleIndexInSourceFiles(idx);
                 vec = Neuropixel.ImecDataset.multi_mmap_extract_sample_idx(mmSet, sourceFileInds, sourceSampleInds, imec.syncChannelIndex);
+            elseif imec.syncInLFFile
+                mmSet = imec.memmap_sourceLF_full();
+                [sourceFileInds, sourceSampleInds] = imec.concatenationInfoLF.lookup_sampleIndexInSourceFiles(idx);
+                vec = Neuropixel.ImecDataset.multi_mmap_extract_sample_idx(mmSet, sourceFileInds, sourceSampleInds, imec.syncChannelIndex);
+            else
+                error('Cannot read source sync unless sync derives from AP or LF');
             end
         end
         
@@ -589,6 +610,12 @@ classdef ImecDataset < handle
             mat = readSyncBits_idx(bits, sampleIdx);
         end
         
+        function [mat, sampleIdx] = readSyncLFBits_timeWindow(imec, bits, timeWindowSec)
+            idxWindow = imec.closestSampleLFForTime(timeWindowSec);
+            sampleIdx = idxWindow(1):idxWindow(2);
+            mat = readSyncLFBits_idx(bits, sampleIdx);
+        end
+        
         function [mat, sourceInds] = readAP_viaTimeShiftSpec(imec, timeShifts, varargin)
             % read a matrix of AP data as requested by Neuropixel.TimeShiftSpec instance timeShifts
             sourceInds = timeShifts.computeSourceIndices(imec.nSamplesAP);
@@ -706,16 +733,18 @@ classdef ImecDataset < handle
                 mat = mat - median(mat, 1);
             end
             
-            if p.Results.invertChannels
-                mat = flipud(mat);
-                labels = flipud(labels);
-            end
-            
             colors = zeros(size(mat, 1), 3);
             colors(~connected, 3) = 1; % not connected --> blue
             colors(bad & connected, 1) = 1; % bad --> red
             colors(bad & connected, 3) = 0; % bad --> red
             normalizeMask = true(size(mat, 1), 1);
+            
+            if p.Results.invertChannels
+                mat = flipud(mat);
+                labels = flipud(labels);
+                normalizeMask = flipud(normalizeMask);
+                colors = flipud(colors);
+            end
             
             % append sync bit info to plot in purple
             showSync = p.Results.showSync;
@@ -842,6 +871,9 @@ classdef ImecDataset < handle
             if imec.syncInAPFile
                 % still has nChannels
                 mm = memmapfile(imec.pathSync, 'Format', {'int16', [imec.nChannels imec.nSamplesAP], 'x'});
+            elseif imec.syncInLFFile
+                % still has nChannels
+                mm = memmapfile(imec.pathSync, 'Format', {'int16', [imec.nChannels imec.nSamplesLF], 'x'});
             else
                 % only sync channel
                 mm = memmapfile(imec.pathSync, 'Format', {'int16', [1 imec.nSamplesAP], 'x'});
@@ -1168,11 +1200,15 @@ classdef ImecDataset < handle
 
     methods % Dependent properties
         function tf = get.syncInAPFile(imec)
-            tf = imec.channelMap.syncInAPFile;
+            tf = imec.channelMap.syncInAPFile && imec.hasAP;
+        end
+        
+        function tf = get.syncInLFFile(imec)
+            tf = imec.channelMap.syncInLFFile && imec.hasLF;
         end
         
         function ind = get.syncChannelIndex(imec)
-            if imec.syncInAPFile
+            if imec.syncInAPFile || imec.syncInLFFile
                 ind = imec.channelMap.syncChannelIndex;
             else
                 % if sync is in its own file, assume it's the first and only channel
@@ -1223,6 +1259,8 @@ classdef ImecDataset < handle
         function fileSync = get.fileSync(imec)
             if imec.syncInAPFile
                 fileSync = imec.fileAP;
+            elseif imec.syncInLFFile
+                fileSync = imec.fileLF;
             else
                 fileSync = [imec.fileStem, '.imec.sync.bin'];
             end
@@ -1235,6 +1273,20 @@ classdef ImecDataset < handle
         function tf = get.hasSync(imec)
             tf = exist(imec.pathSync, 'file') == 2;
         end
+        
+        function fs = get.fsSync(imec)
+            % defer to fsAP or fsLF, or to stored value if neither sources the sync signal
+            if imec.syncInAPFile
+                fs = imec.fsAP;
+            elseif imec.syncInLFFile
+                fs = imec.fsLF;
+            else
+                fs = imec.fsSync;
+                if isempty(fs)
+                    fs = NaN;
+                end
+            end
+        end         
         
         function tf = get.hasSourceSync(imec)
             tf = imec.hasSourceDatasets && all([imec.sourceDatasets.hasSync]);
@@ -2085,6 +2137,8 @@ end
             assert(nFiles > 0);
             stemList = cellfun(@(imec) imec.fileStem, imecList, 'UniformOutput', false);
             dryRun = p.Results.dryRun;
+            writeAP = p.Results.writeAP;
+            writeLF = p.Results.writeLF;            
             
             function s = lastFilePart(f)
                 [~, f, e] = fileparts(f);
@@ -2111,8 +2165,35 @@ end
 
             useGpuArray = p.Results.gpuArray;
             applyScaling = p.Results.applyScaling;
+            
+            % ensure all source files exist and all sampling rates match
+            if writeAP
+                assert(all(cellfun(@(imec) imec.hasAP, imecList)), 'All imecDatasets must have AP band to write concatenated AP');
+                fsAP = cellfun(@(imec) imec.fsAP, imecList);
+                assert(all(fsAP == fsAP(1)), 'All imecDatasets must have matching fsAP');
+            end
+            fsAP = imecList{1}.fsAP;
+           
+            if writeLF
+                assert(all(cellfun(@(imec) imec.hasLF, imecList)), 'All imecDatasets must have LF band to write concatenated LF');
+                fsLF = cellfun(@(imec) imec.fsLF, imecList);
+                assert(all(fsLF == fsLF(1)), 'All imecDatasets must have matching fsLF');
+            end
+            fsLF = imecList{1}.fsLF;
+            
             timeShiftsAP = p.Results.timeShiftsAP;
             timeShiftsLF = p.Results.timeShiftsLF;
+            % exchange time shifts between LF and AP to ensure consistency
+            if writeAP && isempty(timeShiftsAP) && ~isempty(timeShiftsLF)
+                assert(~isnan(fsLF) && ~isnan(fsAP));
+                timeShiftsAP = arrayfun(@(tsLF) tsLF.convertToDifferentSampleRate(fsLF, fsAP), timeShiftsLF);
+            elseif writeLF && isempty(timeShiftsLF) && ~isempty(timeShiftsAP)
+                assert(~isnan(fsLF) && ~isnan(fsAP));
+                timeShiftsLF = arrayfun(@(tsAP) tsAP.convertToDifferentSampleRate(fsAP, fsLF), timeShiftsAP);
+            elseif ~isempty(timeShiftsAP) && ~isempty(timeShiftsLF)
+                warning('Both timeShiftsAP and timeShiftsLF are specified, which may lead to inconsistency in the concatenated output bands');
+            end
+        
             isConcatenation = numel(imecList) > 1;
             transformExtraArg = p.Results.transformExtraArg;
             if ~dryRun
@@ -2158,6 +2239,9 @@ end
                 end
 
                 % compute union of badChannels
+                if ~isfield(meta, 'badChannels')
+                    meta.badChannels = imecList{1}.badChannels;
+                end
                 for iM = 2:numel(imecList)
                     meta.badChannels = union(meta.badChannels, imecList{iM}.badChannels);
                 end
@@ -2201,7 +2285,7 @@ end
                 meta.fileName = [leaf '.imec.lf.bin'];
                 
                 % indicate concatenation time points in meta file
-                if isConcatenation
+%                 if isConcatenation
                     meta.concatenated = strjoin(stemList, ':');
                     meta.concatenatedSamples = cellfun(@(imec) imec.nSamplesLF, imecList);
                     meta.concatenatedGains = gains;
@@ -2209,14 +2293,17 @@ end
                     meta.concatenatedAdcBits = cellfun(@(imec) imec.adcBits, imecList);
                     meta.concatenatedAiRangeMin = cellfun(@(imec) imec.lfRange(1), imecList);
                     meta.concatenatedAiRangeMax = cellfun(@(imec) imec.lfRange(2), imecList);
-                end
+%                 end
                 
-                if ~isempty(timeShiftsLF) && isConcatenation
+                if ~isempty(timeShiftsLF)
                     % log time shifts by file in meta
-                    meta.concatenatedTimeShifts = strjoin(arrayfun(@(shift) shift.as_string(), timeShiftsLF, 'UniformOutput', false), '; ');
+                    meta.concatenatedTimeShifts = strjoin(arrayfun(@(shift) shift.as_string(), timeShiftsLF), '; ');
                 end
 
                 % compute union of badChannels
+                if ~isfield(meta, 'badChannels')
+                    meta.badChannels = imecList{1}.badChannels;
+                end
                 for iM = 2:numel(imecList)
                     meta.badChannels = union(meta.badChannels, imecList{iM}.badChannels);
                 end
@@ -2238,8 +2325,8 @@ end
                     {}, timeShiftsAP, dryRun, transformExtraArg);
             end
 
-            outFile = fullfile(outPath, [leaf '.imec.ap.bin']);
-            imecOut = Neuropixel.ImecDataset(outFile, 'channelMap', imecList{1}.channelMapFile);
+            outFile = fullfile(outPath, leaf);
+            imecOut = Neuropixel.ImecDataset(outFile, 'channelMap', imecList{1}.channelMapFile, 'sourceDatasets', cat(1, imecList{:}));
 
             function transformExtraArg = writeCatFile(outFile, chIndsByFile, mode, multipliers, chunkSize, chunkExtra, procFnList, timeShifts, dryRun, transformExtraArg)
                 if ~iscell(procFnList)

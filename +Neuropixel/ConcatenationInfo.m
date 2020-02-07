@@ -52,6 +52,7 @@ classdef ConcatenationInfo < handle
                         matches = string(regexp(timeShifts, '\s*(\[[\d ;,]*])\s*;?\s*', 'tokens'))';
                         ci.timeShifts = arrayfun(@(str, nSamples) Neuropixel.TimeShiftSpec.from_string(str, nSamples), matches, ci.samplesPreShift);
                     end
+                    assert(sum([ci.timeShifts.nShiftedTimes]) == ci.nSamples, 'Mismatch between time shifts and total number of samples');
                 end
                 
                 namescat = getor(meta, 'concatenated', []);
@@ -133,7 +134,7 @@ classdef ConcatenationInfo < handle
             end
             
             ci.fs = fsInfer;
-            ci.timeShifts = ciRef.timeShifts;
+            ci.timeShifts = copy(ciRef.timeShifts);
             nSamplesInfer = uint64(0);
             for iTS = 1:numel(ci.timeShifts)
                 ci.timeShifts(iTS).idxStart = samplesRefToInfer(ci.timeShifts(iTS).idxStart);
@@ -159,7 +160,7 @@ classdef ConcatenationInfo < handle
                     ci.ranges = cat(2, rmin, rmax);
             end
             
-            [ci.multipliers, ~] = Neuropixel.ImecDataset.determineCommonGain(ci.gains);
+            [ci.multipliers, ~] = Neuropixel.ImecDataset.determineCommonGain(ci.gains, true); % quiet here since the gain is inferred anyway
             ci.adcBits = cat(1, imec.sourceDatasets.adcBits);
         end
     end

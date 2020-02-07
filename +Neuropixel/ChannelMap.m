@@ -14,7 +14,7 @@ classdef ChannelMap
         ycoords
         zcoords
         
-        syncChannelIndex uint32 % actual index in the AP bin file
+        syncChannelIndex uint32 % actual index in the AP & LF bin file
         syncChannelId uint32 % arbitrary channel id, typically the same as index
     end
     
@@ -22,6 +22,7 @@ classdef ChannelMap
         coords
         
         syncInAPFile
+        syncInLFFile
         channelIds
         nChannels
         nChannelsMapped
@@ -75,6 +76,10 @@ classdef ChannelMap
         end
         
         function tf = get.syncInAPFile(map)
+            tf = ~isempty(map.syncChannelIndex);
+        end
+        
+        function tf = get.syncInLFFile(map)
             tf = ~isempty(map.syncChannelIndex);
         end
         

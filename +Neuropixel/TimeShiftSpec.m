@@ -1,4 +1,4 @@
-classdef TimeShiftSpec < handle
+classdef TimeShiftSpec < handle & matlab.mixin.Copyable
     % a simple class for holding information about a time shift that takes a set of specific time intervals
     % in the original file and maps them to new indices that have been squished together by excising some intervening intervals
     % This is used primarily for skipping over bad regions in a raw data file we don't want to sort
@@ -31,6 +31,11 @@ classdef TimeShiftSpec < handle
                 spec.idxStop = uint64(idxStop);
                 spec.idxShiftStart = uint64(idxShiftStart);
             end     
+        end
+        
+        function specNew = convertToDifferentSampleRate(spec, fsThis, fsNew)
+            convert = @(idx) uint64(floor(double(idx) / double(fsThis) * double(fsNew)));
+            specNew = Neuropixel.TimeShiftSpec(convert(spec.idxStart), convert(spec.idxStop), convert(spec.idxShiftStart));
         end
         
         function mat = as_matrix(spec)

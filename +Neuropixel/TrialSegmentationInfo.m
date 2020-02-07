@@ -29,6 +29,15 @@ classdef TrialSegmentationInfo < handle & matlab.mixin.Copyable
             tsi.idxStop = zeros(nTrials, 1, 'uint64');
         end
         
+        function tsiNew = convertToDifferentSampleRate(tsi, fsNew)
+            tsiNew = copy(tsi);
+            tsiNew.fs = fsNew;
+            
+            convert = @(idx) uint64(floor(double(idx) / double(tsi.fs) * double(fsNew)));
+            tsiNew.idxStart = convert(tsi.idxStart);
+            tsiNew.idxStop = convert(tsi.idxStop);
+        end
+        
         function nTrials = get.nTrials(tsi)
             nTrials = numel(tsi.trialId);
         end
