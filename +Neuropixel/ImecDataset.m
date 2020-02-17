@@ -973,6 +973,8 @@ classdef ImecDataset < handle
             
             p.addParameter('car', false, @islogical); % subtract median over channels
             p.addParameter('center', false, @islogical); % subtract median over time
+            p.addParameter('average_by_cluster_id', false, @islogical);
+            p.addParameter('applyScaling', false, @islogical); % scale to uV and return single
             p.parse(varargin{:});
 
             channel_ids = p.Results.channel_ids;
@@ -981,13 +983,20 @@ classdef ImecDataset < handle
             cluster_ids = p.Results.cluster_ids_by_snippet;
             unique_cluster_ids = p.Results.unique_cluster_ids;
             if isempty(unique_cluster_ids), unique_cluster_ids = unique(cluster_ids); end
-                
+            
+            average_by_cluster_id = p.Results.average_by_cluster_id;
+            if isempty(cluster_ids) && average_by_cluster_id
+                error('cluster_ids must be provided when average_by_cluster_id is true');
+            end
+            if ~isempty(cluster_ids)
+                [~, cluster_inds] = ismember(cluster_ids, unique_cluster_ids);
+            end
+
             if ~isempty(channel_ids_by_snippet)
                 assert(size(channel_ids_by_snippet, 2) == numel(times), 'channel_ids must be nChannels x numel(times)');
                 
             elseif ~isempty(channel_ids_by_cluster)
                 assert(~isempty(cluster_ids), 'cluster_ids_by_snippet must be specified when channel_ids_by_cluster is used');
-                [~, cluster_inds] = ismember(cluster_ids, unique_cluster_ids);
                 channel_ids_by_snippet = channel_ids_by_cluster(:, cluster_inds);
                 
             elseif ~isempty(channel_ids)
@@ -1032,15 +1041,33 @@ classdef ImecDataset < handle
             times = Neuropixel.Utils.makecol(uint64(times));
             nC = size(channel_ids_by_snippet, 1);
             nC_all = imec.nChannels;
-            nS = numel(times);
+            nS = numel(times); % actual number of input snippets extracted
+            
+            % nS out is the accumulated number of output snippets (equals nS or number of clusters if we're averaging)
+            if ~average_by_cluster_id
+                nS_out = nS;
+            else
+                nS_out = numel(unique_cluster_ids);
+            end
             nT = numel(window(1):window(2));
-            out = zeros(nC, nT, nS, 'int16');
+            
+            outClass = 'int16';
+            applyScaling  = p.Results.applyScaling;
+            if applyScaling
+                outClass = 'single';
+            end
+            if average_by_cluster_id
+                outClass = 'single';
+                assert(~fromSourceDatasets || applyScaling, 'applyScaling must be true for average_by_cluster_id with fromSourceDatasets since waveforms may have differing scales');
+            end
+            
+            out = zeros(nC, nT, nS_out, outClass);
             
             if ~fromSourceDatasets
-                scaleToUv_by_snippet = repmat(single(scaleToUv), nS, 1);
+                scaleToUv_by_snippet = repmat(single(scaleToUv), nS_out, 1);
             else
                 % populated below
-                scaleToUv_by_snippet = nan(nS, 1, 'single');
+                scaleToUv_by_snippet = nan(nS_out, 1, 'single');
             end
 
             if numel(times) > 10
@@ -1058,35 +1085,63 @@ classdef ImecDataset < handle
             mask_idx_okay = idx_request >= int64(1) & idx_request <= nSamples;
             idx_request(~mask_idx_okay) = 1; % we'll clear out later
             
+            mask_request_okay = all(mask_idx_okay, 1)';
+            
             nPerGroup = 50; 
             nGroups = ceil(nS / nPerGroup);
+            
             for iGroup = 1:nGroups
                 idxS = nPerGroup*(iGroup-1) + 1 : min(nS,  nPerGroup*iGroup);
+                if average_by_cluster_id
+                    idxInsert = cluster_inds(idxS);
+                else
+                    idxInsert = idxS;
+                end
                 nS_this = numel(idxS);
                 idx_request_this = idx_request(:, idxS);
+                mask_request_okay_this = mask_request_okay(idxS);
                 if ~fromSourceDatasets
                     extract_all_ch = reshape(mm.Data.x(:, idx_request_this(:)), [nC_all nT, nS_this]);
                 else
                     [sourceFileInds, sourceSampleInds] = concatInfo.lookup_sampleIndexInSourceFiles(idx_request_this);
                     extract_all_ch = reshape(Neuropixel.ImecDataset.multi_mmap_extract_sample_idx(mmSet, ...
                         sourceFileInds(:), sourceSampleInds(:)), [nC_all nT nS_this]);
-                    scaleToUv_by_snippet(idxS) = scaleToUv_by_source(sourceFileInds(1, :)');
+                    scaleToUv_by_snippet(idxInsert) = scaleToUv_by_source(sourceFileInds(1, :)');
                 end
                 if p.Results.car
                     ar = median(extract_all_ch(good_ch_inds, :, :), 1);
                 else
-                    ar = zeros([1 nT nS], 'like', extract_all_ch);
+                    ar = zeros([1 nT nS_this], 'like', extract_all_ch);
                 end
+
                 for iiS = 1:nS_this
-                    out(:, :, idxS(iiS)) = extract_all_ch(channel_inds_by_snippet(:, idxS(iiS)), :, iiS) - ar(1, :, iiS); % which channels for this spike
+                    this_extract =  extract_all_ch(channel_inds_by_snippet(:, idxS(iiS)), :, iiS) - ar(1, :, iiS);
+                    if applyScaling
+                        this_extract = cast(this_extract, outClass) * scaleToUv_by_snippet(idxInsert(iiS));
+                    end
+                    if p.Results.center
+                        this_extract = this_extract - median(this_extract, 2);
+                    end
+                    if mask_request_okay_this(iiS)
+                        out(:, :, idxInsert(iiS)) = out(:, :, idxInsert(iiS)) + cast(this_extract, outClass); % which channels for this spike
+                    end
                 end
-                if p.Results.center
-                    out(:, :, idxS) = out(:, :, idxS(iiS)) - median(out(:, :, idxS), 2);
-                end
+               
                 if ~isempty(prog), prog.increment(nPerGroup); end
             end
             
-            out(:, ~mask_idx_okay(:)) = 0;
+            if average_by_cluster_id
+                 % divide the accumulator by the number of units
+                 n_per_cluster = accumarray(cluster_inds(mask_request_okay), 1, [numel(unique_cluster_ids) 1]);
+                 out = out ./ shiftdim(n_per_cluster, -2);
+            else
+                out(:, ~mask_idx_okay(:)) = 0;
+            end
+            
+            if applyScaling
+                % scaling already applied
+                scaleToUv_by_snippet(:) = 1;
+            end
             data_ch_by_time_by_snippet = out;
             if ~isempty(prog), prog.finish(); end
         end

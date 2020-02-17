@@ -1482,9 +1482,9 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
              p.addParameter('window', [-40 41], @isvector); % Number of samples before and after spiketime to include in waveform
              p.addParameter('car', false, @islogical);
              p.addParameter('centerUsingFirstSamples', 20, @(x) isscalar(x) || islogical(x)); % subtract mean of each waveform's first n samples, don't do if false
-
+             p.addParameter('average_by_cluster_id', false, @islogical); % returns a snippet set with one snippet (mean) for each cluster_ids
              p.addParameter('subtractOtherClusters', false, @islogical); % time consuming step to remove the contribution of the other clusters to a given snippet
-
+             p.addParameter('applyScaling', false, @islogical); % scale to uV
              p.addParameter('raw_dataset', ks.raw_dataset, @(x) true);
              p.addParameter('fromSourceDatasets', false, @islogical); % go all the way back to the imecDatasets that were concatenated to form ks.raw_dataset
 
@@ -1497,6 +1497,10 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
 
              assert(ks.hasRawDataset, 'KilosortDataset has no raw ImecDataset');
 
+             if p.Results.average_by_cluster_id && p.Results.subtractOtherClusters
+                 error('Cannot average and subtractOtherClusters');
+             end
+            
              ks.checkLoaded();
 
              from_cutoff_spikes = p.Results.from_cutoff_spikes;
@@ -1531,6 +1535,7 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                      else
                          mask = ismember(ks.spike_clusters, clu);
                          spike_times = ks.spike_times(mask);
+                         spike_idx = find(mask);
                      end
                  else
                      if isscalar(clu)
@@ -1539,6 +1544,7 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                      else
                          mask = ismember(ks.cutoff_spike_clusters, clu);
                          spike_times = ks.cutoff_spike_times(mask);
+                         spike_idx = find(mask);
                      end
                  end
              else
@@ -1622,18 +1628,24 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                      error('Some cluster idx not found in cluster_ids');
                  end
                  channel_ids_by_cluster = cluster_best_template_channels(cluster_ind, 1:p.Results.best_n_channels)';
+                 
+                 channel_id_args = {'channel_ids_by_cluster', channel_ids_by_cluster};
              elseif ~isempty(p.Results.channel_ids_by_cluster)
                  channel_ids_by_cluster = p.Results.channel_ids_by_cluster;
+                 channel_id_args = {'channel_ids_by_cluster', channel_ids_by_cluster};
              else
-                 channel_ids_by_cluster = ks.channel_ids_sorted;
+                 channel_ids = ks.channel_ids_sorted;
+                 channel_id_args = {'channel_ids', channel_ids};
              end
 
              % channel_ids is provided since raw data often has additional channels that we're not interested in
              window = p.Results.window;
              snippetSet = p.Results.raw_dataset.readAPSnippetSet(spike_times, ...
-                 window, 'channel_ids_by_cluster', channel_ids_by_cluster, ...
+                 window, channel_id_args{:}, ...
                  'unique_cluster_ids', unique_cluster_ids, 'cluster_ids_by_snippet', cluster_ids, ...
-                 'car', p.Results.car, 'fromSourceDatasets', p.Results.fromSourceDatasets);
+                 'car', p.Results.car, 'fromSourceDatasets', p.Results.fromSourceDatasets, ...
+                 'average_by_cluster_id', p.Results.average_by_cluster_id, ...
+                 'applyScaling', p.Results.applyScaling);
              snippetSet.trial_idx = trial_idx;
              snippetSet.ks = ks;
 
