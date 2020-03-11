@@ -188,7 +188,7 @@ classdef ConcatenationInfo < handle
         end
         
         function v = get.scaleToUvs(ci)
-            v = (ci.ranges(:, 2) - ci.ranges(:, 1)) ./ (2^ci.adcBits) ./ ci.gains * 1e6;
+            v = (ci.ranges(:, 2) - ci.ranges(:, 1)) ./ (2.^ci.adcBits) ./ ci.gains * 1e6;
         end
         
         function [fileInds, origSampleInds] = lookup_sampleIndexInSourceFiles(ci, inds)

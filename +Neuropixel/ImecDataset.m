@@ -528,9 +528,11 @@ classdef ImecDataset < handle
             p.addParameter('band', 'ap', @isstringlike);
             p.addParameter('applyScaling', true, @islogical); % convert to uV before processing
             p.addParameter('fromSourceDatasets', false, @islogical);
+            p.addParameter('scaleSourceToMatch', false, @islogical); % when fromSourceDatasets is true, scale the raw data to match the scaling of the cleaned datsets
             p.parse(varargin{:});
             
             fromSource = p.Results.fromSourceDatasets;
+            scaleSourceDataToMatch = p.Results.scaleSourceToMatch;
             band = string(p.Results.band);
             switch band
                 case 'ap'
@@ -571,22 +573,30 @@ classdef ImecDataset < handle
                 if p.Results.applyScaling
                     data = single(data);
                     data(ch_conn_mask, :) = data(ch_conn_mask, :) * single(scaleToUv);
-                end
+                end 
             else
                 if band == "ap"
                     mmSet = imec.memmap_sourceAP_full();
                     [sourceFileInds, sourceSampleInds] = imec.concatenationInfoAP.lookup_sampleIndexInSourceFiles(sampleIdx);
                     scalingByFile = imec.concatenationInfoAP.scaleToUvs;
+                    scaleToUvThis = imec.apScaleToUv;
                 else
                     mmSet = imec.memmap_sourceLF_full();
                     [sourceFileInds, sourceSampleInds] = imec.concatenationInfoLF.lookup_sampleIndexInSourceFiles(sampleIdx);
-                    scalingByFile = imec.concatenationInfoAP.scaleToUvs;
+                    scalingByFile = imec.concatenationInfoLF.scaleToUvs;
+                    scaleToUvThis = imec.lfScaleToUv;
                 end
                 
                 % if applyScaling, use the per-file scalings to produce uv, scaling only the connected channels
                 % otherwise we pass [] so that no scaling is done
                 if ~p.Results.applyScaling
-                    scalingByFile = [];
+                    if scaleSourceDataToMatch
+                        relativeScaling = scalingByFile ./ scaleToUvThis;
+                        assert(all(round(relativeScaling) == relativeScaling), 'Non-integer scaling from ImecDataset source datasets');
+                        scalingByFile = int16(relativeScaling);
+                    else
+                        scalingByFile = [];
+                    end
                 end
                 data = Neuropixel.ImecDataset.multi_mmap_extract_sample_idx(mmSet, sourceFileInds, sourceSampleInds, imec.channelIds, scalingByFile, ch_conn_mask);
             end
@@ -701,7 +711,7 @@ classdef ImecDataset < handle
             end
             sampleIdx = idxWindow(1):idxWindow(2);
             
-            mat = imec.internal_read_idx(sampleIdx, 'band', band, 'fromSourceDatasets', fromSource); % C x T
+            mat = imec.internal_read_idx(sampleIdx, 'band', band, 'fromSourceDatasets', fromSource, 'applyScaling', true); % C x T
             labels = imec.channelNamesPadded;
             
             [channelInds, channelIds] = imec.lookup_channelIds(p.Results.channels); %#ok<*PROPLC>
@@ -921,8 +931,6 @@ classdef ImecDataset < handle
             % on a per-file basis and converted to singles
             if nargin < 5
                 scalingByFile = [];
-            else
-                scalingByFile = single(scalingByFile);
             end
             if nargin < 6
                 scalingChMask = true(numel(chInds), 1);
@@ -931,7 +939,7 @@ classdef ImecDataset < handle
             assert(numel(fileInds) == numel(origSampleInds));
             nSamplesOut = numel(origSampleInds);
             
-            if isempty(scalingByFile)
+            if isempty(scalingByFile) || isinteger(scalingByFile)
                 cls = mmSet{1}.Format{1};
             else
                 cls = 'single';
@@ -945,9 +953,14 @@ classdef ImecDataset < handle
                 mask = fileInds == iF;
                 if isempty(scalingByFile)
                     out(:, mask) = mmSet{iF}.Data.x(chInds, origSampleInds(mask));
+                elseif isinteger(scalingByFile)
+                    % apply a scale factor but keep as int16
+                    out(:, mask) = mmSet{iF}.Data.x(chInds, origSampleInds(mask));
+                    out(scalingChMask, mask) = out(scalingChMask, mask) * cast(scalingByFile(iF), cls);
                 else
+                    % scale (typically to uV) while converting to single
                     out(:, mask) = single(mmSet{iF}.Data.x(chInds, origSampleInds(mask)));
-                    out(scalingChMask, mask) = out(scalingChMask, mask) * scalingByFile(iF);
+                    out(scalingChMask, mask) = out(scalingChMask, mask) * single(scalingByFile(iF));
                 end
             end
         end
@@ -975,6 +988,7 @@ classdef ImecDataset < handle
             p.addParameter('center', false, @islogical); % subtract median over time
             p.addParameter('average_by_cluster_id', false, @islogical);
             p.addParameter('applyScaling', false, @islogical); % scale to uV and return single
+            p.addParameter('scaleSourceToMatch', false, @islogical); % when fromSourceDatasets is true, scale the raw data to match the scaling of the cleaned datsets
             p.parse(varargin{:});
 
             channel_ids = p.Results.channel_ids;
@@ -1020,6 +1034,7 @@ classdef ImecDataset < handle
                     else
                         mmSet = imec.memmap_sourceAP_full();
                         concatInfo = imec.concatenationInfoAP;
+                        scaleToUv_this = imec.apScaleToUv;
                         scaleToUv_by_source = cat(1, imec.sourceDatasets.apScaleToUv);
                     end
                 case 'lf'
@@ -1030,10 +1045,20 @@ classdef ImecDataset < handle
                     else
                         mmSet = imec.memmap_sourceLF_full();
                         concatInfo = imec.concatenationInfoLF;
+                        scaleToUv_this = imec.lfScaleToUv;
                         scaleToUv_by_source = cat(1, imec.sourceDatasets.lfScaleToUv);
                     end 
                 otherwise
                     error('Unknown source');
+            end
+            
+            scaleSourceDataToMatch = p.Results.scaleSourceToMatch;
+            if fromSourceDatasets
+                if scaleSourceDataToMatch
+                    sourceToDestScaling = scaleToUv_by_source ./ scaleToUv_this;
+                end
+            else
+                scaleSourceDataToMatch = false;
             end
             
             assert(nSamples > 0, 'nSamples inferred for dataset is 0');
@@ -1068,6 +1093,9 @@ classdef ImecDataset < handle
             else
                 % populated below
                 scaleToUv_by_snippet = nan(nS_out, 1, 'single');
+            end
+            if scaleSourceDataToMatch
+                sourceToDestScaling_by_snippet = ones(nS_out, 1, 'int16');
             end
 
             if numel(times) > 10
@@ -1107,6 +1135,9 @@ classdef ImecDataset < handle
                     extract_all_ch = reshape(Neuropixel.ImecDataset.multi_mmap_extract_sample_idx(mmSet, ...
                         sourceFileInds(:), sourceSampleInds(:)), [nC_all nT nS_this]);
                     scaleToUv_by_snippet(idxInsert) = scaleToUv_by_source(sourceFileInds(1, :)');
+                    if scaleSourceDataToMatch
+                        sourceToDestScaling_by_snippet(idxInsert) = sourceToDestScaling(sourceFileInds(1, :)');
+                    end
                 end
                 if p.Results.car
                     ar = median(extract_all_ch(good_ch_inds, :, :), 1);
@@ -1118,6 +1149,10 @@ classdef ImecDataset < handle
                     this_extract =  extract_all_ch(channel_inds_by_snippet(:, idxS(iiS)), :, iiS) - ar(1, :, iiS);
                     if applyScaling
                         this_extract = cast(this_extract, outClass) * scaleToUv_by_snippet(idxInsert(iiS));
+                    end
+                    if scaleSourceDataToMatch
+                        % this would scale the source data to match the cleaned data while keeping everything int16
+                        this_extract = this_extract * scaleSourceDataToMatch(idxInsert(iiS));
                     end
                     if p.Results.center
                         this_extract = this_extract - median(this_extract, 2);

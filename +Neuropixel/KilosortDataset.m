@@ -156,6 +156,7 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
         
         % has the list of spikes already been deduplicated
         is_deduplicated (1, 1) logical = false;
+        deduplication_stats struct;
         
         deduplicate_spikes logical = false;
         deduplicate_cutoff_spikes logical = false;
@@ -956,7 +957,7 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
             if ks.deduplicate_spikes || ks.deduplicate_cutoff_spikes
                 if existp('spike_deduplication_mask.mat')
                     progIncrFn('Applying saved spike_deduplication_mask.mat');
-                    temp = load(fullfile(path, 'spike_deduplication_mask.mat'), 'spike_deduplication_mask', 'cutoff_spike_deduplication_mask');
+                    temp = load(fullfile(path, 'spike_deduplication_mask.mat'), 'spike_deduplication_mask', 'cutoff_spike_deduplication_mask', 'deduplication_stats');
                     mask = temp.spike_deduplication_mask;
                     if isfield(temp, 'cutoff_spike_deduplication_mask')
                         cutoff_mask = temp.cutoff_spike_deduplication_mask;
@@ -965,12 +966,14 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                     end
                     ks.mask_spikes(mask, cutoff_mask);
                     ks.is_deduplicated = true;
+                    ks.deduplication_stats = temp.deduplication_stats;
                 else
                     progIncrFn('Deduplicating spikes');
                     ks.remove_duplicate_spikes();
                 end
             else
                 ks.is_deduplicated = false;
+                ks.deduplication_stats = struct();
             end
             
             if exist('prog', 'var')
@@ -2123,9 +2126,11 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                 end
             end
             
+            fprintf('Removing duplicate spikes from KS dataset\n');
             [mask_dup_spikes, mask_dup_spikes_cutoff, stats] = ks.identify_duplicate_spikes(p.Unmatched);
             ks.mask_spikes(~mask_dup_spikes, ~mask_dup_spikes_cutoff);
             ks.is_deduplicated = true;
+            ks.deduplication_stats = stats;
             ks.modifiedInMemory = true;
             
             if saveToDisk
@@ -2134,6 +2139,7 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                 toSave.deduplicate_cutoff_spikes = ks.deduplicate_cutoff_spikes;
                 toSave.deduplicate_within_samples = ks.deduplicate_within_samples;
                 toSave.deduplicate_within_distance = ks.deduplicate_within_distance;
+                toSave.deduplication_stats = stats;
               
                 save(fullfile(ks.path, 'spike_deduplication_mask.mat'), '-v7.3', '-struct', 'toSave');
             end
