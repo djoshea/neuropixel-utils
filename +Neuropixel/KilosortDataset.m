@@ -1426,7 +1426,7 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                 cluster_ids = ks.cluster_ids(cluster_ids);
              end
             [tf, clusterInds] = ismember(cluster_ids, ks.cluster_ids);
-            assert(all(tf), 'Some cluster ids were not found in ks.clusterids');
+            assert(all(tf, 'all'), 'Some cluster ids were not found in ks.clusterids');
         end
 
         function  [sortedChannelInds, channelIds] = lookup_sortedChannelIds(ks, channelIds)
@@ -1434,7 +1434,7 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                 channelIds = ks.channel_ids_sorted(channelIds);
              end
             [tf, sortedChannelInds] = ismember(channelIds, ks.channel_ids_sorted);
-            assert(all(tf), 'Some channel ids not found');
+            assert(all(tf, 'all'), 'Some channel ids not found');
         end
 
         function [channelInds, channelIds] = lookup_channelIds(ks, channelIds)
@@ -1710,6 +1710,147 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
             end
         end
 
+%         function reconstruction = reconstructRawSnippetsFromTemplates_slow(ks, times, window, varargin)
+%             % generate the best reconstruction of each snippet using the amplitude-scaled templates
+%             % this is the internal workhorse for reconstructSnippetSetFromTemplates
+% 
+%             p = inputParser();
+%             % these define the lookup table of channels for each cluster
+%             p.addParameter('channel_ids_by_snippet', [], @(x) isempty(x) || ismatrix(x));
+%             p.addParameter('unique_cluster_ids', 1, @isvector);
+%             % and this defines the cluster corresponding to each spike
+%             p.addParameter('cluster_ids', ones(numel(times), 1), @isvector);
+% 
+%             p.addParameter('exclude_cluster_ids_each_snippet', [], @(x) isempty(x) || isvector(x) || iscell(x));
+%             p.addParameter('exclude_cluster_ids_all_snippets', [], @(x) isempty(x) || isvector(x));
+%             p.addParameter('showPlots', false, @islogical);
+%             p.addParameter('rawData', [], @isnumeric); % for plotting only
+% 
+%             p.addParameter('use_batchwise_templates', ~isempty(ks.W_batch), @islogical);
+%             p.parse(varargin{:});
+%             showPlots = p.Results.showPlots;
+% 
+%             % check sizes of everything
+%             nTimes = numel(times);
+%             channel_ids_by_snippet = p.Results.channel_ids_by_snippet;
+%             assert(~isempty(channel_ids_by_snippet));
+%             if size(channel_ids_by_snippet, 2) == 1
+%                 channel_ids_by_snippet = repmat(channel_ids_by_snippet, 1, numel(times));
+%             end
+%             assert(numel(times) <= size(channel_ids_by_snippet, 2));
+% 
+%             nChannelsSorted = size(channel_ids_by_snippet, 1);
+%             unique_cluster_ids = p.Results.unique_cluster_ids;
+% 
+%             cluster_ids = p.Results.cluster_ids;
+%             assert(numel(cluster_ids) >= nTimes);
+% 
+%             exclude_cluster_ids_each_snippet = p.Results.exclude_cluster_ids_each_snippet;
+%             exclude_cluster_ids_all_snippets = p.Results.exclude_cluster_ids_all_snippets;
+% 
+%             % templates post-whitening is nTemplates x nTimepoints x nChannelsFull
+%             use_batchwise_templates = p.Results.use_batchwise_templates;
+%             if use_batchwise_templates && (isempty(ks.W_batch) || isempty(ks.U_batch))
+%                 warning('Cannot use batchwise tempaltes as W_batch or U_batch was not loaded successfully from rez.mat');
+%                 use_batchwise_templates = false;
+%             end
+% 
+%             if ~use_batchwise_templates
+%                 metrics = ks.computeMetrics();
+%                 templates =  metrics.template_unw; % unwhitened templates, but not scaled and still in quantized units (not uV)
+%             end
+% 
+%             relTvec_template = ks.templateTimeRelative;
+%             relTvec_snippet = int64(window(1):window(2));
+%             reconstruction = zeros(nChannelsSorted, numel(relTvec_snippet), nTimes, 'int16');
+% 
+%             if exist('ProgressBar', 'class') == 8
+%                 prog = ProgressBar(nTimes, 'Reconstructing templates around snippet times');
+%             else
+%                 prog = Neuropixel.Utils.ProgressBar(nTimes, 'Reconstructing templates around snippet times');
+%             end
+% 
+%             for iT = 1:nTimes
+%                 prog.update(iT);
+% 
+%                 reconstruction_this = zeros(nChannelsSorted, numel(relTvec_snippet), 'single');
+% 
+%                 % find spikes that would lie within this window (with padding),
+%                 % excluding those from clusters we wish to exclude
+%                 t = int64(times(iT));
+%                 minT = t + window(1) - int64(relTvec_template(end));
+%                 maxT = t + window(2) - int64(relTvec_template(1));
+%                 if iscell(exclude_cluster_ids_each_snippet)
+%                     exclude_this = exclude_cluster_ids_each_snippet{iT};
+%                 elseif ~isempty(exclude_cluster_ids_each_snippet)
+%                     exclude_this = exclude_cluster_ids_each_snippet(iT);
+%                 else
+%                     exclude_this = [];
+%                 end
+%                 exclude_this = union(exclude_this, exclude_cluster_ids_all_snippets);
+% 
+%                 nearby_spike_inds = find(ks.spike_times >= minT & ks.spike_times <= maxT);
+%                 %nearby_spike_inds = find(ks.spike_times == t);
+% 
+%                 nearby_spike_inds(ismember(ks.spike_clusters(nearby_spike_inds), exclude_this)) = [];
+% 
+%                 if use_batchwise_templates
+%                     spike_batches = ks.compute_which_batch(ks.spike_times(nearby_spike_inds));
+%                 end
+% 
+%                 % figure out what channels we need to reconstruct onto
+%                 cluster_ids_this = cluster_ids(iT);
+%                 [~, cluster_ind_this] = ismember(cluster_ids_this, unique_cluster_ids);
+%                 assert(cluster_ind_this > 0, 'Cluster for times(%d) not found in unique_cluster_ids', iT);
+%                 channel_ids_this = channel_ids_by_snippet(:, iT);
+%                 sorted_channel_inds_this = ks.lookup_sortedChannelIds(channel_ids_this);
+% 
+%                 if showPlots
+%                     clf;
+%                     plot(relTvec_snippet, p.Results.rawData(1, :, iT), 'k-', 'LineWidth', 2);
+%                     hold on;
+%                 end
+% 
+%                 % loop over the enarby sp
+%                 for iS = 1:numel(nearby_spike_inds)
+%                     ind = nearby_spike_inds(iS);
+%                     amp = ks.amplitudes(ind);
+% 
+%                     % figure out time overlap and add to reconstruction
+%                     tprime = int64(ks.spike_times(ind));
+%                     indFromTemplate = relTvec_template + tprime >= t + relTvec_snippet(1) & relTvec_template + tprime <= t + relTvec_snippet(end);
+%                     indInsert = relTvec_snippet + t >= relTvec_template(1) + tprime & relTvec_snippet + t <= relTvec_template(end) + tprime;
+% 
+%                     if use_batchwise_templates
+%                         template_this = ks.construct_batchwise_templates(ks.spike_templates(ind), 'batches', spike_batches(iS));
+%                         template_this = template_this(:, indFromTemplate, sorted_channel_inds_this);
+%                     else
+%                         template_this = templates(ks.spike_templates(ind), indFromTemplate, sorted_channel_inds_this);
+%                     end
+%                     insert = amp .* permute(template_this, [3 2 1]);
+%                     reconstruction_this(:, indInsert) = reconstruction_this(:, indInsert) + insert;
+% 
+%                     if showPlots
+%                         if tprime == t
+%                             args = {'LineWidth', 1, 'Color', 'g'};
+%                         else
+%                             args = {};
+%                         end
+%                         plot(relTvec_template(indInsert), amp .* template_this(:, :, 1), 'Color', [0.7 0.7 0.7], args{:});
+%                     end
+%                 end
+% 
+%                 if showPlots
+%                     plot(relTvec_snippet, reconstruction(1, :, iT), 'r--', 'LineWidth', 2);
+%                     plot(relTvec_snippet, p.Results.rawData(1, :, iT) - int16(reconstruction(1, :, iT)), 'b--');
+%                     pause;
+%                 end
+% 
+%                 reconstruction(:, :, iT) = int16(reconstruction_this);
+%             end
+%             prog.finish();
+%         end
+        
         function reconstruction = reconstructRawSnippetsFromTemplates(ks, times, window, varargin)
             % generate the best reconstruction of each snippet using the amplitude-scaled templates
             % this is the internal workhorse for reconstructSnippetSetFromTemplates
@@ -1723,13 +1864,16 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
 
             p.addParameter('exclude_cluster_ids_each_snippet', [], @(x) isempty(x) || isvector(x) || iscell(x));
             p.addParameter('exclude_cluster_ids_all_snippets', [], @(x) isempty(x) || isvector(x));
-            p.addParameter('showPlots', false, @islogical);
             p.addParameter('rawData', [], @isnumeric); % for plotting only
-
+            p.addParameter('showPlots', false, @islogical); % not supported
             p.addParameter('use_batchwise_templates', ~isempty(ks.W_batch), @islogical);
+            p.addParameter('parallel', false, @islogical);
             p.parse(varargin{:});
-            showPlots = p.Results.showPlots;
-
+            
+            if p.Results.showPlots
+                error('No longer supported');
+            end
+            
             % check sizes of everything
             nTimes = numel(times);
             channel_ids_by_snippet = p.Results.channel_ids_by_snippet;
@@ -1737,15 +1881,27 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
             if size(channel_ids_by_snippet, 2) == 1
                 channel_ids_by_snippet = repmat(channel_ids_by_snippet, 1, numel(times));
             end
-            assert(numel(times) == size(channel_ids_by_snippet, 2));
+            assert(numel(times) <= size(channel_ids_by_snippet, 2)); % TODO CHANGE TO ==
 
+            debug('Preparing to reconstruct templates around snippet times\n');
+            
             nChannelsSorted = size(channel_ids_by_snippet, 1);
             unique_cluster_ids = p.Results.unique_cluster_ids;
-
+            sorted_channel_inds_by_snippet = ks.lookup_sortedChannelIds(channel_ids_by_snippet);
+            
+            % lookup cluster_ids
             cluster_ids = p.Results.cluster_ids;
-            assert(numel(cluster_ids) == nTimes);
-
+            assert(numel(cluster_ids) >= nTimes); % TODO CHANGE TO ==
+            [~, cluster_inds_in_unique] = ismember(cluster_ids, unique_cluster_ids);
+            assert(all(cluster_inds_in_unique > 0), 'Some cluster_ids not found in unique_cluster_ids');
+            
             exclude_cluster_ids_each_snippet = p.Results.exclude_cluster_ids_each_snippet;
+            if isempty(exclude_cluster_ids_each_snippet)
+                exclude_cluster_ids_each_snippet = cell(nTimes, 1);
+            elseif isnumeric(exclude_cluster_ids_each_snippet)
+                exclude_cluster_ids_each_snippet = num2cell(exclude_cluster_ids_each_snippet);
+            end
+                
             exclude_cluster_ids_all_snippets = p.Results.exclude_cluster_ids_all_snippets;
 
             % templates post-whitening is nTemplates x nTimepoints x nChannelsFull
@@ -1755,98 +1911,89 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                 use_batchwise_templates = false;
             end
 
+            % decide on templates we're using
             if ~use_batchwise_templates
                 metrics = ks.computeMetrics();
                 templates =  metrics.template_unw; % unwhitened templates, but not scaled and still in quantized units (not uV)
+            else
+                if isempty(ks.W_batch) || isempty(ks.U_batch)
+                    error('No batchwise information present in KilosortDataset');
+                end
+                templates = [];
             end
 
             relTvec_template = ks.templateTimeRelative;
             relTvec_snippet = int64(window(1):window(2));
             reconstruction = zeros(nChannelsSorted, numel(relTvec_snippet), nTimes, 'int16');
 
-            if exist('ProgressBar', 'class') == 8
-                prog = ProgressBar(nTimes, 'Reconstructing templates around snippet times');
-            else
-                prog = Neuropixel.Utils.ProgressBar(nTimes, 'Reconstructing templates around snippet times');
-            end
-
+            % pre-extract everything in case we switch to parfor
+            spike_times = ks.spike_times;
+            spike_templates = ks.spike_templates;
+            spike_clusters = ks.spike_clusters;
+            amplitudes = ks.amplitudes;
+            W_batch = ks.W_batch;
+            U_batch = ks.U_batch;
+            whitening_mat_inv = ks.whitening_mat_inv;
+            assert(size(W_batch, 3) == 3);
+            
+            % find spikes that would lie within this window (with padding),
+            % excluding those from clusters we wish to exclude
+            minT = int64(window(1)) - int64(relTvec_template(end));
+            maxT = int64(window(2)) - int64(relTvec_template(1));
+%             t_center_offset = (minT + maxT) / 2;
+%             search_half_width = ceil(maxT - t_center_offset);
+%             c_nearby_spike_inds = rangesearch(double(ks.spike_times), double(times) + double(t_center_offset), search_half_width, 'SortIndices', false);
+%             
+            c_nearby_spike_inds = Neuropixel.Utils.simple_rangesearch(ks.spike_times, times, [minT maxT]);
+            
+            spike_batches = ks.compute_which_batch(ks.spike_times);
+           
+            prog = ProgressBar(nTimes, 'Reconstructing templates around snippet times');
             for iT = 1:nTimes
-                prog.update(iT);
-
+                t = int64(times(iT));
                 reconstruction_this = zeros(nChannelsSorted, numel(relTvec_snippet), 'single');
 
-                % find spikes that would lie within this window (with padding),
-                % excluding those from clusters we wish to exclude
-                t = int64(times(iT));
-                minT = t + window(1) - int64(relTvec_template(end));
-                maxT = t + window(2) - int64(relTvec_template(1));
-                if iscell(exclude_cluster_ids_each_snippet)
-                    exclude_this = exclude_cluster_ids_each_snippet{iT};
-                elseif ~isempty(exclude_cluster_ids_each_snippet)
-                    exclude_this = exclude_cluster_ids_each_snippet(iT);
-                else
-                    exclude_this = [];
-                end
-                exclude_this = union(exclude_this, exclude_cluster_ids_all_snippets);
-
-                nearby_spike_inds = find(ks.spike_times >= minT & ks.spike_times <= maxT);
-                %nearby_spike_inds = find(ks.spike_times == t);
-
-                nearby_spike_inds(ismember(ks.spike_clusters(nearby_spike_inds), exclude_this)) = [];
-
-                if use_batchwise_templates
-                    spike_batches = ks.compute_which_batch(ks.spike_times(nearby_spike_inds));
-                end
+                % exclude specified clusters from nearby spikes
+                nearby_spike_inds = c_nearby_spike_inds{iT};
+                nearby_spike_clusters = spike_clusters(nearby_spike_inds);
+                mask_nearby_okay = ~ismember(nearby_spike_clusters, exclude_cluster_ids_each_snippet{iT}) & ...
+                                    ~ismember(nearby_spike_clusters, exclude_cluster_ids_all_snippets); 
 
                 % figure out what channels we need to reconstruct onto
-                cluster_ids_this = cluster_ids(iT);
-                [~, cluster_ind_this] = ismember(cluster_ids_this, unique_cluster_ids);
-                assert(cluster_ind_this > 0, 'Cluster for times(%d) not found in unique_cluster_ids', iT);
-                channel_ids_this = channel_ids_by_snippet(:, iT);
-                sorted_channel_inds_this = ks.lookup_sortedChannelIds(channel_ids_this);
-
-                if showPlots
-                    clf;
-                    plot(relTvec_snippet, p.Results.rawData(1, :, iT), 'k-', 'LineWidth', 2);
-                    hold on;
-                end
+                sorted_channel_inds_this = sorted_channel_inds_by_snippet(:, iT);
 
                 % loop over the enarby sp
                 for iS = 1:numel(nearby_spike_inds)
+                    if ~mask_nearby_okay(iS)
+                        continue;
+                    end
                     ind = nearby_spike_inds(iS);
-                    amp = ks.amplitudes(ind);
+                    amp = amplitudes(ind);
 
                     % figure out time overlap and add to reconstruction
-                    tprime = int64(ks.spike_times(ind));
-                    indFromTemplate = relTvec_template + tprime >= t + relTvec_snippet(1) & relTvec_template + tprime <= t + relTvec_snippet(end);
-                    indInsert = relTvec_snippet + t >= relTvec_template(1) + tprime & relTvec_snippet + t <= relTvec_template(end) + tprime;
+                    tprime = int64(spike_times(ind));
+                    maskFromTemplate = relTvec_template + tprime >= t + relTvec_snippet(1) & relTvec_template + tprime <= t + relTvec_snippet(end);
+                    maskInsert = relTvec_snippet + t >= relTvec_template(1) + tprime & relTvec_snippet + t <= relTvec_template(end) + tprime;
 
                     if use_batchwise_templates
-                        template_this = ks.construct_batchwise_templates(ks.spike_templates(ind), 'batches', spike_batches(iS));
-                        template_this = template_this(:, indFromTemplate, sorted_channel_inds_this);
+                        template_ind = spike_templates(ind);
+                        batch_ind = spike_batches(ind);
+                        wmi_this = whitening_mat_inv(:, sorted_channel_inds_this);
+
+                        W = W_batch(maskFromTemplate, template_ind, :, batch_ind); % nTT x 1 x 3 x 1
+                        U = U_batch(:, template_ind, :, batch_ind); % nCh x 1 x 3 x 1
+
+                        % manual loop unrolling to make this faster
+                        template_this = shiftdim(W(:,:,1,:)*(U(:,:,1,:)'*wmi_this) + W(:,:,2,:)*(U(:,:,2,:)'*wmi_this) + W(:,:,3,:)*(U(:,:,3,:)'*wmi_this), -1);
                     else
-                        template_this = templates(ks.spike_templates(ind), indFromTemplate, sorted_channel_inds_this);
+                        template_this = templates(spike_templates(ind), indFromTemplate, sorted_channel_inds_this);
                     end
                     insert = amp .* permute(template_this, [3 2 1]);
-                    reconstruction_this(:, indInsert) = reconstruction_this(:, indInsert) + insert;
-
-                    if showPlots
-                        if tprime == t
-                            args = {'LineWidth', 1, 'Color', 'g'};
-                        else
-                            args = {};
-                        end
-                        plot(relTvec_template(indInsert), amp .* template_this(:, :, 1), 'Color', [0.7 0.7 0.7], args{:});
-                    end
-                end
-
-                if showPlots
-                    plot(relTvec_snippet, reconstruction(1, :, iT), 'r--', 'LineWidth', 2);
-                    plot(relTvec_snippet, p.Results.rawData(1, :, iT) - int16(reconstruction(1, :, iT)), 'b--');
-                    pause;
+                    reconstruction_this(:, maskInsert) = reconstruction_this(:, maskInsert) + insert;
                 end
 
                 reconstruction(:, :, iT) = int16(reconstruction_this);
+                prog.update(iT);
             end
             prog.finish();
         end
@@ -1868,7 +2015,7 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                 exclude_cluster_ids_each_snippet = [];
             end
 
-            reconstruction = ks.reconstructRawSnippetsFromTemplates(ss.sample_idx, ss.window, ...
+            reconstruction = ks.reconstructRawSnippetsFromTemplates_parallel(ss.sample_idx, ss.window, ...
                 'channel_ids_by_snippet', ss.channel_ids_by_snippet, 'unique_cluster_ids', ss.unique_cluster_ids, ...
                 'cluster_ids', ss.cluster_ids, 'exclude_cluster_ids_each_snippet', exclude_cluster_ids_each_snippet, ...
                 'exclude_cluster_ids_all_snippets', p.Results.exclude_cluster_ids, ...
@@ -2159,7 +2306,7 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
 
             % copy params.py
             oldp = @(file) fullfile(ks.path, file);
-            existp = @(file) exist(oldp(file), 'file') > 0;
+            existp = @(file) exist(oldp(file), 'file') > 0; %#ok<NASGU>
             newp = @(file) fullfile(outpath, file);
 
             nProg = 15;
