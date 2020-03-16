@@ -976,7 +976,11 @@ classdef KilosortMetrics < handle
             p.addParameter('spike_mask', [], @(x) isempty(x) || isvector(x));
             p.addParameter('localizedOnly', true, @islogical);
             p.addParameter('minAmpQuantile', 0, @isscalar);
-            p.addParameter('showIndividual', true, @islogical);
+            p.addParameter('showIndividual', false, @islogical);
+            p.addParameter('highlightGaps', true, @islogical);
+            p.addParameter('onlyGaps', false, @islogical), 
+            p.addParameter('minGapSeconds', 300, @isscalar);
+            
             p.addParameter('showSmooth', true, @islogical); % smooth amplitudes over spikes by this width
             p.addParameter('smoothWidthSeconds', 50, @isscalar); % smoothing kernel width in seconds
             p.addParameter('scaleWithAmp', false, @islogical);
@@ -1010,6 +1014,8 @@ classdef KilosortMetrics < handle
             
             showSmooth = p.Results.showSmooth;
             showIndividual = p.Results.showIndividual;
+            highlightGaps = p.Results.highlightGaps;
+            onlyGaps = p.Results.onlyGaps; 
             alpha = p.Results.alpha;
             if alpha == 1 && showSmooth
                 alpha = 0.3;
@@ -1061,6 +1067,7 @@ classdef KilosortMetrics < handle
             cla;
             smoothWidthSeconds = p.Results.smoothWidthSeconds;
             smoothBinWidth = smoothWidthSeconds / 5;
+            minGapBins = ceil(p.Results.minGapSeconds / smoothBinWidth);
             spikeTimeBins = (0:smoothBinWidth:max(spikeTimes))';
             for iC_sorted = 1:nClu
                 iC = clusterAmpsSortOrder(iC_sorted);
@@ -1079,18 +1086,26 @@ classdef KilosortMetrics < handle
                     'cluster_is_localized', m.cluster_is_localized(clusterInds(iC)), ...
                     'xname', 'Time', 'yname', 'Depth', 'xunits', 'sec', 'yunits', 'um');
                 
-                if showIndividual
+                if showSmooth || onlyGaps
+                    [xsm, ysm, gaps] = binsmooth(x, y, spikeTimeBins, 5, smoothBinWidth, minGapBins); % min 10 spikes in 10 second increments
+                    hasGaps = ~isempty(gaps);
+                end
+                
+                if showIndividual && (~onlyGaps || hasGaps)
                     h = plot(x, y, '.', 'Color', cmap(iC,:), 'MarkerSize', sz, 'UserData', ud);
                     TrialDataUtilities.Plotting.setMarkerOpacity(h, alpha);
                     
                     hold on;
                 end
-                if showSmooth
+                if showSmooth && (~onlyGaps || hasGaps)
                     %                     if showIndividual, width = 2; else, width = 1; end
                     width = 2;
-                    [x, y] = binsmooth(x, y, spikeTimeBins, 5, smoothBinWidth); % min 10 spikes in 10 second increments
-                    plot(x, y, '-', 'Color', cmap(iC,:), 'LineWidth', width, 'UserData', ud);
+                    plot(xsm, ysm, '-', 'Color', cmap(iC,:), 'LineWidth', width, 'UserData', ud);
                     hold on;
+                    
+                    if (highlightGaps || onlyGaps) && hasGaps
+                        plot(xsm(gaps), ysm(gaps), 'o', 'MarkerSize', 15, 'MarkerEdgeColor', 'w', 'MarkerFaceColor', cmap(iC,:), 'UserData', ud);
+                    end
                 end
             end
             
@@ -1118,23 +1133,36 @@ classdef KilosortMetrics < handle
             
             Neuropixel.Utils.configureDataTipsFromUserData(gcf);
             
-            function [xb, yb] = binsmooth(x, y, edges, smoothBy, minSpikesPerBin)
-                [nSp, whichBin] = histcounts(x, edges);
+            function [xb, yb, gaps] = binsmooth(x, y, edges, smoothBy, minSpikesPerBin, minGap)
+                [nSp, ~, whichBin] = histcounts(x, edges);
                 xb = 0.5 * (edges(1:end-1) + edges(2:end));
                 nSp = nSp(1:end-1);
                 
                 mask = whichBin > 0;
                 yb = accumarray(whichBin(mask), y(mask), [numel(xb), 1], @mean, single(NaN));
                 
-                yb(nSp < minSpikesPerBin) = NaN;
+                % don't trust estimates with fewer than nSpikes
+                mask_invalidate = nSp < minSpikesPerBin;
+                yb(mask_invalidate) = NaN;
+                
+                % find large gaps
+                mask_gap_eligible = nSp == 0;
+                mask_gap = imopen(mask_gap_eligible, ones(1, minGap));
+                first_gap = [false, diff(mask_gap) == 1];
+                
+                % drop invalid samples (so we plot over them) unless inside large gap (so that large gaps still appear)
+                mask_keep = ~mask_invalidate | first_gap;
+                xb = xb(mask_keep);
+                yb = yb(mask_keep);
+
+                gaps = find(first_gap(mask_keep));
+                gaps = gaps(gaps > 1) - 1; % ensure the index points to before the gap starts
                 
                 if smoothBy > 0
+                    wasnan = isnan(yb);
                     yb = smooth(yb, smoothBy, 'lowess', 2);
+                    yb(wasnan) = NaN;
                 end
-                
-                mask = nSp >= minSpikesPerBin;
-                xb = xb(mask);
-                yb = yb(mask);
             end
             
             function [cmap, cmap_base] = amplitudeCmap(amp)
