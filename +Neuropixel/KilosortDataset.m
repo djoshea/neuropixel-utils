@@ -955,19 +955,28 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
             end
             
             if ks.deduplicate_spikes || ks.deduplicate_cutoff_spikes
+                need_deduplication = true;
                 if existp('spike_deduplication_mask.mat')
                     progIncrFn('Applying saved spike_deduplication_mask.mat');
                     temp = load(fullfile(path, 'spike_deduplication_mask.mat'), 'spike_deduplication_mask', 'cutoff_spike_deduplication_mask', 'deduplication_stats');
-                    mask = temp.spike_deduplication_mask;
-                    if isfield(temp, 'cutoff_spike_deduplication_mask')
-                        cutoff_mask = temp.cutoff_spike_deduplication_mask;
+                    if isfield(temp, 'spike_deduplication_mask') && isfield(temp, 'deduplication_stats') 
+                        mask = temp.spike_deduplication_mask;
+                        if isfield(temp, 'cutoff_spike_deduplication_mask')
+                            cutoff_mask = temp.cutoff_spike_deduplication_mask;
+                        else
+                            cutoff_mask = false(0, 1);
+                        end
+                        ks.mask_spikes(mask, cutoff_mask);
+                        ks.is_deduplicated = true;
+                        ks.deduplication_stats = temp.deduplication_stats;
+                        
+                        need_deduplication = false;
                     else
-                        cutoff_mask = false(0, 1);
+                        warning('Spike dedpulication file spike_deduplication_mask.mat missing required fields, redoing duplication')
                     end
-                    ks.mask_spikes(mask, cutoff_mask);
-                    ks.is_deduplicated = true;
-                    ks.deduplication_stats = temp.deduplication_stats;
-                else
+                end
+                
+                if need_deduplication
                     progIncrFn('Deduplicating spikes');
                     ks.remove_duplicate_spikes();
                 end
