@@ -257,6 +257,7 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
             
             p.addParameter('colormap', get(groot, 'DefaultAxesColorOrder'), @(x) true);
             
+            p.addParameter('suppressWarnings', false, @islogical);
             p.addParameter('axh', [], @(x) true);
             p.KeepUnmatched = false;
             p.parse(varargin{:});
@@ -293,7 +294,9 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
             
             % center and scale each channel
             if ~any(maskSnippets)
-                fprintf('Warning: no snippets for these clusters\n');
+                if ~p.Results.suppressWarnings
+                    fprintf('Warning: no snippets for these clusters\n');
+                end
                 axis(axh, 'off');
                 return;
             end
@@ -319,7 +322,12 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
             end
             data = data .* gain;
             
-            unique_cluster_ids = unique(ss.cluster_ids(maskSnippets));
+            if ~isempty(specified_cluster_ids)
+                % keep the list the same because colormap may be passed in
+                unique_cluster_ids = specified_cluster_ids;
+            else
+                unique_cluster_ids = unique(ss.cluster_ids(maskSnippets));
+            end
             nUniqueClusters = numel(unique_cluster_ids);
             
             holding = ishold(axh);
