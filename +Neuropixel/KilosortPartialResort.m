@@ -151,6 +151,7 @@ classdef KilosortPartialResort < handle
             
             % use this to simply reextract spikes from specific windows, useful when not replacing data in situ
             p.addParameter('spike_extract_windows', zeros(0, 2), @(x) ismatrix(x) && size(x, 2) == 2);
+            p.addParameter('suppressEmptySpikeWindowWarning', false, @islogical);
             p.parse(varargin{:});
             
             assert(isa(ks, 'Neuropixel.KilosortDataset'));
@@ -162,8 +163,10 @@ classdef KilosortPartialResort < handle
             data_replace_windows = p.Results.data_replace_windows;
             pad_spike_extract_windows = p.Results.pad_spike_extract_windows;
             spike_extract_windows = p.Results.spike_extract_windows;
-            if isempty(spike_extract_windows)
-                assert(~isempty(data_replace_windows), 'Neighter data_replace_windows nor spike_extract_windows specified, not sure what to resort');
+            if ismember('spike_extract_windows', p.UsingDefaults)
+                if ismember('data_replace_windows', p.UsingDefaults)
+                    error('Neither data_replace_windows nor spike_extract_windows specified, not sure what to resort');
+                end
                 spike_extract_windows = [data_replace_windows(:, 1) - pad_spike_extract_windows(1), data_replace_windows(:, 2) + pad_spike_extract_windows(2)];
             else
                 spike_extract_windows = [spike_extract_windows(:, 1) - pad_spike_extract_windows(1), spike_extract_windows(:, 2) + pad_spike_extract_windows(2)];
@@ -173,31 +176,39 @@ classdef KilosortPartialResort < handle
                 data_replace = {};
                 data_replace_windows = zeros(0, 2);
             end
-            rez = reextractSpikesWithFixedTemplates(ks, ...
-                    'data_replace', data_replace, ...
-                    'data_replace_windows', data_replace_windows, ...
-                    'spike_extract_windows', spike_extract_windows);
-                
-            % now build out the kspr fields
-            cluster_offset = -1;
-            
-            kspr.sort_windows = spike_extract_windows;
 
-            kspr.spike_times = rez.st3(:, 1);
-            kspr.spike_templates_preSplit = rez.st3(:, 2);
-            kspr.amplitudes = rez.st3(:, 3);
-            kspr.spike_templates = rez.st3(:, rez.st3_template_col);
-            kspr.spike_clusters = uint32(rez.st3(:, rez.st3_cluster_col) + cluster_offset);
-            kspr.template_features = rez.cProj;
-            kspr.pc_features = rez.cProjPC;
-            
-            kspr.cutoff_spike_times = rez.st3_cutoff_invalid(:, 1);
-            kspr.cutoff_spike_templates_preSplit = rez.st3_cutoff_invalid(:, 2);
-            kspr.cutoff_amplitudes = rez.st3_cutoff_invalid(:, 3);
-            kspr.cutoff_spike_templates = rez.st3_cutoff_invalid(:, rez.st3_template_col);
-            kspr.cutoff_spike_clusters = uint32(rez.st3_cutoff_invalid(:, rez.st3_cluster_col) + cluster_offset);
-            kspr.cutoff_template_features = rez.cProj_cutoff_invalid;
-            kspr.cutoff_pc_features = rez.cProjPC_cutoff_invalid;
+            if ~isempty(spike_extract_windows)
+                rez = reextractSpikesWithFixedTemplates(ks, ...
+                        'data_replace', data_replace, ...
+                        'data_replace_windows', data_replace_windows, ...
+                        'spike_extract_windows', spike_extract_windows);
+                
+                % now build out the kspr fields
+                cluster_offset = -1;
+                
+                kspr.sort_windows = spike_extract_windows;
+
+                kspr.spike_times = rez.st3(:, 1);
+                kspr.spike_templates_preSplit = rez.st3(:, 2);
+                kspr.amplitudes = rez.st3(:, 3);
+                kspr.spike_templates = rez.st3(:, rez.st3_template_col);
+                kspr.spike_clusters = uint32(rez.st3(:, rez.st3_cluster_col) + cluster_offset);
+                kspr.template_features = rez.cProj;
+                kspr.pc_features = rez.cProjPC;
+                
+                kspr.cutoff_spike_times = rez.st3_cutoff_invalid(:, 1);
+                kspr.cutoff_spike_templates_preSplit = rez.st3_cutoff_invalid(:, 2);
+                kspr.cutoff_amplitudes = rez.st3_cutoff_invalid(:, 3);
+                kspr.cutoff_spike_templates = rez.st3_cutoff_invalid(:, rez.st3_template_col);
+                kspr.cutoff_spike_clusters = uint32(rez.st3_cutoff_invalid(:, rez.st3_cluster_col) + cluster_offset);
+                kspr.cutoff_template_features = rez.cProj_cutoff_invalid;
+                kspr.cutoff_pc_features = rez.cProjPC_cutoff_invalid;
+            else
+                if ~p.Results.suppressEmptySpikeWindowWarning
+                    warning('Empty spike_extract_windows provided, no spikes were reextracted')
+                end
+                kspr.sort_windows = spike_extract_windows;
+            end
         end
     end
 end
