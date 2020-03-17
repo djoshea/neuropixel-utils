@@ -2147,11 +2147,15 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
 
                     for iiB = 1:numel(batch_inds_this)
                         W = ks.W_batch(:, template_inds(iT), :, batch_inds_this(iiB)); % nTT x 1 x 3 x 1
+                        if all(W==0, 'all') 
+                            continue;
+                        end
                         U = ks.U_batch(:, template_inds(iT), :, batch_inds_this(iiB)); % nCh x 1 x 3 x 1
 
                         % manual loop unrolling to make this faster
 
                         data(iT, :, :, iB) = data(iT, :, :, iB) + shiftdim(W(:,:,1,:)*(U(:,:,1,:)'*wmi) + W(:,:,2,:)*(U(:,:,2,:)'*wmi) + W(:,:,3,:)*(U(:,:,3,:)'*wmi), -1);
+
 %                         for iP = 1:size(U, 3)
 %                             this_pc = W(:, :, iP, :) * (U(:, :, iP, :)' * wmi); % nTT x nCh
 %                             data(iT, :, :, iB) = data(iT, :, :, iB) + reshape(this_pc, [1, nTT, nCh]);

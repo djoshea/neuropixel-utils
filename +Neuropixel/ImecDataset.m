@@ -234,7 +234,7 @@ classdef ImecDataset < handle
                 fclose(fid);
 
                 imec.nSamplesAP = bytes / imec.bytesPerSample / imec.nChannels;
-                assert(round(imec.nSamplesAP) == imec.nSamplesAP, 'AP bin file size is not an integral number of samples');
+                warning(round(imec.nSamplesAP) == imec.nSamplesAP, 'AP bin file size is not an integral number of samples, file data may not be fullycopied');
                 
                 imec.concatenationInfoAP = Neuropixel.ConcatenationInfo(imec, 'ap', metaAP);
             end
@@ -245,7 +245,7 @@ classdef ImecDataset < handle
                 bytes = ftell(fid);
                 fclose(fid);
                 imec.nSamplesLF = bytes / imec.bytesPerSample / imec.nChannels;
-                assert(round(imec.nSamplesAP) == imec.nSamplesAP, 'LF bin file size is not an integral number of samples');
+                assert(round(imec.nSamplesAP) == imec.nSamplesAP, 'LF bin file size is not an integral number of samples, file data may not be fullycopied');
               
                 imec.concatenationInfoLF = Neuropixel.ConcatenationInfo(imec, 'lf', metaLF);
             end 

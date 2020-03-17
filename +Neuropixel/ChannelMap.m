@@ -217,7 +217,11 @@ classdef ChannelMap
         
         function channel_ids_sorted = sortChannelsVertically(map, channel_ids)
             channel_inds = map.lookup_channelIds(channel_ids);
-            [~, sortIdx] = sortrows(map.coords(channel_inds, :), [-2 1 3]); % sort by y (high to low), x (low to high), then z (low to high)
+            if size(map.coords, 2) == 3
+                [~, sortIdx] = sortrows(map.coords(channel_inds, :), [-2 1 3]); % sort by y (high to low), x (low to high), then z (low to high)
+            else
+                [~, sortIdx] = sortrows(map.coords(channel_inds, :), [-2 1]); % sort by y (high to low), x (low to high)
+            end
             channel_ids_sorted = channel_ids(sortIdx);
         end
         

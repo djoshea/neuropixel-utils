@@ -409,7 +409,6 @@ classdef KilosortMetrics < handle
                 return;
             end
             m.batchesComputed = batchesComputed;
-            help
             nBatchesComputed = numel(m.batchesComputed);
             
             average_skipped_batches = p.Results.average_skipped_batches;
@@ -458,6 +457,8 @@ classdef KilosortMetrics < handle
                     % these templates are all on all channel_ids_sorted
                     template_batch_time_channel = permute(m.construct_scaled_template_batchwise(iT, 'batches', m.batchesComputed, ...
                         'average_skipped_batches', average_skipped_batches), [4 2 3 1]);
+                    
+                    % some of these can be nan if the template is entirely zero 
                     template_centroid_batchwise(iT, :, :) = Neuropixel.Utils.computeWaveformImageCentroid(...
                         template_batch_time_channel, 1:m.nChannelsSorted, m.ks.channel_positions_sorted);
                     
@@ -481,13 +482,18 @@ classdef KilosortMetrics < handle
                 for iC = 1:m.nClusters
                     progIncrFn();
                     for iB = 1:m.nBatchesComputed
-                        % some weights will be nan where no spikes found for cluster, that's okay as we don't know where the cluster is then anyway
-                        % this is a row vector of weights over templates
-                        weights_temp_batch = single(m.cluster_template_useCount_batchwise(iC, :, iB)) ./ sum(m.cluster_template_useCount_batchwise(iC, :, iB), 2);
-                        cluster_centroid_batchwise(iC, iB, :) =  weights_temp_batch * permute(m.template_centroid_batchwise(:, iB, :), [1 3 2]);
-                        
-                        cluster_waveform_batchwise(iC, :, iB) = weights_temp_batch * m.template_waveform_batchwise(:, :, iB);
-                        cluster_amplitude_batchwise(iC, iB) = weights_temp_batch * m.template_amplitude_batchwise(:, iB);
+                        if any(m.cluster_template_useCount_batchwise(iC, :, iB) > 0)
+                            % some weights will be nan where no spikes found for cluster, that's okay as we don't know where the cluster is then anyway
+                            % this is a row vector of weights over templates
+                            weights_temp_batch = single(m.cluster_template_useCount_batchwise(iC, :, iB)) ./ sum(m.cluster_template_useCount_batchwise(iC, :, iB), 2);
+                            
+                            % we have to mask over templates because unusued templates will have NaN centroids and the product will be NaN even where weight is 0
+                            mask_template = weights_temp_batch ~= 0;
+                            cluster_centroid_batchwise(iC, iB, :) =  weights_temp_batch(mask_template) * permute(m.template_centroid_batchwise(mask_template, iB, :), [1 3 2]);
+
+                            cluster_waveform_batchwise(iC, :, iB) = weights_temp_batch(mask_template) * m.template_waveform_batchwise(mask_template, :, iB);
+                            cluster_amplitude_batchwise(iC, iB) = weights_temp_batch(mask_template) * m.template_amplitude_batchwise(mask_template, iB);
+                        end
                     end
                 end
                 
@@ -1051,7 +1057,11 @@ classdef KilosortMetrics < handle
             else
                 cmap = Neuropixel.Utils.distinguishable_colors(nClu, [1 1 1; 0 1 0]);
                 cmap_base = cmap;
-                cmap_lims = [1 nClu];
+                if nClu == 1
+                    cmap_lims = [1 2];
+                else
+                    cmap_lims = [1 nClu];
+                end
             end
             
             rng(1);
@@ -1146,7 +1156,7 @@ classdef KilosortMetrics < handle
                 yb(mask_invalidate) = NaN;
                 
                 % find large gaps
-                mask_gap_eligible = nSp == 0;
+                mask_gap_eligible = nSp < minSpikesPerBin;
                 mask_gap = imopen(mask_gap_eligible, ones(1, minGap));
                 first_gap = [false, diff(mask_gap) == 1];
                 
@@ -1310,9 +1320,13 @@ classdef KilosortMetrics < handle
             end
             
             if p.Results.markBoundaries
-                m.concatenationInfo.markExcisionBoundaries('sample_window', sample_window, ...
-                    'timeInSeconds', timeInSeconds, ...
-                    'time_shifts', timeShifts, 'xOffset', xOffset);
+                if isempty(m.concatenationInfo)
+                    warning('KilosortDataset had empty concatenationInfo, cannot mark excision boundaries');
+                else
+                    m.concatenationInfo.markExcisionBoundaries('sample_window', sample_window, ...
+                        'timeInSeconds', timeInSeconds, ...
+                        'time_shifts', timeShifts, 'xOffset', xOffset);
+                end
             end
             
             if p.Results.exciseRegionsOutsideTrials && p.Results.markBoundaries
@@ -1320,9 +1334,13 @@ classdef KilosortMetrics < handle
                     'timeInSeconds', timeInSeconds, ...
                     'xOffset', xOffset);
             end
-            m.concatenationInfo.markConcatenatedFileBoundaries('sample_window', sample_window, ...
-                'timeInSeconds', timeInSeconds, ...
-                'time_shifts', timeShifts, 'xOffset', xOffset);
+            if isempty(m.concatenationInfo)
+                warning('KilosortDataset had empty concatenationInfo, cannot mark concatenation boundaries');
+            else
+                m.concatenationInfo.markConcatenatedFileBoundaries('sample_window', sample_window, ...
+                    'timeInSeconds', timeInSeconds, ...
+                    'time_shifts', timeShifts, 'xOffset', xOffset);
+            end
             
             hold off;
             
@@ -1999,6 +2017,9 @@ classdef KilosortMetrics < handle
             p.addParameter('smoothBy', 10, @iscalar);
             p.addParameter('compressInitialOffsetsBy', 10, @isscalar);
             p.parse(varargin{:});
+            
+            m.computeBatchwiseMetrics(); % ensure batchwise metrics are computed
+            
             sdim = p.Results.spatialDim;
             referenceBatchInd = p.Results.referenceBatchInd;
             
