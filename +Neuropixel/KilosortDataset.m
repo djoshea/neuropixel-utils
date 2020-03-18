@@ -514,7 +514,11 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                     raw_path = p.Results.imecDataset;
                     if isempty(raw_path), raw_path = path; end
                     if Neuropixel.ImecDataset.folderContainsDataset(raw_path)
-                        ks.raw_dataset = Neuropixel.ImecDataset(raw_path, 'channelMap', p.Results.channelMap);
+                        try 
+                            ks.raw_dataset = Neuropixel.ImecDataset(raw_path, 'channelMap', p.Results.channelMap);
+                        catch exc
+                            warning('KilosortDataset could not be loaded with imec_cleaned, exception was: %s', exc.message());
+                        end
                     end
                 end
             end
