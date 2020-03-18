@@ -380,38 +380,74 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
                 xc = xc + this_cluster_lag*dt + xoffset + xoffsetBetweenClusters*(iClu-1);
                 yc = yc + yoffset + yoffsetBetweenClusters*(iClu-1);
                 
-                for iC = 1:nChannelsMaxPerCluster
-                    dmat = Neuropixel.Utils.TensorUtils.squeezeDims(data(iC, :, this_snippet_mask_subset), 1) + yc(iC);
-                        
-                    if p.Results.showIndividual
-                        handlesIndiv{iC, iClu} = plot(axh, tvec + xc(iC), dmat, 'Color', [cmap(cmapIdx, :), p.Results.alpha], ...
-                            'AlignVertexCenters', true, p.Results.plotArgs{:});
-                        Neuropixel.Utils.hideInLegend(handlesIndiv{iC, iClu});
-                        hold(axh, 'on');
-                    end
-                    if p.Results.showMean
-                        handlesMean(iC, iClu) = plot(axh, tvec + xc(iC), mean(dmat, 2), 'Color', cmap(cmapIdx, :), ...
-                            'AlignVertexCenters', true, p.Results.meanPlotArgs{:});
-                        hold(axh, 'on');
-                    end
-                    if p.Results.showMedian
-                        handlesMedian(iC, iClu) = plot(axh, tvec + xc(iC), median(dmat, 2), 'Color', cmap(cmapIdx, :), ...
-                            'AlignVertexCenters', true, p.Results.medianPlotArgs{:});
-                        hold(axh, 'on');
-                    end
-                    if iC == 1 
-                        if p.Results.showMean
-                            Neuropixel.Utils.showFirstInLegend(handlesMean(iC, iClu), sprintf('cluster %d', this_cluster_id));
-                        elseif p.Results.showMedian
-                            Neuropixel.Utils.showFirstInLegend(handlesMedian(iC, iClu), sprintf('cluster %d', this_cluster_id));
-                        else
-                            Neuropixel.Utils.showFirstInLegend(handlesIndiv{iC, iClu}, sprintf('cluster %d', this_cluster_id));
-                        end
-                    else
-                        Neuropixel.Utils.hideInLegend(handlesMean(iC, iClu));
-                    end
+                % arrange things carefully to plot all channels simultaneously spaced out at probe locations
+                
+                % ch x time x snippets
+                data_clu = Neuropixel.Utils.TensorUtils.squeezeDims(data(1:nChannelsMaxPerCluster, :, this_snippet_mask_subset), 1) + yc(1:nChannelsMaxPerCluster);
+                data_plot = permute(data_clu, [2 3 1]); % time x snippets x ch
+               
+                if p.Results.showIndividual
+                    nSnippetsThis = size(data_plot, 2);
+                    X = repmat(tvec', [1 nSnippetsThis nChannelsMaxPerCluster]) + shiftdim(xc, -2);
+                    hthis = plot(axh, X(:, :), data_plot(:, :), 'Color', [cmap(cmapIdx, :), p.Results.alpha], ...
+                        'AlignVertexCenters', true, p.Results.plotArgs{:}); % [snippets for ch1; snippets for ch2; ... ]
+                    % split handles by channel
+                    handlesIndiv(:, iClu) = mat2cell(hthis, repmat(nSnippetsThis, nChannelsMaxPerCluster, 1), 1);
+                    Neuropixel.Utils.hideInLegend(hthis);
+                    hold(axh, 'on');
                 end
                 
+                if p.Results.showMean
+                    handlesMean(:, iClu) = plot(axh, tvec' + xc', squeeze(mean(data_plot, 2)), 'Color', cmap(cmapIdx, :), ...
+                        'AlignVertexCenters', true, p.Results.meanPlotArgs{:});
+                    hold(axh, 'on');
+                end
+                if p.Results.showMedian
+                    handlesMedian(:, iClu) = plot(axh, tvec' + xc', squeeze(median(data_plot, 2)), 'Color', cmap(cmapIdx, :), ...
+                        'AlignVertexCenters', true, p.Results.medianPlotArgs{:});
+                    hold(axh, 'on');
+                end
+                
+                if p.Results.showMean
+                        Neuropixel.Utils.showFirstInLegend(handlesMean(1, iClu), sprintf('cluster %d', this_cluster_id));
+                    elseif p.Results.showMedian
+                        Neuropixel.Utils.showFirstInLegend(handlesMedian(1, iClu), sprintf('cluster %d', this_cluster_id));
+                    else
+                        Neuropixel.Utils.showFirstInLegend(handlesIndiv{1, iClu}, sprintf('cluster %d', this_cluster_id));
+                end
+% 
+%                 for iC = 1:nChannelsMaxPerCluster
+%                     dmat = Neuropixel.Utils.TensorUtils.squeezeDims(data(iC, :, this_snippet_mask_subset), 1) + yc(iC);
+%                         
+%                     if p.Results.showIndividual
+%                         handlesIndiv{iC, iClu} = plot(axh, tvec + xc(iC), dmat, 'Color', [cmap(cmapIdx, :), p.Results.alpha], ...
+%                             'AlignVertexCenters', true, p.Results.plotArgs{:});
+%                         Neuropixel.Utils.hideInLegend(handlesIndiv{iC, iClu});
+%                         hold(axh, 'on');
+%                     end
+%                     if p.Results.showMean
+%                         handlesMean(iC, iClu) = plot(axh, tvec + xc(iC), mean(dmat, 2), 'Color', cmap(cmapIdx, :), ...
+%                             'AlignVertexCenters', true, p.Results.meanPlotArgs{:});
+%                         hold(axh, 'on');
+%                     end
+%                     if p.Results.showMedian
+%                         handlesMedian(iC, iClu) = plot(axh, tvec + xc(iC), median(dmat, 2), 'Color', cmap(cmapIdx, :), ...
+%                             'AlignVertexCenters', true, p.Results.medianPlotArgs{:});
+%                         hold(axh, 'on');
+%                     end
+%                     if iC == 1 
+%                         if p.Results.showMean
+%                             Neuropixel.Utils.showFirstInLegend(handlesMean(iC, iClu), sprintf('cluster %d', this_cluster_id));
+%                         elseif p.Results.showMedian
+%                             Neuropixel.Utils.showFirstInLegend(handlesMedian(iC, iClu), sprintf('cluster %d', this_cluster_id));
+%                         else
+%                             Neuropixel.Utils.showFirstInLegend(handlesIndiv{iC, iClu}, sprintf('cluster %d', this_cluster_id));
+%                         end
+%                     else
+%                         Neuropixel.Utils.hideInLegend(handlesMean(iC, iClu));
+%                     end
+%                 end
+%                 
                 %drawnow;
             end
             
