@@ -2321,14 +2321,22 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
             overwriteSelf = strcmp(outpath, ks.path);
             assert(p.Results.allowOverwriteSelf || ~overwriteSelf, 'Refusing to overwrite on disk, pass allowOverwriteSelf true to allow this');
 
-            % copy params.py
+            if exist(outpath, 'dir') ~= 7
+                mkdirRecursive(outpath);
+            end
+            
             oldp = @(file) fullfile(ks.path, file);
-            existp = @(file) exist(oldp(file), 'file') > 0; %#ok<NASGU>
             newp = @(file) fullfile(outpath, file);
+            existnew = @(file) exist(newp(file), 'file') > 0;
 
+            if existnew('spike_deduplication_mask.mat')
+                % this will cause problems if it doesn't match the spikes being written down
+                delete(newp('spike_deduplication_mask.mat')); 
+            end
+            
             nProg = 15;
             if ks.kilosort_version == 2
-                nProg = nProg + 24;
+                nProg = nProg + 25;
             end
 
             initStr = sprintf('Writing Kilosort %d dataset to %s', ks.kilosort_version, outpath);
@@ -2447,8 +2455,11 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                         write(ks.cutoff_template_features, 'cutoff_template_features');
                     end
                 end
+                
+                % write cluster_KSLabel.tsv file - important so it is recognized as KS2
+                writeClusterMetaTSV('cluster_KSLabel', 'KSLabel', ks.cluster_ks_label);
             end
-
+            
             if exist('prog', 'var')
                 prog.finish();
             end
@@ -2461,6 +2472,63 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                 ffile = fullfile(outpath, [file '.npy']);
                 Neuropixel.writeNPY(data, ffile);
             end
+            
+            function writeClusterMetaTSV(file_noext, field, values)
+                file = fullfile(outpath, [file_noext, '.tsv']);
+                progIncrFn(sprintf('Writing %s', file));
+                fid = fopen(file, 'w');
+                assert(fid > 0, 'Error opening %s for writing', file);
+                
+                fprintf(fid, 'cluster_id\t%s\n', field);
+                
+                cluster_ids = ks.cluster_ids;
+                values = string(values);
+                for iC = 1:numel(cluster_ids)
+                    fprintf(fid, '%d\t%s\n', cluster_ids(iC), values(iC));
+                end
+                
+                fclose(fid);
+            end
+        end
+        
+        function [ks, rez] = copyReextractSpikesWithFixedTemplates(ks, varargin)
+            p = inputParser();
+            p.addParameter('rez_reextract', [], @(x) isstruct(x) || isempty(x));
+            p.KeepUnmatched = true;
+            p.parse(varargin{:});
+            
+            ks = copy(ks);
+            
+            % rerun Kilosort using ks's templates as a given
+            if ~isempty(p.Results.rez_reextract)
+                rez = p.Results.rez_reextract;
+            else
+                rez = reextractSpikesWithFixedTemplates(ks, p.Unmatched);
+            end
+            
+            % copy the updated fields from rez back into ks
+            cluster_col = rez.st3_cluster_col;
+            template_col = rez.st3_template_col;
+            
+            ks.spike_times = uint64(rez.st3(:, 1));
+            ks.spike_templates_preSplit = uint32(rez.st3(:, 2));
+            ks.amplitudes = rez.st3(:, 3);
+            ks.spike_templates = uint32(rez.st3(:, template_col));
+            ks.spike_clusters = uint32(rez.st3(:, cluster_col));
+            ks.spike_clusters_ks2orig = ks.spike_clusters;
+            
+            ks.template_features = rez.cProj;
+            ks.pc_features = rez.cProjPC;
+            
+            ks.cutoff_spike_times = uint64(rez.st3_cutoff_invalid(:, 1));
+            ks.cutoff_spike_templates_preSplit = uint32(rez.st3_cutoff_invalid(:, 2));
+            ks.cutoff_amplitudes = rez.st3_cutoff_invalid(:, 3);
+            ks.cutoff_spike_templates = uint32(rez.st3_cutoff_invalid(:, template_col));
+            ks.cutoff_spike_clusters = uint32(rez.st3_cutoff_invalid(:, cluster_col));
+            ks.cutoff_spike_clusters_ks2orig = ks.cutoff_spike_clusters;
+            
+            ks.cutoff_template_features = rez.cProj_cutoff_invalid;
+            ks.cutoff_pc_features = rez.cProjPC_cutoff_invalid;
         end
     end
 end
