@@ -740,6 +740,11 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                 progIncrFn('Loading ops.mat');
                 ld = load(fullfile(path, 'ops.mat'), 'ops');
                 ks.ops = ld.ops;
+                
+                % replace absolute paths in case ks.path has changed
+                ks.ops.root = ks.path;
+                ks.ops.saveDir = ks.path;
+                ks.ops.fbinary = fullfile(ks.path, ks.dat_path);                
             end
 
             ks.amplitudes = read('amplitudes');
@@ -832,11 +837,6 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
 %                 [tf, ind] = ismember(tbl.cluster_id, ks.cluster_ids);
 %                 ks.cluster_rating(ind(tf)) = tbl{tf, 2};
 %             end
-
-            if existp('ops.mat')
-                temp = load(fullfile(path, 'ops.mat'), 'ops');
-                ks.ops = temp.ops;
-            end
 
             if ks.kilosort_version == 2
                 if loadFeatures
@@ -1025,6 +1025,7 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                     % Import the data
                     tbl = readtable(fullfile(path,file), opts);
             end
+                
         end
 
         function create_spike_clusters_ks2orig_if_missing(ks)
@@ -2311,6 +2312,22 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
     end
     
     methods
+        function writeChannelMap(ks, outfile)
+            map = ks.channelMap;
+            chanMap = map.channelIdsMapped;
+            xcoords = map.xcoords;
+            ycoords = map.ycoords;
+            % this is a mask over mapped channels that is true if channel is good
+            connected = ismember(1:map.nChannelsMapped, ks.channel_ids_sorted);
+            kcoords = map.shankInd;
+            fs = ks.fsAP;
+            
+            if nargin < 2
+                outfile = fullfile(ks.path, 'chanMap.mat');
+            end
+            save(outfile, 'chanMap', 'xcoords', 'ycoords', 'connected', 'kcoords', 'fs');
+        end
+        
         function writeToDisk(ks, outpath, varargin)
             p = inputParser();
             p.addParameter('progressInitializeFn', [], @(x) isempty(x) || isa(x, 'function_handle')); % f(nUpdates) to print update
@@ -2360,6 +2377,10 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                 ops = ks.ops;
                 save(newp('ops.mat'), 'ops');
             end
+            
+            % write channelMap
+            chanMapFile = fullfile(outpath, 'chanMap.mat');
+            ks.writeChannelMap(chanMapFile);
 
             write(ks.amplitudes, 'amplitudes');
             write(ks.channel_ids_sorted - ones(1, 'like', ks.channel_ids_sorted), 'channel_map');
