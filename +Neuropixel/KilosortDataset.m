@@ -2351,7 +2351,7 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                 delete(newp('spike_deduplication_mask.mat')); 
             end
             
-            nProg = 15;
+            nProg = 16;
             if ks.kilosort_version == 2
                 nProg = nProg + 25;
             end
@@ -2379,6 +2379,7 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
             end
             
             % write channelMap
+            progIncrFn('Writing chanMap.mat');
             chanMapFile = fullfile(outpath, 'chanMap.mat');
             ks.writeChannelMap(chanMapFile);
 
