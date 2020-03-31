@@ -261,7 +261,7 @@ classdef ClusterRatingInfo < handle & matlab.mixin.Copyable
             n = nnz(r.ratings == unrated);
         end
 
-        function countsByRatingSubgroup = computeClusterCountsAfterApplyingMerges(r, mergeInfo, ratingValueSet, countUsableOnlyMask)
+        function [countsByRatingSubgroup, nClustersPostMerge] = computeClusterCountsAfterApplyingMerges(r, mergeInfo, ratingValueSet, countUsableOnlyMask)
             % countsByRatingSubgroup is numel(ratingValueSet) x nSubgroups count of clusters
             % that have that rating and are listed as usableWithin that subgroup
 
@@ -275,9 +275,14 @@ classdef ClusterRatingInfo < handle & matlab.mixin.Copyable
             % apply merge on copy
             r = copy(r);
             r.apply_cluster_merge(mergeInfo);
+            nClustersPostMerge = r.nClusters;
 
             % then count clusters
             countsByRatingSubgroup = r.computeClusterCounts(ratingValueSet, countUsableOnlyMask);
+        end
+        
+        function [nUnrated, nClustersPostMerge] = computeClusterUnratedCountAfterApplyingMerges(r, mergeInfo)
+            [nUnrated, nClustersPostMerge] = r.computeClusterCountsAfterApplyingMerges(mergeInfo, "unrated", false);
         end
 
         function cluster_ids = listClusterIdsUsableWithinSubgroup(r, subgroup, ratingsAccepted)
