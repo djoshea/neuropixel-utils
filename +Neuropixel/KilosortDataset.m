@@ -792,6 +792,10 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
             
             if existp('spike_clusters_ks2orig.npy')
                 ks.spike_clusters_ks2orig = read('spike_clusters_ks2orig');
+                if numel(ks.spike_clusters_ks2orig) ~= numel(ks.spike_times)
+                    warning('Saved spike_clusters_ks2orig size does not match other fields, ignoring');
+                    ks.spike_clusters_ks2orig = ks.spike_clusters;
+                end
             else
                 ks.spike_clusters_ks2orig = ks.spike_clusters;
             end
@@ -932,6 +936,10 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
 %                     ks.cutoff_spike_clusters = readOr('cutoff_spike_clusters'); % rez.st3_cutoff is 1 indexed, cluster ids are 0 indexed
                     if existp('cutoff_spike_clusters_ks2orig.npy')
                         ks.cutoff_spike_clusters_ks2orig = read('cutoff_spike_clusters_ks2orig');
+                        if numel(ks.cutoff_spike_clusters_ks2orig) ~= numel(ks.cutoff_spike_times)
+                            warning('Saved cutoff_spike_clusters_ks2orig size does not match other fields, ignoring');
+                            ks.cutoff_spike_clusters_ks2orig = ks.cutoff_spike_clusters;
+                        end
                     else
                         ks.cutoff_spike_clusters_ks2orig = ks.cutoff_spike_clusters;
                     end
@@ -1117,6 +1125,7 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
             [ks.spike_templates_preSplit, ks.cutoff_spike_templates_preSplit] = combineAndSort(ks.spike_templates_preSplit, ks.cutoff_spike_templates_preSplit);
             [ks.amplitudes, ks.cutoff_amplitudes] = combineAndSort(ks.amplitudes, ks.cutoff_amplitudes);
             [ks.spike_clusters, ks.cutoff_spike_clusters] = combineAndSort(ks.spike_clusters, ks.cutoff_spike_clusters);
+            [ks.spike_clusters_ks2orig, ks.cutoff_spike_clusters_ks2orig] = combineAndSort(ks.spike_clusters_ks2orig, ks.cutoff_spike_clusters_ks2orig);
 
             if ks.hasFeaturesLoaded
                 [ks.pc_features, ks.cutoff_pc_features] = combineAndSort(ks.pc_features, ks.cutoff_pc_features);
@@ -1137,6 +1146,7 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
             ks.spike_templates_preSplit = ks.spike_templates_preSplit(sortIdx);
             ks.amplitudes = ks.amplitudes(sortIdx);
             ks.spike_clusters = ks.spike_clusters(sortIdx);
+            ks.spike_clusters_ks2orig = ks.spike_clusters_ks2orig(sortIdx);
             if ks.hasFeaturesLoaded
                 ks.pc_features = ks.pc_features(sortIdx, :, :);
                 ks.template_features = ks.template_features(sortIdx, :);
@@ -1147,6 +1157,7 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
             ks.cutoff_spike_templates_preSplit = ks.cutoff_spike_templates_preSplit(sortIdx);
             ks.cutoff_amplitudes = ks.cutoff_amplitudes(sortIdx);
             ks.cutoff_spike_clusters = ks.cutoff_spike_clusters(sortIdx);
+            ks.cutoff_spike_clusters_ks2orig = ks.cutoff_spike_clusters_ks2orig(sortIdx);
             if ks.hasFeaturesLoaded
                 ks.cutoff_pc_features = ks.cutoff_pc_features(sortIdx, :, :);
                 ks.cutoff_template_features = ks.cutoff_template_features(sortIdx, :);
@@ -1168,6 +1179,7 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
             end
             ks.amplitudes = ks.amplitudes(mask);
             ks.spike_clusters = ks.spike_clusters(mask);
+            ks.spike_clusters_ks2orig = ks.spike_clusters_ks2orig(mask);
             if ks.hasFeaturesLoaded
                 ks.pc_features = ks.pc_features(mask, :, :);
                 ks.template_features = ks.template_features(mask, :);
@@ -1178,6 +1190,7 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
             ks.cutoff_spike_templates_preSplit = ks.cutoff_spike_templates_preSplit(mask_cutoff);
             ks.cutoff_amplitudes = ks.cutoff_amplitudes(mask_cutoff);
             ks.cutoff_spike_clusters = ks.cutoff_spike_clusters(mask_cutoff);
+            ks.cutoff_spike_clusters_ks2orig = ks.cutoff_spike_clusters_ks2orig(mask_cutoff);
             if ks.hasFeaturesLoaded
                 ks.cutoff_pc_features = ks.cutoff_pc_features(mask_cutoff, :, :);
                 ks.cutoff_template_features = ks.cutoff_template_features(mask_cutoff, :);
@@ -1218,6 +1231,7 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
             ks.spike_templates_preSplit = cat(1, ks.spike_templates_preSplit, append.spike_templates_preSplit);
             ks.amplitudes = cat(1, ks.amplitudes, append.amplitudes);
             ks.spike_clusters = cat(1, ks.spike_clusters, append.spike_clusters);
+            ks.spike_clusters_ks2orig = cat(1, ks.spike_clusters_ks2orig, append.spike_clusters);
             if ks.hasFeaturesLoaded
                 if isempty(append.pc_features)
                     f = zeros([nNew, size(ks.pc_features, [2 3])], 'like', ks.pc_features);
@@ -1234,21 +1248,23 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                 ks.template_features = cat(1, ks.template_features, f);
             end
 
+            nNewCutoff = numel(append.cutoff_spike_times);
             ks.cutoff_spike_times = cat(1, ks.cutoff_spike_times, append.cutoff_spike_times);
             ks.cutoff_spike_templates = cat(1, ks.cutoff_spike_templates, append.cutoff_spike_templates);
             ks.cutoff_spike_templates_preSplit = cat(1, ks.cutoff_spike_templates_preSplit, append.cutoff_spike_templates_preSplit);
             ks.cutoff_amplitudes = cat(1, ks.cutoff_amplitudes, append.cutoff_amplitudes);
             ks.cutoff_spike_clusters = cat(1, ks.cutoff_spike_clusters, append.cutoff_spike_clusters);
+            ks.cutoff_spike_clusters_ks2orig = cat(1, ks.cutoff_spike_clusters_ks2orig, append.cutoff_spike_clusters);
             if ks.hasFeaturesLoaded
                 if isempty(append.pc_features)
-                    f = zeros([nNew, size(ks.cutoff_pc_features, [2 3])], 'like', ks.cutoff_pc_features);
+                    f = zeros([nNewCutoff, size(ks.cutoff_pc_features, [2 3])], 'like', ks.cutoff_pc_features);
                 else
                     f = append.cutoff_pc_features;
                 end 
                 ks.cutoff_pc_features = cat(1, ks.cutoff_pc_features, f);
                 
                 if isempty(append.template_features)
-                    f = zeros([nNew, size(ks.cutoff_template_features, 2)], 'like', ks.cutoff_template_features);
+                    f = zeros([nNewCutoff, size(ks.cutoff_template_features, 2)], 'like', ks.cutoff_template_features);
                 else
                     f = append.cutoff_template_features;
                 end 
@@ -2536,7 +2552,10 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
             ks.spike_templates_preSplit = uint32(rez.st3(:, 2));
             ks.amplitudes = rez.st3(:, 3);
             ks.spike_templates = uint32(rez.st3(:, template_col));
-            ks.spike_clusters = uint32(rez.st3(:, cluster_col));
+            
+            % ensure that we subtract one to replicate what rez2phy does
+            cluster_offset = -1;
+            ks.spike_clusters = uint32(rez.st3(:, cluster_col) + cluster_offset);
             ks.spike_clusters_ks2orig = ks.spike_clusters;
             
             ks.template_features = rez.cProj;
@@ -2546,7 +2565,8 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
             ks.cutoff_spike_templates_preSplit = uint32(rez.st3_cutoff_invalid(:, 2));
             ks.cutoff_amplitudes = rez.st3_cutoff_invalid(:, 3);
             ks.cutoff_spike_templates = uint32(rez.st3_cutoff_invalid(:, template_col));
-            ks.cutoff_spike_clusters = uint32(rez.st3_cutoff_invalid(:, cluster_col));
+            
+            ks.cutoff_spike_clusters = uint32(rez.st3_cutoff_invalid(:, cluster_col) + cluster_offset);
             ks.cutoff_spike_clusters_ks2orig = ks.cutoff_spike_clusters;
             
             ks.cutoff_template_features = rez.cProj_cutoff_invalid;
