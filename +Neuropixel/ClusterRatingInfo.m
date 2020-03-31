@@ -336,12 +336,12 @@ classdef ClusterRatingInfo < handle & matlab.mixin.Copyable
                 [this_ratings, this_usableWithin, this_stableAcross, this_includeCutoffSpikes] = r.lookupClusterRatings(cluster_ids);
 
                 this_new_ind = new_cluster_inds(iM);
-                ratings(this_new_ind) = max(this_ratings);
-                usableWithin(this_new_ind, :) = any(this_usableWithin, 1);
+                ratings(this_new_ind) = max(this_ratings); % rating is the "max" of merged ratings, which means the best due to the order of defaultRatingValueSet which is used to define the ordering of the categorical
+                usableWithin(this_new_ind, :) = any(this_usableWithin, 1); % usable if any is usable
                 if ~isempty(stableAcross)
-                    stableAcross(this_new_ind, :) = any(this_stableAcross, 1);
+                    stableAcross(this_new_ind, :) = any(this_stableAcross, 1); % stable if any is stable
                 end
-                includeCutoffSpikes(this_new_ind) = any(this_includeCutoffSpikes);
+                includeCutoffSpikes(this_new_ind) = any(this_includeCutoffSpikes); % include cutoff if any includes cutoff
             end
 
             cluster_ids_removed_by_merge = setdiff(cat(2, mergeInfo.merges{:}), new_cluster_ids);
