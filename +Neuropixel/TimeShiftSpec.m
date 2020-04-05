@@ -143,7 +143,7 @@ classdef TimeShiftSpec < handle & matlab.mixin.Copyable
             boundaries = double(spec.idxShiftStart(2:end));
             time_shifts_plot = p.Results.time_shifts;
             if ~isempty(time_shifts_plot)
-                boundaries = timeShiftSpec.shiftTimes(boundaries);
+                boundaries = time_shifts_plot.shiftTimes(boundaries);
             end
             sample_window = p.Results.sample_window;
             if ~isempty(sample_window)

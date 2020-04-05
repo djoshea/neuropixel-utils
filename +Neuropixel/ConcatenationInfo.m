@@ -215,6 +215,9 @@ classdef ConcatenationInfo < handle
         end
         
         function markConcatenatedFileBoundaries(ci, varargin)
+            % mark the time points where multiple files were concatenated together
+            % this assumes we are plotting into a space where ci.timeShifts is already applied (i.e. the concatenated file time axis),
+            % but time_shifts may be passed in if needed to simulate a second set of time shifts
             p = inputParser();
             p.addParameter('sample_window', [], @(x) isempty(x) || isvector(x)); % masks which trials to include, note that it applies before the time shifts
             p.addParameter('side', 'bottom', @ischar);
@@ -253,11 +256,13 @@ classdef ConcatenationInfo < handle
         
         function markExcisionBoundaries(ci, varargin)
             % marks times where each concatenated source file was split based on ci.timeShifts(iF)
+            % this assumes we are plotting into a space where ci.timeShifts is NOT already applied (i.e. the concatenated file time axis)
+            % but if time_shifts is passed in as ci.time_shifts, it will plot into the already time-shifted time axis
             p = inputParser();
             p.addParameter('timeInSeconds', true, @islogical); % if true, x axis is seconds, if false, is samples 
             p.addParameter('sample_window', [], @(x) isempty(x) || isvector(x));
             p.addParameter('xOffset', 0, @isscalar);
-            p.addParameter('time_shifts', [], @(x) isempty(x) || isa(x, 'Neuropixel.TimeShiftSpec'));
+            p.addParameter('time_shifts', [], @(x) isempty(x) || isa(x, 'Neuropixel.TimeShiftSpec')); % assumed to be applied to times in plot
             p.parse(varargin{:});
             xOffset = p.Results.xOffset;
             sample_window = p.Results.sample_window;
@@ -269,7 +274,7 @@ classdef ConcatenationInfo < handle
             
             % map the sample_window into individual files
             if isempty(sample_window)
-                sample_window = [-Inf Inf];
+                sample_window = [1 ci.nSamples];
             end
             [window_fileInd, window_origInd] = ci.lookup_sampleIndexInSourceFiles(sample_window);
             
@@ -284,7 +289,7 @@ classdef ConcatenationInfo < handle
                     sample_window_this(2) = window_origInd(2);
                 end
                 ci.timeShifts(iF).markExcisionBoundaries('sample_window', sample_window_this, 'xOffset', xOffset, ...
-                    'timeInSeconds', timeInSeconds, 'fs', ci.fs);
+                    'timeInSeconds', timeInSeconds, 'fs', ci.fs, 'time_shifts', p.Results.time_shifts);
                 if timeInSeconds
                     xOffset = xOffset + ci.timeShifts(iF).nShiftedTimes / ci.fs;
                 else

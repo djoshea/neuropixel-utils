@@ -1252,12 +1252,25 @@ classdef KilosortMetrics < handle
                 mask = mask & ismember(m.spike_clusters, p.Results.cluster_ids);
             end
             
-            spikeTimes = m.spike_times(mask);
-            if p.Results.exciseRegionsOutsideTrials
-                timeShifts = tsi.computeShiftsExciseRegionsOutsideTrials();
-                spikeTimes = timeShifts.shiftTimes(spikeTimes);
+            % this would be present if we're looking at the cleaned file where times have already
+            % been shifted around to excise gaps
+            timeShiftsFromRaw = [];
+            if ~isempty(m.concatenationInfo)
+                timeShiftsAlreadyApplied = m.concatenationInfo.timeShifts;
             else
-                timeShifts = [];
+                timeShiftsAlreadyApplied = [];
+            end
+            
+            spikeTimes = m.spike_times(mask);
+            
+            % this allows us to apply new time shifts to the data to see what the effect would be
+            if p.Results.exciseRegionsOutsideTrials
+                assert(isempty(timeShiftsAlreadyApplied), 'Cannot do exciseRegionsOutsideTrials when time shifts already applied given in concatenationInfo');
+                timeShiftsAppliedHere = tsi.computeShiftsExciseRegionsOutsideTrials();
+                spikeTimes = timeShiftsAppliedHere.shiftTimes(spikeTimes);
+                timeShiftsFromRaw = timeShiftsAppliedHere;
+            else
+                timeShiftsAppliedHere = [];
             end
             
             if ~isempty(sample_window)
@@ -1273,7 +1286,7 @@ classdef KilosortMetrics < handle
             spikeAmps = m.spike_amplitude(mask);
             spikeYpos = m.spike_depth(mask);
             
-            m.plotSpikesByAmplitude('spike_mask', mask, 'time_shifts', timeShifts, 'nAmpBins', p.Results.nAmpBins, ...
+            m.plotSpikesByAmplitude('spike_mask', mask, 'time_shifts', timeShiftsAppliedHere, 'nAmpBins', p.Results.nAmpBins, ...
                 'ampRange', p.Results.ampRange, 'timeInSeconds', timeInSeconds, ...
                 'localizedOnly', p.Results.localizedOnly, 'tsi', p.Results.tsi, 'xOffset', xOffset, ...
                 'markerSize', p.Results.markerSize, 'configureDataTips', p.Results.configureDataTips);
@@ -1316,22 +1329,24 @@ classdef KilosortMetrics < handle
                 hold on;
                 tsi.markTrialTicks('sample_window', sample_window, ...
                     'timeInSeconds', timeInSeconds, ...
-                    'time_shifts', timeShifts, 'xOffset', xOffset, 'side', 'bottom', 'Color', [0.2 0.2 1]);
+                    'time_shifts', timeShiftsAppliedHere, 'xOffset', xOffset, 'side', 'bottom', 'Color', [0.2 0.2 1]);
             end
             
             if p.Results.markBoundaries
                 if isempty(m.concatenationInfo)
                     warning('KilosortDataset had empty concatenationInfo, cannot mark excision boundaries');
                 else
+                    % the concatenation info struct might contain info on the applied time shifts
+                    % but we want them to be shown in the already time shifted time axis
                     m.concatenationInfo.markExcisionBoundaries('sample_window', sample_window, ...
                         'timeInSeconds', timeInSeconds, ...
-                        'time_shifts', timeShifts, 'xOffset', xOffset);
+                        'time_shifts', timeShiftsFromRaw, 'xOffset', xOffset);
                 end
             end
             
             if p.Results.exciseRegionsOutsideTrials && p.Results.markBoundaries
-                m.markExcisionBoundaries(timeShifts, 'sample_window', sample_window, ...
-                    'timeInSeconds', timeInSeconds, ...
+                m.markExcisionBoundaries(timeShiftsAppliedHere, 'sample_window', sample_window, ...
+                    'timeInSeconds', timeInSeconds, 'time_shifts', timeShiftsAppliedHere, ...
                     'xOffset', xOffset);
             end
             if isempty(m.concatenationInfo)
@@ -1339,7 +1354,7 @@ classdef KilosortMetrics < handle
             else
                 m.concatenationInfo.markConcatenatedFileBoundaries('sample_window', sample_window, ...
                     'timeInSeconds', timeInSeconds, ...
-                    'time_shifts', timeShifts, 'xOffset', xOffset);
+                    'time_shifts', timeShiftsAppliedHere, 'xOffset', xOffset);
             end
             
             hold off;
