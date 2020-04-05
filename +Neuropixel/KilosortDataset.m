@@ -783,7 +783,18 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
             % ensure that spike_clusters wont change if load_cutoff is false
             ks.spike_clusters = read('spike_clusters');
             cutoff_spike_clusters = readOr('cutoff_spike_clusters');
-            ks.cluster_ids = unique(cat(1, ks.spike_clusters, cutoff_spike_clusters));
+            
+            unique_cluster_ids = unique(cat(1, ks.spike_clusters, cutoff_spike_clusters));
+            if existp('unique_cluster_ids.npy')
+                % if unique_cluster_ids is hardcoded
+                ks.cluster_ids = read('unique_cluster_ids');
+                % check that the loaded cluster_ids is a superset of the cluster_ids seen in ks.spike_clusters
+                assert(all(ismember(unique_cluster_ids, ks.cluster_ids)), ...
+                    'cluster_ids list loaded from unique_cluster_ids.npy file must be a superset of all cluster ids encountered in spike_clusters.npy');
+            else
+                ks.cluster_ids = unique_cluster_ids;
+            end
+            
             if loadCutoff
                 ks.cutoff_spike_clusters = cutoff_spike_clusters;
             end
@@ -2367,7 +2378,7 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                 delete(newp('spike_deduplication_mask.mat')); 
             end
             
-            nProg = 16;
+            nProg = 17;
             if ks.kilosort_version == 2
                 nProg = nProg + 25;
             end
@@ -2426,8 +2437,10 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
             write(ks.whitening_mat, 'whitening_mat');
             write(ks.whitening_mat_inv, 'whitening_mat_inv');
             write(ks.spike_clusters, 'spike_clusters');
-            
             write(ks.spike_clusters_ks2orig, 'spike_clusters_ks2orig');
+            
+            % write the unique cluster ids as well
+            write(ks.cluster_ids, 'unique_cluster_ids');
 
             if ks.kilosort_version == 2
                 if ks.hasFeaturesLoaded
