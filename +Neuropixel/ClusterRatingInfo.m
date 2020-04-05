@@ -281,8 +281,15 @@ classdef ClusterRatingInfo < handle & matlab.mixin.Copyable
             countsByRatingSubgroup = r.computeClusterCounts(ratingValueSet, countUsableOnlyMask);
         end
         
-        function [nUnrated, nClustersPostMerge] = computeClusterUnratedCountAfterApplyingMerges(r, mergeInfo)
-            [nUnrated, nClustersPostMerge] = r.computeClusterCountsAfterApplyingMerges(mergeInfo, "unrated", false);
+        function [nUnrated, nClustersPostMerge, cluster_ids_unrated] = computeClusterUnratedCountAfterApplyingMerges(r, mergeInfo)
+            unrated = r.convertToRatingCategorical("unrated");
+            
+            r = copy(r);
+            r.apply_cluster_merge(mergeInfo);
+            nClustersPostMerge = r.nClusters;
+            mask_unrated = any(r.ratings == unrated, 2);
+            nUnrated = nnz(mask_unrated);
+            cluster_ids_unrated = r.cluster_ids(mask_unrated);
         end
 
         function cluster_ids = listClusterIdsUsableWithinSubgroup(r, subgroup, ratingsAccepted)
@@ -302,7 +309,7 @@ classdef ClusterRatingInfo < handle & matlab.mixin.Copyable
             cluster_ids = r.cluster_ids(mask);
         end
 
-        function cluster_ids = listClusterIdsUsableAcrossSubgroupsWithRating(r, subgroups, ratingsAccepted)
+        function [cluster_ids, cluster_ratings] = listClusterIdsUsableAcrossSubgroupsWithRating(r, subgroups, ratingsAccepted)
             % cluster_ids = listClusterIdsUsableAcrossSubgroupsWithRating(r, subgroups, ratingsAccepted)
             %
             % list all cluster_ids that are:
@@ -321,6 +328,7 @@ classdef ClusterRatingInfo < handle & matlab.mixin.Copyable
 
             mask = mask_rating_accepted & mask_usable_all & mask_stable_across;
             cluster_ids = r.cluster_ids(mask);
+            cluster_ratings = r.ratings(mask);
         end
 
         function apply_cluster_merge(r, mergeInfo)
