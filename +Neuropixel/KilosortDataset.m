@@ -1455,9 +1455,17 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
         end
 
         function m = computeMetrics(ks, recompute, varargin)
+            p = inputParser();
+            p.addParameter('loadBatchwise', false, @islogical);
+            p.addParameter('loadFeatures', false, @islogical);
+            p.addParameter('loadCutoff', true, @islogical);
+            p.addParameter('loadPreSplit', false, @islogical);
+            p.KeepUnmatched = true;
+            p.parse(varargin{:});
+            
             if isempty(ks.metrics) || ~isvalid(ks.metrics) || (nargin >= 2 && recompute)
-                ks.load();
-                ks.metrics = Neuropixel.KilosortMetrics(ks, varargin{:});
+                ks.load(p.Results);
+                ks.metrics = Neuropixel.KilosortMetrics(ks, p.Unmatched);
             end
             m = ks.metrics;
         end
