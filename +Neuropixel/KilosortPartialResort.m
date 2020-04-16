@@ -20,7 +20,6 @@ classdef KilosortPartialResort < handle
         % spike_templates.npy - [nSpikes, ] uint32 vector specifying the identity of the template that was originally used to extract each spike, before splitAllClusters
         spike_templates_preSplit(:, 1) uint32
 
-        
         % spike_clusters.npy - [nSpikes, ] uint32 vector giving the cluster identity of each spike. This file is optional and
         % if not provided will be automatically created the first time you run the template gui, taking the same values as
         % spike_templates.npy until you do any merging or splitting.

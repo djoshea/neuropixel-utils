@@ -28,7 +28,8 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
         isLoadedFeatures logical = false;
         isLoadedCutoff logical = false;
         isLoadedPreSplit logical = false;
-        
+
+        trimToNumSamples logical = true;
         modifiedInMemory logical = false;
     end
 
@@ -108,7 +109,7 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
 
         % similar_templates.npy - [nTemplates, nTemplates] single matrix giving the similarity score (larger is more similar) between each pair of templates
         similar_templates(:, :) single
-        
+
         % spike_templates.npy - [nSpikes, ] uint32 vector specifying the identity of the template that was used to extract each spike
         spike_templates(:, 1) uint32
 
@@ -153,11 +154,11 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
 
         % unique clusters in spike_clusters [nClusters]
         cluster_ids (:, 1) uint32
-        
+
         % has the list of spikes already been deduplicated
         is_deduplicated (1, 1) logical = false;
         deduplication_stats struct;
-        
+
         deduplicate_spikes logical = false;
         deduplicate_cutoff_spikes logical = false;
         deduplicate_within_samples uint64 = 5;
@@ -251,7 +252,7 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
 
         cluster_spike_counts % (:, 1) uint32 % nClusters x 1 number of spikes assigned to each cluster
         cutoff_cluster_spike_counts % (:, 1) uint32 % nClusters x 1 number of spikes assigned to each cluster
-        
+
         cluster_ids_have_spikes % list of cluster_ids with spikes (typically useful after spikes have been masked)
     end
 
@@ -472,7 +473,7 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                 n = uint32(Neuropixel.Utils.discrete_histcounts(ks.cutoff_spike_clusters, ks.cluster_ids));
             end
         end
-        
+
         function ids = get.cluster_ids_have_spikes(ks)
             mask = ks.cluster_spike_counts > 0 & ks.cutoff_cluster_spike_counts > 0;
             ids = ks.cluster_ids(mask);
@@ -490,13 +491,15 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
             p.addParameter('imecDataset', [], @(x) true);
             p.addParameter('fsAP', [], @(x) isempty(x) || isscalar(x));
             p.addParameter('apScaleToUv', [], @(x) isempty(x) || isscalar(x));
-            
-            % these will affect how load is performed
+
+            p.addParameter('trimToNumSamples', true, @islogical); % a bug in my modified Kilosort code
+
+            % these will affect how load() will be performed later on, but if no saved deduplicated spikes are found we'll do it now
             p.addParameter('deduplicate_spikes', true, @islogical);
             p.addParameter('deduplicate_cutoff_spikes', true, @islogical);
             p.addParameter('deduplicate_within_samples', 5, @isscalar);
             p.addParameter('deduplicate_within_distance', 50, @isscalar);
-            
+
             p.parse(varargin{:});
 
             if isa(path, 'Neuropixel.ImecDataset')
@@ -514,7 +517,7 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                     raw_path = p.Results.imecDataset;
                     if isempty(raw_path), raw_path = path; end
                     if Neuropixel.ImecDataset.folderContainsDataset(raw_path)
-                        try 
+                        try
                             ks.raw_dataset = Neuropixel.ImecDataset(raw_path, 'channelMap', p.Results.channelMap);
                         catch exc
                             warning('KilosortDataset could not be loaded with imec_cleaned, exception was: %s', exc.message());
@@ -557,11 +560,12 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                 ks.meta = ks.raw_dataset.readAPMeta();
                 ks.concatenationInfo = ks.raw_dataset.concatenationInfoAP;
             end
-            
+
+            ks.trimToNumSamples = p.Results.trimToNumSamples;
             ks.deduplicate_spikes = p.Results.deduplicate_spikes;
             ks.deduplicate_cutoff_spikes = p.Results.deduplicate_cutoff_spikes;
             ks.deduplicate_within_samples = p.Results.deduplicate_within_samples;
-            ks.deduplicate_within_distance = p.Results.deduplicate_within_distance;         
+            ks.deduplicate_within_distance = p.Results.deduplicate_within_distance;
         end
 
         function s = computeBasicStats(ks, varargin)
@@ -704,11 +708,11 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                     return;
                 end
             end
-            
+
             if ks.modifiedInMemory
                 error('Cannot reload aspects of KilosortDataset after in-memory modifications have been made');
             end
-            
+
             ks.isLoaded = false;
 
             ks.readParamsPy();
@@ -740,11 +744,11 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                 progIncrFn('Loading ops.mat');
                 ld = load(fullfile(path, 'ops.mat'), 'ops');
                 ks.ops = ld.ops;
-                
+
                 % replace absolute paths in case ks.path has changed
                 ks.ops.root = ks.path;
                 ks.ops.saveDir = ks.path;
-                ks.ops.fbinary = fullfile(ks.path, ks.dat_path);                
+                ks.ops.fbinary = fullfile(ks.path, ks.dat_path);
             end
 
             ks.amplitudes = read('amplitudes');
@@ -779,11 +783,11 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
 
             ks.whitening_mat = read('whitening_mat');
             ks.whitening_mat_inv = read('whitening_mat_inv');
-            
+
             % ensure that spike_clusters wont change if load_cutoff is false
             ks.spike_clusters = read('spike_clusters');
             cutoff_spike_clusters = readOr('cutoff_spike_clusters');
-            
+
             unique_cluster_ids = unique(cat(1, ks.spike_clusters, cutoff_spike_clusters));
             if existp('unique_cluster_ids.npy')
                 % if unique_cluster_ids is hardcoded
@@ -794,13 +798,13 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
             else
                 ks.cluster_ids = unique_cluster_ids;
             end
-            
+
             if loadCutoff
                 ks.cutoff_spike_clusters = cutoff_spike_clusters;
             end
 
             assert(~isempty(ks.cluster_ids));
-            
+
             if existp('spike_clusters_ks2orig.npy')
                 ks.spike_clusters_ks2orig = read('spike_clusters_ks2orig');
                 if numel(ks.spike_clusters_ks2orig) ~= numel(ks.spike_times)
@@ -953,6 +957,7 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                         end
                     else
                         ks.cutoff_spike_clusters_ks2orig = ks.cutoff_spike_clusters;
+                        ks.trimToNumSamples = p.Results.trimToNumSamples;
                     end
 
                     if loadFeatures
@@ -976,13 +981,13 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
             if loadPreSplit
                 ks.isLoadedPreSplit = true;
             end
-            
+
             if ks.deduplicate_spikes || ks.deduplicate_cutoff_spikes
                 need_deduplication = true;
                 if existp('spike_deduplication_mask.mat')
                     progIncrFn('Applying saved spike_deduplication_mask.mat');
                     temp = load(fullfile(path, 'spike_deduplication_mask.mat'), 'spike_deduplication_mask', 'cutoff_spike_deduplication_mask', 'deduplication_stats');
-                    if isfield(temp, 'spike_deduplication_mask') && isfield(temp, 'deduplication_stats') 
+                    if isfield(temp, 'spike_deduplication_mask') && isfield(temp, 'deduplication_stats')
                         mask = temp.spike_deduplication_mask;
                         if isfield(temp, 'cutoff_spike_deduplication_mask')
                             cutoff_mask = temp.cutoff_spike_deduplication_mask;
@@ -992,13 +997,13 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                         ks.mask_spikes(mask, cutoff_mask);
                         ks.is_deduplicated = true;
                         ks.deduplication_stats = temp.deduplication_stats;
-                        
+
                         need_deduplication = false;
                     else
                         warning('Spike dedpulication file spike_deduplication_mask.mat missing required fields, redoing duplication')
                     end
                 end
-                
+
                 if need_deduplication
                     progIncrFn('Deduplicating spikes');
                     ks.remove_duplicate_spikes();
@@ -1007,11 +1012,29 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                 ks.is_deduplicated = false;
                 ks.deduplication_stats = struct();
             end
-            
+
+            if ks.trimToNumSamples
+                if ~isempty(ks.raw_dataset)
+                    nSamples = ks.raw_dataset.nSamplesAP;
+                elseif ~isempty(ks.ops) && isfield(ks.ops, 'tend')
+                    nSamples = ks.ops.tend;
+                else
+                    nSamples = NaN;
+                end
+
+                if isnan(nSamples)
+                    warning('Cannot trim spikes to nSamples, nSamples not found in raw_dataset or in ops');
+                else
+                    mask = ks.spike_times <= nSamples;
+                    mask_cutoff = ks.cutoff_spike_times <= nSamples;
+                    ks.mask_spikes(mask, mask_cutoff, 'setModifiedInMemory', false);
+                end
+            end
+
             if exist('prog', 'var')
                 prog.finish();
             end
-            
+
             function out = readOr(file, default)
                 ffile = fullfile(path, [file '.npy']);
                 if exist(ffile, 'file') > 0
@@ -1044,7 +1067,7 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                     % Import the data
                     tbl = readtable(fullfile(path,file), opts);
             end
-                
+
         end
 
         function create_spike_clusters_ks2orig_if_missing(ks)
@@ -1085,7 +1108,7 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
             end
             ks.spike_clusters = spike_clusters;
             ks.cutoff_spike_clusters = cutoff_spike_clusters;
-            
+
             ks.modifiedInMemory = true;
 
             function spike_clusters = apply_single_merge(spike_clusters, dst_cluster_id, src_cluster_ids)
@@ -1097,7 +1120,7 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
         function accept_cutoff_spikes(ks, ratings_or_cluster_ids)
             % assumes that cutoff spikes are already loaded
             assert(ks.isLoadedCutoff, 'Must have loaded cutoff spikes');
-        
+
             % THIS WILL NEED TO BE UDPATED IF ADDITIONAL PROPS ARE ADDED
             if nargin < 2
                 cluster_ids = ks.cluster_ids;
@@ -1109,7 +1132,7 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
             else
                 cluster_ids = ratings_or_cluster_ids;
             end
-            
+
             if isempty(ks.cutoff_spike_times)
                 return;
             end
@@ -1142,10 +1165,10 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                 [ks.pc_features, ks.cutoff_pc_features] = combineAndSort(ks.pc_features, ks.cutoff_pc_features);
                 [ks.template_features, ks.cutoff_template_features] = combineAndSort(ks.template_features, ks.cutoff_template_features);
             end
-            
+
             ks.modifiedInMemory = true;
         end
-        
+
 %         function remove_zero_spike_clusters(ks)
 %             ks.cluster_ids = ks.cluster_ids(ks.cluster_spike_counts > 0 | ks.cutoff_cluster_spike_counts > 0);
 %         end
@@ -1173,16 +1196,20 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                 ks.cutoff_pc_features = ks.cutoff_pc_features(sortIdx, :, :);
                 ks.cutoff_template_features = ks.cutoff_template_features(sortIdx, :);
             end
-            
+
             ks.modifiedInMemory = true;
         end
 
-        function mask_spikes(ks, mask, mask_cutoff)
+        function mask_spikes(ks, mask, mask_cutoff, varargin)
+            p = inputParser();
+            p.addParameter('setModifiedInMemory', true, @islogical);
+            p.parse(varargin{:});
+
             assert(islogical(mask) && numel(mask) == ks.nSpikes);
             assert(islogical(mask_cutoff) && numel(mask_cutoff) == ks.nSpikesCutoff);
 
             ks.metrics = [];
-            
+
             ks.spike_times = ks.spike_times(mask);
             ks.spike_templates = ks.spike_templates(mask);
             if ~isempty(ks.spike_templates_preSplit)
@@ -1206,18 +1233,20 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                 ks.cutoff_pc_features = ks.cutoff_pc_features(mask_cutoff, :, :);
                 ks.cutoff_template_features = ks.cutoff_template_features(mask_cutoff, :);
             end
-            
-            ks.modifiedInMemory = true;
+
+            if p.Results.setModifiedInMemory
+                ks.modifiedInMemory = true;
+            end
         end
-        
+
         function mask_clusters(ks, cluster_ids)
             [~, cluster_ids] = ks.lookup_clusterIds(cluster_ids);
-            
+
             mask = ismember(ks.spike_clusters, cluster_ids);
             cutoff_mask = ismember(ks.cutoff_spike_clusters, cluster_ids);
-            ks.mask_spikes(mask, cutoff_mask);            
+            ks.mask_spikes(mask, cutoff_mask);
         end
-        
+
         function drop_cutoff_spikes(ks)
             ks.metrics = [];
             ks.cutoff_spike_times = [];
@@ -1229,13 +1258,13 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                 ks.cutoff_pc_features = [];
                 ks.cutoff_template_features = [];
             end
-            
+
             ks.modifiedInMemory = true;
         end
 
         function append_spikes(ks, append)
             ks.metrics = [];
-            
+
             nNew = numel(append.spike_times);
             ks.spike_times = cat(1, ks.spike_times, append.spike_times);
             ks.spike_templates = cat(1, ks.spike_templates, append.spike_templates);
@@ -1248,14 +1277,14 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                     f = zeros([nNew, size(ks.pc_features, [2 3])], 'like', ks.pc_features);
                 else
                     f = append.pc_features;
-                end 
+                end
                 ks.pc_features = cat(1, ks.pc_features, f);
-            
+
                 if isempty(append.template_features)
                     f = zeros([nNew, size(ks.template_features, 2)], 'like', ks.template_features);
                 else
                     f = append.template_features;
-                end 
+                end
                 ks.template_features = cat(1, ks.template_features, f);
             end
 
@@ -1271,17 +1300,17 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                     f = zeros([nNewCutoff, size(ks.cutoff_pc_features, [2 3])], 'like', ks.cutoff_pc_features);
                 else
                     f = append.cutoff_pc_features;
-                end 
+                end
                 ks.cutoff_pc_features = cat(1, ks.cutoff_pc_features, f);
-                
+
                 if isempty(append.template_features)
                     f = zeros([nNewCutoff, size(ks.cutoff_template_features, 2)], 'like', ks.cutoff_template_features);
                 else
                     f = append.cutoff_template_features;
-                end 
+                end
                 ks.cutoff_template_features = cat(1, ks.cutoff_template_features, f);
             end
-            
+
             ks.modifiedInMemory = true;
         end
 
@@ -1462,7 +1491,7 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
             p.addParameter('loadPreSplit', false, @islogical);
             p.KeepUnmatched = true;
             p.parse(varargin{:});
-            
+
             if isempty(ks.metrics) || ~isvalid(ks.metrics) || (nargin >= 2 && recompute)
                 ks.load(p.Results);
                 ks.metrics = Neuropixel.KilosortMetrics(ks, p.Unmatched);
@@ -1518,10 +1547,16 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
              p = inputParser();
              % specify (spike_idx or spike_times) and/or cluster_ids
              % if both are specified, spikes in the list of times with belonging to those cluster_ids will be kept
-             p.addParameter('spike_idx', [], @isvector); % manually specify which idx into spike_times
-             p.addParameter('spike_times', [], @isvector); % manually specify which times directly to extract
-             p.addParameter('cluster_ids', [], @isvector); % manually specify all spikes from specific cluster_ids
-
+             p.addParameter('spike_idx', [], @(x) isempty(x) || isvector(x)); % manually specify which idx into spike_times
+             p.addParameter('spike_times', [], @(x) isempty(x) || isvector(x)); % manually specify which times directly to extract
+             p.addParameter('cluster_ids', [], @(x) isempty(x) || isvector(x)); % manually specify all spikes from specific cluster_ids
+             
+             % for averaging by cluster
+             p.addParameter('average_by_cluster_id', false, @islogical); % returns a snippet set with one snippet (mean) for each cluster_ids
+             p.addParameter('average_by_cluster_id_batchwise', false, @islogical); % returns a snippet set with one snippet (mean) for each cluster_id for each batch (stored in ss.group
+             p.addParameter('average_by_group_id', false, @islogical);
+             p.addParameter('group_ids', [], @(x) isempty(x) || isvector(x)); % for manually indicating groups to average, must match numel(spike_idx) or numel(spike_times)
+             
              % and ONE OR NONE of these to pick channels (or channels for each cluster)
              p.addParameter('channel_ids_by_cluster', [], @(x) isempty(x) || ismatrix(x));
              p.addParameter('best_n_channels', NaN, @isscalar); % or take the best n channels based on this clusters template when cluster_id is scalar
@@ -1534,9 +1569,10 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
              p.addParameter('window', [-40 41], @isvector); % Number of samples before and after spiketime to include in waveform
              p.addParameter('car', false, @islogical);
              p.addParameter('centerUsingFirstSamples', 20, @(x) isscalar(x) || islogical(x)); % subtract mean of each waveform's first n samples, don't do if false
-             p.addParameter('average_by_cluster_id', false, @islogical); % returns a snippet set with one snippet (mean) for each cluster_ids
              p.addParameter('subtractOtherClusters', false, @islogical); % time consuming step to remove the contribution of the other clusters to a given snippet
              p.addParameter('applyScaling', false, @islogical); % scale to uV
+             
+             p.addParameter('band', 'ap', @ischar); % 'ap' or 'lf'
              p.addParameter('raw_dataset', ks.raw_dataset, @(x) true);
              p.addParameter('fromSourceDatasets', false, @islogical); % go all the way back to the imecDatasets that were concatenated to form ks.raw_dataset
 
@@ -1547,12 +1583,34 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
 
              p.parse(varargin{:});
 
-             assert(ks.hasRawDataset, 'KilosortDataset has no raw ImecDataset');
+             raw_dataset = p.Results.raw_dataset;
+             if isempty(raw_dataset)
+                 error('KilosortDataset has no raw_dataset and raw_dataset not provided');
+             end
+             
+             band = p.Results.band;
+             fromSource = p.Results.fromSourceDatasets;
+             switch band
+                 case 'ap'
+                     if fromSource
+                         assert(raw_dataset.hasSourceAP);
+                     else
+                         assert(raw_dataset.hasAP);
+                     end
+                 case 'lf'
+                     if fromSource
+                         assert(raw_dataset.hasSourceLF);
+                     else
+                         assert(raw_dataset.hasLF);
+                     end
+                 otherwise
+                     error('Unknown band %s', band);
+             end
 
              if p.Results.average_by_cluster_id && p.Results.subtractOtherClusters
                  error('Cannot average and subtractOtherClusters');
              end
-            
+
              ks.checkLoaded();
 
              from_cutoff_spikes = p.Results.from_cutoff_spikes;
@@ -1635,7 +1693,27 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
              if isempty(unique_cluster_ids)
                  unique_cluster_ids = unique(cluster_ids);
              end
-
+             
+             % handle clusterwise / batchwise / groupwise averaging
+             average_by_cluster_id = p.Results.average_by_cluster_id;
+             average_by_group_id = p.Results.average_by_group_id;
+             group_ids = p.Results.group_ids;
+             if ~isempty(group_ids)
+                % manual grouping
+                assert(numel(group_ids) == numel(mask), 'Manually specified group_ids must match number of spikes');
+                group_ids = group_ids(mask);
+                
+             elseif p.Results.average_by_cluster_id_batchwise
+                % grouping by ks batch
+                group_ids = ks.compute_which_batch(spike_times);
+                assert(~average_by_group_id, 'average_by_group_id ignored when average_by_cluster_id_batchwise is set');
+                average_by_group_id = true;
+                average_by_cluster_id = true;
+                
+             else
+                 assert(~average_by_group_id, 'group_ids must be specified for average_by_group_id == true');
+             end
+             
              trial_idx = p.Results.trial_idx;
              if ~isempty(trial_idx)
                  trial_idx = trial_idx(mask);
@@ -1680,7 +1758,7 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                      error('Some cluster idx not found in cluster_ids');
                  end
                  channel_ids_by_cluster = cluster_best_template_channels(cluster_ind, 1:p.Results.best_n_channels)';
-                 
+
                  channel_id_args = {'channel_ids_by_cluster', channel_ids_by_cluster};
              elseif ~isempty(p.Results.channel_ids_by_cluster)
                  channel_ids_by_cluster = p.Results.channel_ids_by_cluster;
@@ -1692,11 +1770,12 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
 
              % channel_ids is provided since raw data often has additional channels that we're not interested in
              window = p.Results.window;
-             snippetSet = p.Results.raw_dataset.readAPSnippetSet(spike_times, ...
+             snippetSet = raw_dataset.readAPSnippetSet(spike_times, ...
                  window, channel_id_args{:}, ...
                  'unique_cluster_ids', unique_cluster_ids, 'cluster_ids_by_snippet', cluster_ids, ...
                  'car', p.Results.car, 'fromSourceDatasets', p.Results.fromSourceDatasets, ...
-                 'average_by_cluster_id', p.Results.average_by_cluster_id, ...
+                 'average_by_cluster_id', average_by_cluster_id, ...
+                 'average_by_group_id', average_by_group_id, 'group_ids', group_ids, ...
                  'applyScaling', p.Results.applyScaling);
              snippetSet.trial_idx = trial_idx;
              snippetSet.ks = ks;
@@ -1762,23 +1841,23 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
 %         function reconstruction = reconstructRawSnippetsFromTemplates_slow(ks, times, window, varargin)
 %             % generate the best reconstruction of each snippet using the amplitude-scaled templates
 %             % this is the internal workhorse for reconstructSnippetSetFromTemplates
-% 
+%
 %             p = inputParser();
 %             % these define the lookup table of channels for each cluster
 %             p.addParameter('channel_ids_by_snippet', [], @(x) isempty(x) || ismatrix(x));
 %             p.addParameter('unique_cluster_ids', 1, @isvector);
 %             % and this defines the cluster corresponding to each spike
 %             p.addParameter('cluster_ids', ones(numel(times), 1), @isvector);
-% 
+%
 %             p.addParameter('exclude_cluster_ids_each_snippet', [], @(x) isempty(x) || isvector(x) || iscell(x));
 %             p.addParameter('exclude_cluster_ids_all_snippets', [], @(x) isempty(x) || isvector(x));
 %             p.addParameter('showPlots', false, @islogical);
 %             p.addParameter('rawData', [], @isnumeric); % for plotting only
-% 
+%
 %             p.addParameter('use_batchwise_templates', ~isempty(ks.W_batch), @islogical);
 %             p.parse(varargin{:});
 %             showPlots = p.Results.showPlots;
-% 
+%
 %             % check sizes of everything
 %             nTimes = numel(times);
 %             channel_ids_by_snippet = p.Results.channel_ids_by_snippet;
@@ -1787,43 +1866,43 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
 %                 channel_ids_by_snippet = repmat(channel_ids_by_snippet, 1, numel(times));
 %             end
 %             assert(numel(times) <= size(channel_ids_by_snippet, 2));
-% 
+%
 %             nChannelsSorted = size(channel_ids_by_snippet, 1);
 %             unique_cluster_ids = p.Results.unique_cluster_ids;
-% 
+%
 %             cluster_ids = p.Results.cluster_ids;
 %             assert(numel(cluster_ids) >= nTimes);
-% 
+%
 %             exclude_cluster_ids_each_snippet = p.Results.exclude_cluster_ids_each_snippet;
 %             exclude_cluster_ids_all_snippets = p.Results.exclude_cluster_ids_all_snippets;
-% 
+%
 %             % templates post-whitening is nTemplates x nTimepoints x nChannelsFull
 %             use_batchwise_templates = p.Results.use_batchwise_templates;
 %             if use_batchwise_templates && (isempty(ks.W_batch) || isempty(ks.U_batch))
 %                 warning('Cannot use batchwise tempaltes as W_batch or U_batch was not loaded successfully from rez.mat');
 %                 use_batchwise_templates = false;
 %             end
-% 
+%
 %             if ~use_batchwise_templates
 %                 metrics = ks.computeMetrics();
 %                 templates =  metrics.template_unw; % unwhitened templates, but not scaled and still in quantized units (not uV)
 %             end
-% 
+%
 %             relTvec_template = ks.templateTimeRelative;
 %             relTvec_snippet = int64(window(1):window(2));
 %             reconstruction = zeros(nChannelsSorted, numel(relTvec_snippet), nTimes, 'int16');
-% 
+%
 %             if exist('ProgressBar', 'class') == 8
 %                 prog = ProgressBar(nTimes, 'Reconstructing templates around snippet times');
 %             else
 %                 prog = Neuropixel.Utils.ProgressBar(nTimes, 'Reconstructing templates around snippet times');
 %             end
-% 
+%
 %             for iT = 1:nTimes
 %                 prog.update(iT);
-% 
+%
 %                 reconstruction_this = zeros(nChannelsSorted, numel(relTvec_snippet), 'single');
-% 
+%
 %                 % find spikes that would lie within this window (with padding),
 %                 % excluding those from clusters we wish to exclude
 %                 t = int64(times(iT));
@@ -1837,39 +1916,39 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
 %                     exclude_this = [];
 %                 end
 %                 exclude_this = union(exclude_this, exclude_cluster_ids_all_snippets);
-% 
+%
 %                 nearby_spike_inds = find(ks.spike_times >= minT & ks.spike_times <= maxT);
 %                 %nearby_spike_inds = find(ks.spike_times == t);
-% 
+%
 %                 nearby_spike_inds(ismember(ks.spike_clusters(nearby_spike_inds), exclude_this)) = [];
-% 
+%
 %                 if use_batchwise_templates
 %                     spike_batches = ks.compute_which_batch(ks.spike_times(nearby_spike_inds));
 %                 end
-% 
+%
 %                 % figure out what channels we need to reconstruct onto
 %                 cluster_ids_this = cluster_ids(iT);
 %                 [~, cluster_ind_this] = ismember(cluster_ids_this, unique_cluster_ids);
 %                 assert(cluster_ind_this > 0, 'Cluster for times(%d) not found in unique_cluster_ids', iT);
 %                 channel_ids_this = channel_ids_by_snippet(:, iT);
 %                 sorted_channel_inds_this = ks.lookup_sortedChannelIds(channel_ids_this);
-% 
+%
 %                 if showPlots
 %                     clf;
 %                     plot(relTvec_snippet, p.Results.rawData(1, :, iT), 'k-', 'LineWidth', 2);
 %                     hold on;
 %                 end
-% 
+%
 %                 % loop over the enarby sp
 %                 for iS = 1:numel(nearby_spike_inds)
 %                     ind = nearby_spike_inds(iS);
 %                     amp = ks.amplitudes(ind);
-% 
+%
 %                     % figure out time overlap and add to reconstruction
 %                     tprime = int64(ks.spike_times(ind));
 %                     indFromTemplate = relTvec_template + tprime >= t + relTvec_snippet(1) & relTvec_template + tprime <= t + relTvec_snippet(end);
 %                     indInsert = relTvec_snippet + t >= relTvec_template(1) + tprime & relTvec_snippet + t <= relTvec_template(end) + tprime;
-% 
+%
 %                     if use_batchwise_templates
 %                         template_this = ks.construct_batchwise_templates(ks.spike_templates(ind), 'batches', spike_batches(iS));
 %                         template_this = template_this(:, indFromTemplate, sorted_channel_inds_this);
@@ -1878,7 +1957,7 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
 %                     end
 %                     insert = amp .* permute(template_this, [3 2 1]);
 %                     reconstruction_this(:, indInsert) = reconstruction_this(:, indInsert) + insert;
-% 
+%
 %                     if showPlots
 %                         if tprime == t
 %                             args = {'LineWidth', 1, 'Color', 'g'};
@@ -1888,18 +1967,18 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
 %                         plot(relTvec_template(indInsert), amp .* template_this(:, :, 1), 'Color', [0.7 0.7 0.7], args{:});
 %                     end
 %                 end
-% 
+%
 %                 if showPlots
 %                     plot(relTvec_snippet, reconstruction(1, :, iT), 'r--', 'LineWidth', 2);
 %                     plot(relTvec_snippet, p.Results.rawData(1, :, iT) - int16(reconstruction(1, :, iT)), 'b--');
 %                     pause;
 %                 end
-% 
+%
 %                 reconstruction(:, :, iT) = int16(reconstruction_this);
 %             end
 %             prog.finish();
 %         end
-        
+
         function reconstruction = reconstructRawSnippetsFromTemplates(ks, times, window, varargin)
             % generate the best reconstruction of each snippet using the amplitude-scaled templates
             % this is the internal workhorse for reconstructSnippetSetFromTemplates
@@ -1918,11 +1997,11 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
             p.addParameter('use_batchwise_templates', ~isempty(ks.W_batch), @islogical);
             p.addParameter('parallel', false, @islogical);
             p.parse(varargin{:});
-            
+
             if p.Results.showPlots
                 error('No longer supported');
             end
-            
+
             % check sizes of everything
             nTimes = numel(times);
             channel_ids_by_snippet = p.Results.channel_ids_by_snippet;
@@ -1933,24 +2012,24 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
             assert(numel(times) <= size(channel_ids_by_snippet, 2)); % TODO CHANGE TO ==
 
             debug('Preparing to reconstruct templates around snippet times\n');
-            
+
             nChannelsSorted = size(channel_ids_by_snippet, 1);
             unique_cluster_ids = p.Results.unique_cluster_ids;
             sorted_channel_inds_by_snippet = ks.lookup_sortedChannelIds(channel_ids_by_snippet);
-            
+
             % lookup cluster_ids
             cluster_ids = p.Results.cluster_ids;
             assert(numel(cluster_ids) >= nTimes); % TODO CHANGE TO ==
             [~, cluster_inds_in_unique] = ismember(cluster_ids, unique_cluster_ids);
             assert(all(cluster_inds_in_unique > 0), 'Some cluster_ids not found in unique_cluster_ids');
-            
+
             exclude_cluster_ids_each_snippet = p.Results.exclude_cluster_ids_each_snippet;
             if isempty(exclude_cluster_ids_each_snippet)
                 exclude_cluster_ids_each_snippet = cell(nTimes, 1);
             elseif isnumeric(exclude_cluster_ids_each_snippet)
                 exclude_cluster_ids_each_snippet = num2cell(exclude_cluster_ids_each_snippet);
             end
-                
+
             exclude_cluster_ids_all_snippets = p.Results.exclude_cluster_ids_all_snippets;
 
             % templates post-whitening is nTemplates x nTimepoints x nChannelsFull
@@ -1984,7 +2063,7 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
             U_batch = ks.U_batch;
             whitening_mat_inv = ks.whitening_mat_inv;
             assert(size(W_batch, 3) == 3);
-            
+
             % find spikes that would lie within this window (with padding),
             % excluding those from clusters we wish to exclude
             minT = int64(window(1)) - int64(relTvec_template(end));
@@ -1992,11 +2071,11 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
 %             t_center_offset = (minT + maxT) / 2;
 %             search_half_width = ceil(maxT - t_center_offset);
 %             c_nearby_spike_inds = rangesearch(double(ks.spike_times), double(times) + double(t_center_offset), search_half_width, 'SortIndices', false);
-%             
+%
             c_nearby_spike_inds = Neuropixel.Utils.simple_rangesearch(ks.spike_times, times, [minT maxT]);
-            
+
             spike_batches = ks.compute_which_batch(ks.spike_times);
-           
+
             prog = ProgressBar(nTimes, 'Reconstructing templates around snippet times');
             for iT = 1:nTimes
                 t = int64(times(iT));
@@ -2006,7 +2085,7 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                 nearby_spike_inds = c_nearby_spike_inds{iT};
                 nearby_spike_clusters = spike_clusters(nearby_spike_inds);
                 mask_nearby_okay = ~ismember(nearby_spike_clusters, exclude_cluster_ids_each_snippet{iT}) & ...
-                                    ~ismember(nearby_spike_clusters, exclude_cluster_ids_all_snippets); 
+                                    ~ismember(nearby_spike_clusters, exclude_cluster_ids_all_snippets);
 
                 % figure out what channels we need to reconstruct onto
                 sorted_channel_inds_this = sorted_channel_inds_by_snippet(:, iT);
@@ -2187,7 +2266,7 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
 
                     for iiB = 1:numel(batch_inds_this)
                         W = ks.W_batch(:, template_inds(iT), :, batch_inds_this(iiB)); % nTT x 1 x 3 x 1
-                        if all(W==0, 'all') 
+                        if all(W==0, 'all')
                             continue;
                         end
                         U = ks.U_batch(:, template_inds(iT), :, batch_inds_this(iiB)); % nCh x 1 x 3 x 1
@@ -2205,34 +2284,34 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                 end
             end
         end
-        
+
         function [mask_dup_spikes, mask_dup_spikes_cutoff, stats] = identify_duplicate_spikes(ks, varargin)
             p = inputParser();
             p.addParameter('include_cutoff_spikes', ks.deduplicate_cutoff_spikes, @islogical);
             p.addParameter('withinSamples', ks.deduplicate_within_samples, @isscalar);
             p.addParameter('withinDistance', ks.deduplicate_within_distance, @isscalar);
             p.parse(varargin{:});
-            
+
             assert(issorted(ks.spike_times), 'call .sortSpikes first');
             assert(issorted(ks.cutoff_spike_times), 'call .sortSpikes first');
-            
+
             withinSamples = p.Results.withinSamples;
             withinDistance = p.Results.withinDistance;
-            
+
             % lookup best channels by templates
             m = ks.computeMetrics();
-            
+
             % determine which templates are withinDistance of each other templates
             temptempdist = squareform(pdist(m.template_centroid, 'euclidean'));
             temptempprox = temptempdist < withinDistance;
-            
+
             % mechanism originally described in Siegle et al. (2019) using template best channel
 %             template_best_sorted_channel_ind = m.lookup_sortedChannelIds(m.template_best_channels(:, 1));
 %             chchprox = squareform(pdist(ks.channel_positions_sorted, 'euclidean')) <= withinDistance;
 %             [R, C] = ndgrid(template_best_sorted_channel_ind, template_best_sorted_channel_ind);
 %             idx = sub2ind(size(chchprox), R, C);
 %             temptempprox = chchprox(idx);
-            
+
             % begin by combining spikes with spikes cutoff
             if p.Results.include_cutoff_spikes
                 spikes = cat(1, ks.spike_times, ks.cutoff_spike_times);
@@ -2241,7 +2320,7 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                 [spikes, sort_idx] = sort(spikes);
                 templates = templates(sort_idx);
                 clusters = clusters(sort_idx);
-                
+
                 mask_from_cutoff = true(size(spikes));
                 mask_from_cutoff(1:ks.nSpikes) = false;
                 mask_from_cutoff = mask_from_cutoff(sort_idx);
@@ -2251,9 +2330,9 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                 clusters = ks.spike_clusters;
                 mask_from_cutoff = false(size(spikes));
             end
-            
+
             cluster_inds = ks.lookup_clusterIds(clusters);
-            
+
             mask_dup = false(size(spikes));
             dup_from_template = zeros(size(spikes), 'like', templates);
             dup_from_cluster_ind = zeros(size(spikes), 'like', cluster_inds);
@@ -2276,7 +2355,7 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                 end
             end
             prog.finish();
-            
+
             if p.Results.include_cutoff_spikes
                 mask_dup_spikes = mask_dup(~mask_from_cutoff);
                 mask_dup_spikes_cutoff = mask_dup(mask_from_cutoff);
@@ -2284,22 +2363,22 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                 mask_dup_spikes = mask_dup;
                 mask_dup_spikes_cutoff = false(ks.nSpikesCutoff, 1);
             end
-            
+
             % compute stats
             mask_dup_same_template = mask_dup & dup_from_template == templates;
             stats.nSameTemplate = nnz(mask_dup_same_template);
             stats.fracRemoved = mean(mask_dup);
             stats.fracRemovedExcludingSameTemplate = mean(mask_dup & ~mask_dup_same_template);
-            
+
             mask_dup_same_cluster = mask_dup & dup_from_cluster_ind == cluster_inds;
             stats.fracRemovedExcludingSameCluster = mean(mask_dup & ~mask_dup_same_cluster);
-            
+
             % accumulate (i, j) is the count of spikes with template i that were marked as duplicates of template j
             stats.templateTemplateDuplicateCounts = accumarray([templates(mask_dup), dup_from_template(mask_dup)], 1, [ks.nTemplates, ks.nTemplates], @sum);
             stats.templateDuplicateCounts = sum(stats.templateTemplateDuplicateCounts, 2);
             template_spike_counts =  accumarray(templates, 1, [ks.nTemplates, 1], @sum);
             stats.templateDuplicateFrac = stats.templateDuplicateCounts ./ template_spike_counts;
-            
+
             % same stats but for clusters
             stats.clusterClusterDuplicateCounts = accumarray([cluster_inds(mask_dup), dup_from_cluster_ind(mask_dup)], 1, [ks.nClusters, ks.nClusters], @sum);
             stats.clusterDuplicateCounts = sum(stats.clusterClusterDuplicateCounts, 2);
@@ -2313,11 +2392,11 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
             p.KeepUnmatched = true;
             p.parse(varargin{:});
             saveToDisk = p.Results.saveToDisk;
-            
+
             if ks.modifiedInMemory
                 error('Calling ks.remove_duplicate_spikes after modified in memory');
             end
-            
+
             if ks.is_deduplicated
                 if saveToDisk
                     error('Calling ks.remove_duplicate_spikes with saveToDisk true when ks.is_deduplicated is true');
@@ -2325,14 +2404,14 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                     warning('Calling ks.remove_duplicate_spikes when ks.is_deduplicated is true');
                 end
             end
-            
+
             fprintf('Removing duplicate spikes from KS dataset\n');
             [mask_dup_spikes, mask_dup_spikes_cutoff, stats] = ks.identify_duplicate_spikes(p.Unmatched);
             ks.mask_spikes(~mask_dup_spikes, ~mask_dup_spikes_cutoff);
             ks.is_deduplicated = true;
             ks.deduplication_stats = stats;
             ks.modifiedInMemory = true;
-            
+
             if saveToDisk
                 toSave.spike_deduplication_mask = ~mask_dup_spikes;
                 toSave.cutoff_spike_deduplication_mask = ~mask_dup_spikes_cutoff;
@@ -2340,12 +2419,12 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                 toSave.deduplicate_within_samples = ks.deduplicate_within_samples;
                 toSave.deduplicate_within_distance = ks.deduplicate_within_distance;
                 toSave.deduplication_stats = stats;
-              
+
                 save(fullfile(ks.path, 'spike_deduplication_mask.mat'), '-v7.3', '-struct', 'toSave');
             end
         end
     end
-    
+
     methods
         function writeChannelMap(ks, outfile)
             map = ks.channelMap;
@@ -2356,36 +2435,36 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
             connected = ismember(1:map.nChannelsMapped, ks.channel_ids_sorted);
             kcoords = map.shankInd;
             fs = ks.fsAP;
-            
+
             if nargin < 2
                 outfile = fullfile(ks.path, 'chanMap.mat');
             end
             save(outfile, 'chanMap', 'xcoords', 'ycoords', 'connected', 'kcoords', 'fs');
         end
-        
+
         function writeToDisk(ks, outpath, varargin)
             p = inputParser();
             p.addParameter('progressInitializeFn', [], @(x) isempty(x) || isa(x, 'function_handle')); % f(nUpdates) to print update
             p.addParameter('progressIncrementFn', [], @(x) isempty(x) || isa(x, 'function_handle')); % f(updateString) to print update
             p.addParameter('allowOverwriteSelf', false, @islogical);
             p.parse(varargin{:});
-            
+
             overwriteSelf = strcmp(outpath, ks.path);
             assert(p.Results.allowOverwriteSelf || ~overwriteSelf, 'Refusing to overwrite on disk, pass allowOverwriteSelf true to allow this');
 
             if exist(outpath, 'dir') ~= 7
                 mkdirRecursive(outpath);
             end
-            
+
             oldp = @(file) fullfile(ks.path, file);
             newp = @(file) fullfile(outpath, file);
             existnew = @(file) exist(newp(file), 'file') > 0;
 
             if existnew('spike_deduplication_mask.mat')
                 % this will cause problems if it doesn't match the spikes being written down
-                delete(newp('spike_deduplication_mask.mat')); 
+                delete(newp('spike_deduplication_mask.mat'));
             end
-            
+
             nProg = 17;
             if ks.kilosort_version == 2
                 nProg = nProg + 25;
@@ -2401,7 +2480,7 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                 end
                 progIncrFn = p.Results.progressIncrementFn;
             end
-            
+
             if ~overwriteSelf
                 progIncrFn('Copying params.py');
                 copyfile(oldp('params.py'), newp('params.py'));
@@ -2412,7 +2491,7 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                 ops = ks.ops;
                 save(newp('ops.mat'), 'ops');
             end
-            
+
             % write channelMap
             progIncrFn('Writing chanMap.mat');
             chanMapFile = fullfile(outpath, 'chanMap.mat');
@@ -2423,20 +2502,20 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
             write(ks.channel_positions_sorted, 'channel_positions');
             if ks.hasFeaturesLoaded
                 write(ks.pc_features, 'pc_features');
-                write(ks.pc_feature_ind - ones(1, 'like', ks.pc_feature_ind), 'pc_feature_ind'); % convert 1 indexed to 0 indexed 
+                write(ks.pc_feature_ind - ones(1, 'like', ks.pc_feature_ind), 'pc_feature_ind'); % convert 1 indexed to 0 indexed
             end
             write(ks.similar_templates, 'similar_templates');
-            
+
             write(ks.spike_templates - ones(1, 'like', ks.spike_templates), 'spike_templates');
             write(ks.spike_templates_preSplit - ones(1, 'like', ks.spike_templates), 'spike_templates_preSplit');
-            
+
             write(ks.spike_times, 'spike_times');
             if ks.hasFeaturesLoaded
                 write(ks.template_features, 'template_features');
                 write(ks.template_feature_ind - ones(1, 'like', ks.template_feature_ind), 'template_feature_ind'); % 1 indexed to 0 indeded
             end
 
-            % add back leading zeros stripped off of ks.templates based on size of W    
+            % add back leading zeros stripped off of ks.templates based on size of W
             prepad_templates = ks.ops.nt0 - 2*ks.ops.nt0min - 1;
             szPad = [size(ks.templates, 1), prepad_templates, size(ks.templates, 3)];
             templates_padded = cat(2, zeros(szPad, 'like', ks.templates), ks.templates);
@@ -2446,7 +2525,7 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
             write(ks.whitening_mat_inv, 'whitening_mat_inv');
             write(ks.spike_clusters, 'spike_clusters');
             write(ks.spike_clusters_ks2orig, 'spike_clusters_ks2orig');
-            
+
             % write the unique cluster ids as well
             write(ks.cluster_ids, 'unique_cluster_ids');
 
@@ -2506,7 +2585,7 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                     write(ks.cutoff_spike_templates - ones(1, 'like', ks.cutoff_spike_templates), 'cutoff_spike_templates');
                     write(ks.cutoff_spike_templates_preSplit - ones(1, 'like', ks.cutoff_spike_templates_preSplit), 'cutoff_spike_templates_preSplit');
                     write(ks.cutoff_amplitudes, 'cutoff_amplitudes');
-                    
+
                     write(ks.cutoff_spike_clusters, 'cutoff_spike_clusters');
                     write(ks.cutoff_spike_clusters_ks2orig, 'cutoff_spike_clusters_ks2orig');
                     if ks.hasFeaturesLoaded
@@ -2514,11 +2593,11 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                         write(ks.cutoff_template_features, 'cutoff_template_features');
                     end
                 end
-                
+
                 % write cluster_KSLabel.tsv file - important so it is recognized as KS2
                 writeClusterMetaTSV('cluster_KSLabel', 'KSLabel', ks.cluster_ks_label);
             end
-            
+
             if exist('prog', 'var')
                 prog.finish();
             end
@@ -2531,65 +2610,65 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                 ffile = fullfile(outpath, [file '.npy']);
                 Neuropixel.writeNPY(data, ffile);
             end
-            
+
             function writeClusterMetaTSV(file_noext, field, values)
                 file = fullfile(outpath, [file_noext, '.tsv']);
                 progIncrFn(sprintf('Writing %s', file));
                 fid = fopen(file, 'w');
                 assert(fid > 0, 'Error opening %s for writing', file);
-                
+
                 fprintf(fid, 'cluster_id\t%s\n', field);
-                
+
                 cluster_ids = ks.cluster_ids;
                 values = string(values);
                 for iC = 1:numel(cluster_ids)
                     fprintf(fid, '%d\t%s\n', cluster_ids(iC), values(iC));
                 end
-                
+
                 fclose(fid);
             end
         end
-        
+
         function [ks, rez] = copyReextractSpikesWithFixedTemplates(ks, varargin)
             p = inputParser();
             p.addParameter('rez_reextract', [], @(x) isstruct(x) || isempty(x));
             p.KeepUnmatched = true;
             p.parse(varargin{:});
-            
+
             ks = copy(ks);
-            
+
             % rerun Kilosort using ks's templates as a given
             if ~isempty(p.Results.rez_reextract)
                 rez = p.Results.rez_reextract;
             else
                 rez = reextractSpikesWithFixedTemplates(ks, p.Unmatched);
             end
-            
+
             % copy the updated fields from rez back into ks
             cluster_col = rez.st3_cluster_col;
             template_col = rez.st3_template_col;
-            
+
             ks.spike_times = uint64(rez.st3(:, 1));
             ks.spike_templates_preSplit = uint32(rez.st3(:, 2));
             ks.amplitudes = rez.st3(:, 3);
             ks.spike_templates = uint32(rez.st3(:, template_col));
-            
+
             % ensure that we subtract one to replicate what rez2phy does
             cluster_offset = -1;
             ks.spike_clusters = uint32(rez.st3(:, cluster_col) + cluster_offset);
             ks.spike_clusters_ks2orig = ks.spike_clusters;
-            
+
             ks.template_features = rez.cProj;
             ks.pc_features = rez.cProjPC;
-            
+
             ks.cutoff_spike_times = uint64(rez.st3_cutoff_invalid(:, 1));
             ks.cutoff_spike_templates_preSplit = uint32(rez.st3_cutoff_invalid(:, 2));
             ks.cutoff_amplitudes = rez.st3_cutoff_invalid(:, 3);
             ks.cutoff_spike_templates = uint32(rez.st3_cutoff_invalid(:, template_col));
-            
+
             ks.cutoff_spike_clusters = uint32(rez.st3_cutoff_invalid(:, cluster_col) + cluster_offset);
             ks.cutoff_spike_clusters_ks2orig = ks.cutoff_spike_clusters;
-            
+
             ks.cutoff_template_features = rez.cProj_cutoff_invalid;
             ks.cutoff_pc_features = rez.cProjPC_cutoff_invalid;
         end

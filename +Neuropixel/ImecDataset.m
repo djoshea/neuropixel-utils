@@ -967,7 +967,7 @@ classdef ImecDataset < handle
     end
 
     methods(Hidden) % Read data at specified times
-        function [data_ch_by_time_by_snippet, cluster_ids, channel_ids_by_snippet, scaleToUv_by_snippet] = readSnippetsRaw(imec, times, window, varargin)
+        function [data_ch_by_time_by_snippet, cluster_ids, channel_ids_by_snippet, scaleToUv_by_snippet, group_ids] = readSnippetsRaw(imec, times, window, varargin)
             % for each sample index in times, read the window times + window(1):window(2)
             % of samples around this time from some channels
 
@@ -982,11 +982,18 @@ classdef ImecDataset < handle
             % or THESE (different channels for each group of snippets sharing the same cluster_ids
             p.addParameter('channel_ids_by_cluster', [], @ismatrix);
             p.addParameter('unique_cluster_ids', [], @isvector);
-            p.addParameter('cluster_ids_by_snippet', [], @isvector); % same length as numel(times), corresponding to which cluster was pulled out (e.g. as a waveform)
+            p.addParameter('cluster_ids_by_snippet', [], @(x) isempty(x) || isvector(x)); % same length as numel(times), corresponding to which cluster was pulled out (e.g. as a waveform)
+            p.addParameter('group_ids_by_snippet', [], @(x) isempty(x) || isvector(x)); % same length as numel(times), utility used for average_by_group_id
             
             p.addParameter('car', false, @islogical); % subtract median over channels
             p.addParameter('center', false, @islogical); % subtract median over time
-            p.addParameter('average_by_cluster_id', false, @islogical);
+            
+            % two modes for averaging groups snippets together while extracting (saves memory vs doing this post hoc)
+            p.addParameter('average_weight', [], @(x) isempty(x) || isvector(x)); % this will mutliply each snippet before averaging
+            p.addParameter('average_by_cluster_id', false, @islogical); % average all snippsets from the same cluster_id together (cluster_ids_by_snippet must be passed)
+            p.addParameter('average_by_group_id', false, @islogical); % average all snippets from the same group_id together (group_ids_by_snippet must be provided)
+            % if both of these are true, the averaging will take 
+            
             p.addParameter('applyScaling', false, @islogical); % scale to uV and return single
             p.addParameter('scaleSourceToMatch', false, @islogical); % when fromSourceDatasets is true, scale the raw data to match the scaling of the cleaned datsets
             p.parse(varargin{:});
@@ -1000,12 +1007,25 @@ classdef ImecDataset < handle
             
             average_by_cluster_id = p.Results.average_by_cluster_id;
             if isempty(cluster_ids) && average_by_cluster_id
-                error('cluster_ids must be provided when average_by_cluster_id is true');
+                error('cluster_ids_by_snippet must be provided when average_by_cluster_id is true');
             end
             if ~isempty(cluster_ids)
                 [~, cluster_inds] = ismember(cluster_ids, unique_cluster_ids);
             end
-
+            
+            group_ids = p.Results.group_ids_by_snippet;
+            average_by_group_id = p.Results.average_by_group_id;
+            if isempty(group_ids)
+                if average_by_group_id
+                    error('group_ids_by_snippet must be provided when average_by_group_id is true');
+                end
+            else
+                [unique_group_ids, ~, group_inds] = unique(group_ids);
+            end
+            if average_by_group_id && ~average_by_cluster_id && ~isempty(cluster_ids)
+                error('Cannot average_by_group_id and not average_by_cluster_id when cluster_ids is specified. Group-averaged snippets no longer correspond to clusters.');
+            end
+            
             if ~isempty(channel_ids_by_snippet)
                 assert(size(channel_ids_by_snippet, 2) == numel(times), 'channel_ids must be nChannels x numel(times)');
                 
@@ -1069,10 +1089,33 @@ classdef ImecDataset < handle
             nS = numel(times); % actual number of input snippets extracted
             
             % nS out is the accumulated number of output snippets (equals nS or number of clusters if we're averaging)
-            if ~average_by_cluster_id
-                nS_out = nS;
+            if average_by_cluster_id
+                if average_by_group_id
+                    % averaging within both cluster and group
+                    % do unique conjunctions
+                    combined_inds = [cluster_inds, group_inds];
+                    [unique_inds, ~, averaging_dest_inds] = unique(combined_inds, 'rows'); 
+                    nS_out = max(averaging_dest_inds);
+                    
+                    cluster_ids = unique_inds(:, 1); % associated with averaged output snippets
+                    group_ids = unique_inds(:, 2);
+                else
+                    % averaging by cluster
+                    nS_out = numel(unique_cluster_ids);
+                    averaging_dest_inds = cluster_inds; % associated with averaged output snippets
+                    cluster_ids = unique_cluster_ids;
+                    group_ids = [];
+                end
+            elseif average_by_group_id
+                % averaging within groups
+                nS_out = numel(unique_group_ids);
+                averaging_dest_inds = group_inds;
+                cluster_ids = [];
+                group_ids = unique_group_ids;
             else
-                nS_out = numel(unique_cluster_ids);
+                % no averaging
+                nS_out = nS;
+                averaging_dest_inds = (1:nS)';
             end
             nT = numel(window(1):window(2));
             
@@ -1081,12 +1124,18 @@ classdef ImecDataset < handle
             if applyScaling
                 outClass = 'single';
             end
-            if average_by_cluster_id
+            if average_by_cluster_id || average_by_group_id
                 outClass = 'single';
-                assert(~fromSourceDatasets || applyScaling, 'applyScaling must be true for average_by_cluster_id with fromSourceDatasets since waveforms may have differing scales');
+                assert(~fromSourceDatasets || applyScaling, 'applyScaling must be true for average_by_cluster_id or average_by_group_id with fromSourceDatasets since waveforms may have differing scales');
+            end
+            
+            average_weight = p.Results.average_weight;
+            if ~isempty(average_weight)
+                average_weight = cast(average_weight, outClass);
             end
             
             out = zeros(nC, nT, nS_out, outClass);
+            accum_counter = zeros(nS_out, 1);
             
             if ~fromSourceDatasets
                 scaleToUv_by_snippet = repmat(single(scaleToUv), nS_out, 1);
@@ -1115,16 +1164,13 @@ classdef ImecDataset < handle
             
             mask_request_okay = all(mask_idx_okay, 1)';
             
-            nPerGroup = 50; 
-            nGroups = ceil(nS / nPerGroup);
+            nPerSegment = 50; 
+            nSegments = ceil(nS / nPerSegment);
             
-            for iGroup = 1:nGroups
-                idxS = nPerGroup*(iGroup-1) + 1 : min(nS,  nPerGroup*iGroup);
-                if average_by_cluster_id
-                    idxInsert = cluster_inds(idxS);
-                else
-                    idxInsert = idxS;
-                end
+            for iSegment = 1:nSegments
+                idxS = nPerSegment*(iSegment-1) + 1 : min(nS,  nPerSegment*iSegment);
+                idxInsert = averaging_dest_inds(idxS); % this will match idxS if no averaging is being performed, otherwise it indicates which slot to insert into for each snippet
+
                 nS_this = numel(idxS);
                 idx_request_this = idx_request(:, idxS);
                 mask_request_okay_this = mask_request_okay(idxS);
@@ -1157,18 +1203,22 @@ classdef ImecDataset < handle
                     if p.Results.center
                         this_extract = this_extract - median(this_extract, 2);
                     end
+                    % scale before accumulating
+                    if ~isempty(average_weight)
+                        this_extract = this_extract * average_weight(idxS(iiS));
+                    end
                     if mask_request_okay_this(iiS)
                         out(:, :, idxInsert(iiS)) = out(:, :, idxInsert(iiS)) + cast(this_extract, outClass); % which channels for this spike
+                        accum_counter(idxInsert(iiS)) = accum_counter(idxInsert(iiS)) + 1;
                     end
                 end
                
-                if ~isempty(prog), prog.increment(nPerGroup); end
+                if ~isempty(prog), prog.increment(nPerSegment); end
             end
             
-            if average_by_cluster_id
-                 % divide the accumulator by the number of units
-                 n_per_cluster = accumarray(cluster_inds(mask_request_okay), 1, [numel(unique_cluster_ids) 1]);
-                 out = out ./ shiftdim(n_per_cluster, -2);
+            if average_by_cluster_id || average_by_group_id
+                 % divide the accumulator by the number of units, don't divide by the sum of average_weights, this is treated as normalized already
+                 out = out ./ shiftdim(accum_counter, -2);
             else
                 out(:, ~mask_idx_okay(:)) = 0;
             end
@@ -1184,7 +1234,7 @@ classdef ImecDataset < handle
     
     methods  % Read data at specified times
         function snippet_set = readAPSnippetSet(imec, times, window, varargin)
-            [data_ch_by_time_by_snippet, cluster_ids, channel_ids_by_snippet, scaleToUv_by_snippet] = ...
+            [data_ch_by_time_by_snippet, cluster_ids, channel_ids_by_snippet, scaleToUv_by_snippet, group_ids] = ...
                 imec.readSnippetsRaw(times, window, 'band', 'ap', varargin{:});
             snippet_set = Neuropixel.SnippetSet(imec, 'ap');
             snippet_set.data = data_ch_by_time_by_snippet;
@@ -1192,11 +1242,12 @@ classdef ImecDataset < handle
             snippet_set.sample_idx = times;
             snippet_set.channel_ids_by_snippet = channel_ids_by_snippet;
             snippet_set.cluster_ids = cluster_ids;
+            snippet_set.group_ids = group_ids;
             snippet_set.window = window;
         end
 
         function snippet_set = readLFSnippetSet(imec, times, window, varargin)
-            [data_ch_by_time_by_snippet, cluster_ids, channel_ids_by_snippet, scaleToUv_by_snippet] = ...
+            [data_ch_by_time_by_snippet, cluster_ids, channel_ids_by_snippet, scaleToUv_by_snippet, group_ids] = ...
                 imec.readSnippetsRaw(times, window, 'band', 'lf', varargin{:});
             snippet_set = Neuropixel.SnippetSet(imec, 'lf');
             snippet_set.data = data_ch_by_time_by_snippet;
@@ -1204,6 +1255,7 @@ classdef ImecDataset < handle
             snippet_set.sample_idx = times;
             snippet_set.channel_ids_by_snippet = channel_ids_by_snippet;
             snippet_set.cluster_ids = cluster_ids;
+            snippet_set.group_ids = group_ids;
             snippet_set.window = window;
         end
 
@@ -2199,7 +2251,7 @@ end
             end
         end
 
-        function [imecOut, transformExtraArg] = writeConcatenatedFileMatchGains(imecList, outPath, varargin)
+        function [imecOut, transformAPExtraArg, transformLFExtraArg] = writeConcatenatedFileMatchGains(imecList, outPath, varargin)
             p = inputParser();
             p.addParameter('writeAP', true, @islogical);
             p.addParameter('goodChannelsOnly', false, @islogical);
@@ -2208,14 +2260,16 @@ end
             p.addParameter('writeSyncSeparate', false, @islogical); % true means ap will get only mapped channels, false will preserve channels as is
             p.addParameter('writeLF', false, @islogical);
             p.addParameter('chunkSize', 2^20, @isscalar);
-            p.addParameter('chunkEdgeExtraSamples', [0 0], @isvector); 
-
+            p.addParameter('chunkEdgeExtraSamplesAP', [0 0], @isvector); 
+            p.addParameter('chunkEdgeExtraSamplesLF', [0 0], @isvector); 
+            
             p.addParameter('gpuArray', false, @islogical);
             p.addParameter('applyScaling', false, @islogical); % convert to uV before processing
 
             p.addParameter('transformAP', {}, @(x) iscell(x) || isa(x, 'function_handle')); % list of transformation functions that accept (imec, dataChunk) and return dataChunk someplace
             p.addParameter('transformLF', {}, @(x) iscell(x) || isa(x, 'function_handle')); % list of transformation functions that accept (imec, dataChunk) and return dataChunk someplace
-            p.addParameter('transformExtraArg', [], @(x) true);
+            p.addParameter('transformAPExtraArg', struct(), @(x) true);
+            p.addParameter('transformLFExtraArg', struct(), @(x) true);
             p.addParameter('timeShiftsAP', {}, @(x) isempty(x) || isa(x, 'Neuropixel.TimeShiftSpec')); % cell array of time shifts for each file, a time shift is a n x 3 matrix of idxStart, idxStop, newIdxStart. These are used to excise specific time windows from the file
             p.addParameter('timeShiftsLF', {}, @(x) isempty(x) || isa(x, 'Neuropixel.TimeShiftSpec')); % cell array of time shifts for each file, a time shift is a n x 3 matrix of idxStart, idxStop, newIdxStart. These are used to excise specific time windows from the file
             
@@ -2251,8 +2305,9 @@ end
                 'connectedChannelsOnly', p.Results.connectedChannelsOnly, 'mappedChannelsOnly', p.Results.mappedChannelsOnly);
 
             chunkSize = p.Results.chunkSize;
-            chunkEdgeExtraSamples = p.Results.chunkEdgeExtraSamples;
-
+            chunkEdgeExtraSamplesAP = p.Results.chunkEdgeExtraSamplesAP;
+            chunkEdgeExtraSamplesLF = p.Results.chunkEdgeExtraSamplesLF;
+            
             useGpuArray = p.Results.gpuArray;
             applyScaling = p.Results.applyScaling;
             
@@ -2284,8 +2339,8 @@ end
                 warning('Both timeShiftsAP and timeShiftsLF are specified, which may lead to inconsistency in the concatenated output bands');
             end
         
-            isConcatenation = numel(imecList) > 1;
-            transformExtraArg = p.Results.transformExtraArg;
+            transformAPExtraArg = p.Results.transformAPExtraArg;
+            transformLFExtraArg = p.Results.transformLFExtraArg;
             if ~dryRun
                 Neuropixel.ImecDataset.clearDestinationStem(fullfile(outPath, leaf));
             end
@@ -2349,8 +2404,8 @@ end
                 end
                 
                 fprintf('Writing AP bin file %s\n', (outFile));
-                transformExtraArg = writeCatFile(outFile, chIndsByFile, 'ap', multipliers, chunkSize, chunkEdgeExtraSamples, ...
-                    p.Results.transformAP, timeShiftsAP, dryRun, transformExtraArg);
+                transformAPExtraArg = writeCatFile(outFile, chIndsByFile, 'ap', multipliers, chunkSize, chunkEdgeExtraSamplesAP, ...
+                    p.Results.transformAP, timeShiftsAP, dryRun, transformAPExtraArg);
             end
 
             if p.Results.writeLF || ~isempty(p.Results.transformLF)
@@ -2404,15 +2459,15 @@ end
                 end
 
                 fprintf('Writing LF bin file %s\n', lastFilePart(outFile));
-                transformExtraArg = writeCatFile(outFile, chIndsByFile, 'lf', multipliers, chunkSize, chunkEdgeExtraSamples, ...
-                    p.Results.transformLF, timeShiftsLF, dryRun, transformExtraArg);
+                transformLFExtraArg = writeCatFile(outFile, chIndsByFile, 'lf', multipliers, chunkSize, chunkEdgeExtraSamplesLF, ...
+                    p.Results.transformLF, timeShiftsLF, dryRun, transformLFExtraArg);
             end
 
             if p.Results.writeSyncSeparate
                 outFile = fullfile(outPath, [leaf '.imec.sync.bin']);
                 fprintf('Writing separate sync bin file %s', lastFilePart(outFile));
-                transformExtraArg = writeCatFile(outFile, imecList{1}.syncChannelIndex, 'sync', ones(nFiles, 1, 'int16'), chunkSize, chunkEdgeExtraSamples, ...
-                    {}, timeShiftsAP, dryRun, transformExtraArg);
+                transformAPExtraArg = writeCatFile(outFile, imecList{1}.syncChannelIndex, 'sync', ones(nFiles, 1, 'int16'), chunkSize, chunkEdgeExtraSamplesAP, ...
+                    {}, timeShiftsAP, dryRun, transformAPExtraArg);
             end
 
             outFile = fullfile(outPath, leaf);

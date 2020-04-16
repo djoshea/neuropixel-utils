@@ -15,6 +15,8 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
         % optional, set if each snippet corresponds to a specific cluster
         cluster_ids (:, 1) uint32 % nSnippets x 1, array indicating which cluster is extracted in each snippet, if this makes sense. otherwise will just be 1s
         
+        group_ids (:, 1)  % nSnippets x 1 metadata indicating which group a cluster belonged to
+        
         channel_ids_by_snippet (:, :, :) uint32 % channels x snippets
         
         overlay_cluster_ids (:, 1) uint32 % set of clusters whose waveforms or templates will be drawn on top of a given snippet, will be cluster_ids(i), or ks.cluster_ids
@@ -272,7 +274,7 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
             yoffsetBetweenClusters = p.Results.yoffsetBetweenClusters;
             cluster_lags = double(p.Results.cluster_lags);
             if isempty(p.Results.cluster_ids) && ~isempty(cluster_lags)
-                error('Cluster_ids must be specified when cluster_lags is specified');l
+                error('Cluster_ids must be specified when cluster_lags is specified');
             end
             specified_cluster_ids = p.Results.cluster_ids;
             
@@ -383,7 +385,7 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
                 % arrange things carefully to plot all channels simultaneously spaced out at probe locations
                 
                 % ch x time x snippets
-                data_clu = Neuropixel.Utils.TensorUtils.squeezeDims(data(1:nChannelsMaxPerCluster, :, this_snippet_mask_subset), 1) + yc(1:nChannelsMaxPerCluster);
+                data_clu = data(1:nChannelsMaxPerCluster, :, this_snippet_mask_subset) + yc(1:nChannelsMaxPerCluster);
                 data_plot = permute(data_clu, [2 3 1]); % time x snippets x ch
                
                 if p.Results.showIndividual
@@ -680,7 +682,7 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
             p.parse(varargin{:});
             
             dark = p.Results.dark;
-            [bg, traceColor] = ss.setupFigureAxes(dark);
+            [~, traceColor] = ss.setupFigureAxes(dark);
 
             if p.Results.timeInMilliseconds
                 time = ss.time_ms;
@@ -697,7 +699,7 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
             % plot stacked traces wants time x ch x layers
             data_txcxl = permute(data(:, :, :), [2 1 3]);
             
-            [~, transform] = Neuropixel.Utils.plotStackedTraces(time, data_txcxl, 'colors', traceColor, ...
+            Neuropixel.Utils.plotStackedTraces(time, data_txcxl, 'colors', traceColor, ...
                 'lineWidth', 0.5, 'lineOpacity', p.Results.lineOpacity, ...
                 'gain', p.Results.gain, 'invertChannels', ss.channelMap.invertChannelsY, 'normalizeEach', false, ...
                 'channel_ids', channel_ids, 'showChannelDataTips', p.Results.showChannelDataTips);
@@ -879,7 +881,7 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
                 time = ss.time_samples;
             end
             
-            [~, transform] = Neuropixel.Utils.plotStackedTraces(time, data_txcxl, 'layerColors', traceColors, ...
+            Neuropixel.Utils.plotStackedTraces(time, data_txcxl, 'layerColors', traceColors, ...
                 'lineWidth', 0.5, 'lineOpacity', p.Results.lineOpacity, ...
                 'gain', p.Results.gain, 'invertChannels', ss.channelMap.invertChannelsY, 'normalizeEach', false, ...
                 'channel_ids', channel_ids_ch_by_snippet, 'showChannelDataTips', false);
