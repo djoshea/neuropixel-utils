@@ -391,9 +391,11 @@ classdef ImecDataset < handle
         function [syncRaw, fsSync] = readSync(imec, varargin)
             p = inputParser();
             p.addOptional('reload', false, @islogical); % if true, ignore cache in memory imec.syncRaw 
+            p.addParameter('preferredBand', '', @isstringlike); % prefer a band (ap or lf), though will only be obeyed if not already loaded / cached
             p.addParameter('ignoreCached', false, @islogical); % if true, ignore cache on disk in imec.pathSyncCached
             p.parse(varargin{:});
-
+            preferredBand = string(p.Results.preferredBand);
+            
             if isempty(imec.syncRaw) || p.Results.reload
                 if exist(imec.pathSyncCached, 'file') && ~p.Results.ignoreCached
                     [~, f, e] = fileparts(imec.pathSyncCached);
@@ -409,10 +411,27 @@ classdef ImecDataset < handle
                 else
                     % this will automatically redirect to a separate sync file
                     % or to the ap file depending on .syncInAPFile
-                    fprintf('Loading sync channel (this will take some time)...\n');
-                    mm = imec.memmapSync_full();
-                    imec.syncRaw = typecast(mm.Data.x(imec.syncChannelIndex, :)', 'uint16');
-                    imec.saveSyncCached();
+                    switch preferredBand 
+                        case {"", "auto"}
+                            fprintf('Loading sync channel auto (this will take some time)...\n');
+                            [mm, imec.fsSync] = imec.memmapSync_full();
+                            imec.syncRaw = typecast(mm.Data.x(imec.syncChannelIndex, :)', 'uint16');
+                            imec.saveSyncCached();
+                        case 'ap'
+                            fprintf('Loading sync channel from AP band (this will take some time)...\n');
+                            mm = imec.memmapAP_full();
+                            imec.syncRaw = typecast(mm.Data.x(imec.syncChannelIndex, :)', 'uint16');
+                            imec.fsSync = imec.fsAP;
+                            imec.saveSyncCached();
+                        case 'lf'
+                            fprintf('Loading sync channel from LF band (this will take some time)...\n');
+                            mm = imec.memmapLF_full();
+                            imec.syncRaw = typecast(mm.Data.x(imec.syncChannelIndex, :)', 'uint16');
+                            imec.fsSync = imec.fsLF;
+                            imec.saveSyncCached();
+                        otherwise
+                            error('Unknown preferredBand %s', preferredBand);
+                    end
                 end
             end
             syncRaw = imec.syncRaw;
@@ -452,18 +471,40 @@ classdef ImecDataset < handle
         
         function vec = readSync_idx(imec, idx, varargin)
             p = inputParser();
+            p.addParameter('band', '', @isstringlike);
             p.addParameter('fromSourceDatasets', false, @islogical);
             p.parse(varargin{:});
             
+            band = string(p.Results.band);
+            switch band
+                case ""
+                    fsRequested = NaN;
+                case "auto"
+                    fsRequested = NaN;
+                case "lf"
+                    fsRequested = imec.fsLF;
+                case "ap"
+                    fsRequested = imec.fsAP;
+                otherwise
+                    error('Unknown band %s', band);
+            end
+                    
             fromSource = p.Results.fromSourceDatasets;
-            
             if ~fromSource
-                if ~isempty(imec.syncRaw)
+                % grab cached data if the sampling rate matches, otherwise use the memmap
+                if ~isempty(imec.syncRaw) && imec.fsSync == fsRequested
                     vec = imec.syncRaw(idx);
-                else
+                elseif ismember(band, ["", "auto"])
                     mm = imec.memmapSync_full();
                     vec = mm.Data.x(imec.syncChannelIndex, idx)';
+                elseif band == "ap"
+                    mm = imec.memmapAP_full();
+                    vec = mm.Data.x(imec.syncChannelIndex, idx)';
+                elseif band == "lf"
+                    mm = imec.memmapLF_full();
+                    vec = mm.Data.x(imec.syncChannelIndex, idx)';
                 end
+                
             elseif imec.syncInAPFile
                 mmSet = imec.memmap_sourceAP_full();
                 [sourceFileInds, sourceSampleInds] = imec.concatenationInfoAP.lookup_sampleIndexInSourceFiles(idx);
@@ -711,6 +752,8 @@ classdef ImecDataset < handle
             end
             sampleIdx = idxWindow(1):idxWindow(2);
             
+            sampleIdx = floor(sampleIdx);
+            
             mat = imec.internal_read_idx(sampleIdx, 'band', band, 'fromSourceDatasets', fromSource, 'applyScaling', true); % C x T
             labels = imec.channelNamesPadded;
             
@@ -764,7 +807,8 @@ classdef ImecDataset < handle
             end
             syncBits = p.Results.syncBits;
             if ~isempty(syncBits) && showSync
-                syncBitMat = imec.readSyncBits_idx(syncBits, sampleIdx, 'fromSourceDatasets', syncFromSource);
+                % make sure we grab sync from the matching band
+                syncBitMat = imec.readSyncBits_idx(syncBits, sampleIdx, 'fromSourceDatasets', syncFromSource, 'band', band);
                 mat = cat(1, mat, syncBitMat);
                 syncColor = [0.75 0 0.9];
                 colors = cat(1, colors, repmat(syncColor, size(syncBitMat, 1), 1));
@@ -877,16 +921,19 @@ classdef ImecDataset < handle
             mm = memmapfile(imec.pathLF, 'Format', {'int16', [imec.nChannels imec.nSamplesLF], 'x'}, 'Writable', p.Results.Writable);
         end
 
-        function mm = memmapSync_full(imec)
+        function [mm, fsSync] = memmapSync_full(imec)
             if imec.syncInAPFile
                 % still has nChannels
                 mm = memmapfile(imec.pathSync, 'Format', {'int16', [imec.nChannels imec.nSamplesAP], 'x'});
+                fsSync = imec.fsAP;
             elseif imec.syncInLFFile
                 % still has nChannels
                 mm = memmapfile(imec.pathSync, 'Format', {'int16', [imec.nChannels imec.nSamplesLF], 'x'});
+                fsSync = imec.fsLF;
             else
                 % only sync channel
                 mm = memmapfile(imec.pathSync, 'Format', {'int16', [1 imec.nSamplesAP], 'x'});
+                fsSync = imec.fsAP;
             end
         end
         
@@ -1233,10 +1280,10 @@ classdef ImecDataset < handle
     end
     
     methods  % Read data at specified times
-        function snippet_set = readAPSnippetSet(imec, times, window, varargin)
+        function snippet_set = readSnippetSet(imec, band, times, window, varargin)
             [data_ch_by_time_by_snippet, cluster_ids, channel_ids_by_snippet, scaleToUv_by_snippet, group_ids] = ...
-                imec.readSnippetsRaw(times, window, 'band', 'ap', varargin{:});
-            snippet_set = Neuropixel.SnippetSet(imec, 'ap');
+                imec.readSnippetsRaw(times, window, 'band', band, varargin{:});
+            snippet_set = Neuropixel.SnippetSet(imec, band);
             snippet_set.data = data_ch_by_time_by_snippet;
             snippet_set.scaleToUv = scaleToUv_by_snippet;
             snippet_set.sample_idx = times;
@@ -1245,18 +1292,13 @@ classdef ImecDataset < handle
             snippet_set.group_ids = group_ids;
             snippet_set.window = window;
         end
+        
+        function snippet_set = readAPSnippetSet(imec, times, window, varargin)
+            snippet_set = imec.readSnippetSet('ap', times, window, varargin{:});
+        end
 
         function snippet_set = readLFSnippetSet(imec, times, window, varargin)
-            [data_ch_by_time_by_snippet, cluster_ids, channel_ids_by_snippet, scaleToUv_by_snippet, group_ids] = ...
-                imec.readSnippetsRaw(times, window, 'band', 'lf', varargin{:});
-            snippet_set = Neuropixel.SnippetSet(imec, 'lf');
-            snippet_set.data = data_ch_by_time_by_snippet;
-            snippet_set.scaleToUv = scaleToUv_by_snippet;
-            snippet_set.sample_idx = times;
-            snippet_set.channel_ids_by_snippet = channel_ids_by_snippet;
-            snippet_set.cluster_ids = cluster_ids;
-            snippet_set.group_ids = group_ids;
-            snippet_set.window = window;
+            snippet_set = imec.readSnippetSet('lf', times, window, varargin{:});
         end
 
         function rms = computeRMSByChannel(imec, varargin)
@@ -1418,15 +1460,14 @@ classdef ImecDataset < handle
         
         function fs = get.fsSync(imec)
             % defer to fsAP or fsLF, or to stored value if neither sources the sync signal
-            if imec.syncInAPFile
+            if ~isempty(imec.fsSync)
+                fs = imec.fsSync;
+            elseif imec.syncInAPFile
                 fs = imec.fsAP;
             elseif imec.syncInLFFile
                 fs = imec.fsLF;
             else
-                fs = imec.fsSync;
-                if isempty(fs)
-                    fs = NaN;
-                end
+                fs = NaN;
             end
         end         
         
@@ -2331,10 +2372,12 @@ end
             % exchange time shifts between LF and AP to ensure consistency
             if writeAP && isempty(timeShiftsAP) && ~isempty(timeShiftsLF)
                 assert(~isnan(fsLF) && ~isnan(fsAP));
-                timeShiftsAP = arrayfun(@(tsLF) tsLF.convertToDifferentSampleRate(fsLF, fsAP), timeShiftsLF);
+                nSamplesAPList = cellfun(@(imec) imec.nSamplesAP, imecList);
+                timeShiftsAP = arrayfun(@(tsLF, maxSamples) tsLF.convertToDifferentSampleRate(fsLF, fsAP, maxSamples), timeShiftsLF, nSamplesAPList);
             elseif writeLF && isempty(timeShiftsLF) && ~isempty(timeShiftsAP)
                 assert(~isnan(fsLF) && ~isnan(fsAP));
-                timeShiftsLF = arrayfun(@(tsAP) tsAP.convertToDifferentSampleRate(fsAP, fsLF), timeShiftsAP);
+                nSamplesLFList = cellfun(@(imec) imec.nSamplesLF, imecList);
+                timeShiftsLF = arrayfun(@(tsAP, maxSamples) tsAP.convertToDifferentSampleRate(fsAP, fsLF), timeShiftsAP, nSamplesLFList);
             elseif ~isempty(timeShiftsAP) && ~isempty(timeShiftsLF)
                 warning('Both timeShiftsAP and timeShiftsLF are specified, which may lead to inconsistency in the concatenated output bands');
             end
@@ -2530,8 +2573,12 @@ end
                     for iCh = 1:nChunks
                         [idx, keepIdx] = Neuropixel.ImecDataset.determineChunkIdx(outSize, iCh, nChunks, chunkSize, chunkExtra);
 
+                        % some elements of source_idx may be 0 (meaning they are not filled with source data)
                         source_idx = sourceIdxList(idx);
-                        data = mm.Data.x(chInds, source_idx);
+                        mask_source_idx = source_idx > 0;
+                        
+                        data = zeros(numel(chInds), numel(source_idx), 'int16');
+                        data(:, mask_source_idx) = mm.Data.x(chInds, source_idx(mask_source_idx));
 
                         % ch_connected_mask indicates which channels are
                         % connected, which are the ones where scaling makes

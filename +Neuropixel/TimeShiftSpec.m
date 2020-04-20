@@ -33,13 +33,17 @@ classdef TimeShiftSpec < handle & matlab.mixin.Copyable
             end     
         end
         
-        function specNew = convertToDifferentSampleRate(spec, fsThis, fsNew)
-            convert = @(idx) uint64(floor(double(idx) / double(fsThis) * double(fsNew)));
+        function specNew = convertToDifferentSampleRate(spec, fsThis, fsNew, maxSamples)
+            if nargin < 4
+                maxSamples = Inf;
+            end
+            clamp = @(idx) min(max(idx, 1), maxSamples);
+            convert = @(idx) uint64(clamp(floor(double(idx) / double(fsThis) * double(fsNew))));
             specNew = Neuropixel.TimeShiftSpec(convert(spec.idxStart), convert(spec.idxStop), convert(spec.idxShiftStart));
         end
         
         function mat = as_matrix(spec)
-            % see from_matrix
+            % see from_matrixd
             mat = cat(2, spec.idxStart, spec.idxStop, spec.idxShiftStart);
         end
         

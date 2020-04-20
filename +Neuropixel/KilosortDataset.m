@@ -957,7 +957,6 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                         end
                     else
                         ks.cutoff_spike_clusters_ks2orig = ks.cutoff_spike_clusters;
-                        ks.trimToNumSamples = p.Results.trimToNumSamples;
                     end
 
                     if loadFeatures
@@ -1598,6 +1597,8 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                          assert(raw_dataset.hasAP);
                      end
                  case 'lf'
+                     assert(~p.Results.subtractOtherClusters, ...
+                         'Subtract other clusters not supported for lf band, since templates are in ap band');
                      if fromSource
                          assert(raw_dataset.hasSourceLF);
                      else
@@ -1767,10 +1768,19 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                  channel_ids = ks.channel_ids_sorted;
                  channel_id_args = {'channel_ids', channel_ids};
              end
+             
+             switch band
+                 case 'ap'
+                     spike_times_for_band = spike_times;
+                 case 'lf'
+                     spike_times_for_band = raw_dataset.closestSampleLFForAP(spike_times);
+                 otherwise
+                     error('Unknown band %s', band);
+             end
 
              % channel_ids is provided since raw data often has additional channels that we're not interested in
              window = p.Results.window;
-             snippetSet = raw_dataset.readAPSnippetSet(spike_times, ...
+             snippetSet = raw_dataset.readSnippetSet(band, spike_times_for_band, ...
                  window, channel_id_args{:}, ...
                  'unique_cluster_ids', unique_cluster_ids, 'cluster_ids_by_snippet', cluster_ids, ...
                  'car', p.Results.car, 'fromSourceDatasets', p.Results.fromSourceDatasets, ...
