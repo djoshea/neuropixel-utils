@@ -4,6 +4,7 @@ classdef ImecDataset < handle
     properties(SetAccess = protected)
         pathRoot char = '';
         fileStem char = '';
+        fileImecNumber = NaN;
         creationTime = NaN;
         nChannels = NaN;
 
@@ -122,10 +123,10 @@ classdef ImecDataset < handle
                     error('No AP or LF Imec file found at or in %s', fileOrFileStem);
                 else
                     isLFOnly = true;
-                    [imec.pathRoot, imec.fileStem, imec.fileTypeLF] = Neuropixel.ImecDataset.parseImecFileName(file);
+                    [imec.pathRoot, imec.fileStem, imec.fileTypeLF, imec.fileImecNumber] = Neuropixel.ImecDataset.parseImecFileName(file);
                 end
             else
-                [imec.pathRoot, imec.fileStem, imec.fileTypeAP] = Neuropixel.ImecDataset.parseImecFileName(file);
+                [imec.pathRoot, imec.fileStem, imec.fileTypeAP, imec.fileImecNumber] = Neuropixel.ImecDataset.parseImecFileName(file);
                 isLFOnly= false;
             end
             
@@ -194,7 +195,9 @@ classdef ImecDataset < handle
 
             if imec.hasAP
                 imec.fsAP = metaAP.imSampRate;
-                imec.highPassFilterHz = metaAP.imHpFlt;
+                if isfield(metaAP, 'imHpFlt')
+                    imec.highPassFilterHz = metaAP.imHpFlt;
+                end
             elseif imec.hasSourceDatasets
                 imec.fsAP = imec.sourceDatasets(1).fsAP;
             end
@@ -234,7 +237,10 @@ classdef ImecDataset < handle
                 fclose(fid);
 
                 imec.nSamplesAP = bytes / imec.bytesPerSample / imec.nChannels;
-                assert(round(imec.nSamplesAP) == imec.nSamplesAP, 'AP bin file size is not an integral number of samples, file data may not be fully copied')
+                if round(imec.nSamplesAP) ~= imec.nSamplesAP
+                    warning('AP bin file size is not an integral number of samples, file data may not be fully copied, truncating nSamplesAP');
+                    imec.nSamplesAP = floor(imec.nSamplesAP);
+                end
                 
                 imec.concatenationInfoAP = Neuropixel.ConcatenationInfo(imec, 'ap', metaAP);
             end
@@ -245,7 +251,10 @@ classdef ImecDataset < handle
                 bytes = ftell(fid);
                 fclose(fid);
                 imec.nSamplesLF = bytes / imec.bytesPerSample / imec.nChannels;
-                assert(round(imec.nSamplesAP) == imec.nSamplesAP, 'LF bin file size is not an integral number of samples, file data may not be fullycopied');
+                if round(imec.nSamplesLF) ~= imec.nSamplesLF
+                    warning('LF bin file size is not an integral number of samples, file data may not be fully copied, truncating nSamplesLF');
+                    imec.nSamplesLF = floor(imec.nSamplesLF);
+                end
               
                 imec.concatenationInfoLF = Neuropixel.ConcatenationInfo(imec, 'lf', metaLF);
             end 
@@ -1405,7 +1414,11 @@ classdef ImecDataset < handle
         end
 
         function fileAP = get.fileAP(imec)
-            fileAP = [imec.fileStem '.imec.' imec.fileTypeAP '.bin'];
+            if isnan(imec.fileImecNumber)
+                fileAP = [imec.fileStem '.imec.' imec.fileTypeAP '.bin'];
+            else
+                fileAP = [imec.fileStem, sprintf('.imec%d.', imec.fileImecNumber), imec.fileTypeAP, '.bin'];
+            end
         end
 
         function tf = get.hasAP(imec)
@@ -1413,7 +1426,11 @@ classdef ImecDataset < handle
         end
 
         function fileAPMeta = get.fileAPMeta(imec)
-            fileAPMeta = [imec.fileStem '.imec.ap.meta'];
+            if isnan(imec.fileImecNumber)
+                fileAPMeta = [imec.fileStem '.imec.ap.meta'];
+            else
+                fileAPMeta = [imec.fileStem, sprintf('.imec%d.ap.meta', imec.fileImecNumber)];
+            end
         end
 
         function pathAPMeta = get.pathAPMeta(imec)
@@ -1424,12 +1441,20 @@ classdef ImecDataset < handle
             pathLF = fullfile(imec.pathRoot, imec.fileLF);
         end
 
-        function fileAP = get.fileLF(imec)
-            fileAP = [imec.fileStem '.imec.lf.bin'];
+        function fileLF = get.fileLF(imec)
+            if isnan(imec.fileImecNumber)
+                fileLF = [imec.fileStem '.imec.lf.bin'];
+            else
+                fileLF = [imec.fileStem, sprintf('.imec%d.', imec.fileImecNumber), 'lf.bin'];
+            end
         end
 
         function fileLFMeta = get.fileLFMeta(imec)
-            fileLFMeta = [imec.fileStem '.imec.lf.meta'];
+            if isnan(imec.fileImecNumber)
+                fileLFMeta = [imec.fileStem '.imec.lf.meta'];
+            else
+                fileLFMeta = [imec.fileStem, sprintf('.imec%d.lf.meta', imec.fileImecNumber)];
+            end
         end
 
         function pathLFMeta = get.pathLFMeta(imec)
@@ -2245,7 +2270,7 @@ end
             file = string(file);
         end
 
-        function [pathRoot, fileStem, type] = parseImecFileName(file)
+        function [pathRoot, fileStem, type, imecNumber] = parseImecFileName(file)
             if iscell(file)
                 [pathRoot, fileStem, type] = cellfun(@Neuropixel.ImecDataset.parseImecFileName, file, 'UniformOutput', false);
                 return;
@@ -2259,15 +2284,21 @@ end
             file = [f, e];
 
 
-            match = regexp(file, '(?<stem>[\w\-\.]+).imec.(?<type>\w+).bin', 'names', 'once');
+            match = regexp(file, '(?<stem>[\w\-\.]+).imec(?<imecNumber>\d*).(?<type>\w+).bin', 'names', 'once');
             if ~isempty(match)
                 type = match.type;
                 fileStem = match.stem;
+                if isempty(match.imecNumber)
+                    imecNumber = NaN;
+                else
+                    imecNumber = str2double(match.imecNumber);
+                end
                 return;
             end
 
             fileStem = file;
             type = '';
+            imecNumber = NaN;
         end
 
         function apFiles = listAPFilesInDir(path)
