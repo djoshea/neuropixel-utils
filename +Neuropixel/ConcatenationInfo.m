@@ -134,7 +134,11 @@ classdef ConcatenationInfo < handle
             end
             
             ci.fs = fsInfer;
-            ci.timeShifts = copy(ciRef.timeShifts);
+            if ~isempty(ciRef.timeShifts)
+                ci.timeShifts = copy(ciRef.timeShifts);
+            else
+                ci.timeShifts = ciRef.timeShifts;
+            end
             nSamplesInfer = uint64(0);
             for iTS = 1:numel(ci.timeShifts)
                 ci.timeShifts(iTS).idxStart = samplesRefToInfer(ci.timeShifts(iTS).idxStart);
