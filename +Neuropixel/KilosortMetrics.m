@@ -332,6 +332,7 @@ classdef KilosortMetrics < handle
             m.cluster_template_useCount = accumarray([cluster_ind_each_spike(mask_spike_in_cluster), ks.spike_templates(mask_spike_in_cluster)], ...
                 ones(ks.nSpikes, 1), [ks.nClusters, ks.nTemplates]);
             m.cluster_template_weight = single(m.cluster_template_useCount) ./ single(ks.cluster_spike_counts);
+            m.cluster_template_weight(isnan(m.cluster_template_weight)) = 0;
             
             [~, m.cluster_template_mostUsed] = max(m.cluster_template_useCount, [], 2);
             m.cluster_best_channels = m.template_best_channels(m.cluster_template_mostUsed, :);
@@ -350,8 +351,8 @@ classdef KilosortMetrics < handle
             
             progIncrFn('Cluster center of mass');
             % K. find cluster center of mass
-            cluster_template_weight = double(m.cluster_template_useCount) ./ sum(m.cluster_template_useCount, 2);
-            m.cluster_centroid = Neuropixel.Utils.TensorUtils.linearCombinationAlongDimension(m.template_centroid, 1, cluster_template_weight);
+            m.cluster_centroid = Neuropixel.Utils.TensorUtils.linearCombinationAlongDimension(m.template_centroid, 1, ...
+                m.cluster_template_weight, 'replaceNaNWithZero', true); % needed in case any templates have nan centroid
             
             % L. cluster waveforms
             progIncrFn('Cluster waveform');
