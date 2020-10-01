@@ -326,6 +326,7 @@ classdef KilosortTrialSegmentedDataset < handle & matlab.mixin.Copyable
             end
 
             prog.finish();
+            fprintf('\n');
 
             function local_trial_ind_each_time = get_local_trial_ind_each_time(tsi, trial_ids, times)
                 [~, trial_id_each_time, in_trial] = tsi.segmentTimes(times); % indices into TSI's list of trials, now we need to map into seg.trial_ids list

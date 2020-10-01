@@ -154,6 +154,7 @@ classdef TrialSegmentationInfo < handle & matlab.mixin.Copyable
         
         function h = markTrialTicks(tsi, varargin)
             p = inputParser();
+            p.addParameter('maskTrials', true(tsi.nTrials, 1), @isvector);
             p.addParameter('sample_window', [], @(x) isempty(x) || isvector(x)); % masks which trials to include, note that it applies before the time shifts
             p.addParameter('time_shifts', [], @(x) isempty(x) || isa(x, 'Neuropixel.TimeShiftSpec'));
             p.addParameter('side', 'bottom', @ischar);
@@ -176,6 +177,7 @@ classdef TrialSegmentationInfo < handle & matlab.mixin.Copyable
             else
                 mask = true(size(ticks));
             end
+            mask = mask & p.Results.maskTrials;
             ticks = ticks(mask);
             
             if p.Results.timeInSeconds
@@ -186,7 +188,7 @@ classdef TrialSegmentationInfo < handle & matlab.mixin.Copyable
                 dataTipTextRow('idx start', tsi.idxStart(mask), '%d'); ...
                 dataTipTextRow('trial id', tsi.trialId(mask), '%d'); ...
                 dataTipTextRow('idx start', tsi.conditionId(mask), '%d') ];
-
+            
             h = Neuropixel.Utils.rugplot(ticks + xOffset, 'side', p.Results.side, 'Color', p.Results.Color, 'expand_limits', p.Results.expand_limits, ...
                 'dataTipTemplateRows', templateRows);
             set(h, 'XLimInclude', 'off');
@@ -220,8 +222,66 @@ classdef TrialSegmentationInfo < handle & matlab.mixin.Copyable
             hold on;
             for iT = 1:numel(idxStart)
                 str = sprintf('Trial %d-%d', trialStartStop(iT, 1), trialStartStop(iT, 2));
-                xline(double(idxStart(iT)) + xOffset, p.Results.LineSpecStart, '', 'Color', p.Results.Color, 'LineWidth', 0.5);
-                xline(double(idxStop(iT)) + xOffset, p.Results.LineSpecStop, str, 'Color', p.Results.Color, 'LineWidth', 0.5);
+                xline(double(idxStart(iT)) + xOffset, p.Results.LineSpecStart, '', 'Color', p.Results.Color, 'LineWidth', 0.5, 'Interpreter', 'none');
+                h = xline(double(idxStop(iT)) + xOffset, p.Results.LineSpecStop, str, 'Color', p.Results.Color, 'LineWidth', 0.5, 'Interpreter', 'none');
+                h.NodeChildren(1).NodeChildren(1).BackgroundColor = uint8(255*[1 1 1 0.5]');
+            end
+        end
+        
+        function markSpecificTrials(tsi, trialIds, varargin)
+            % marks regions that are densely covered with trials (ignoring gaps between trials
+            p = inputParser();
+            p.addParameter('labels', [], @(x) isempty(x) || isstringlike(x));
+            p.addParameter('sample_window', [], @(x) isempty(x) || isvector(x)); % masks which trials to include, note that it applies before the time shifts
+            p.addParameter('time_shifts', [], @(x) isempty(x) || isa(x, 'Neuropixel.TimeShiftSpec'));
+            p.addParameter('Color', [0 0 1], @ismatrix);
+            p.addParameter('timeInSeconds', true, @islogical); % if true, x axis is seconds, if false, is samples 
+            
+            p.addParameter('LineSpecStart', '-', @ischar);
+            p.addParameter('LineSpecStop', '--', @ischar);
+            p.addParameter('xOffset', 0, @isscalar);
+            p.parse(varargin{:});
+            xOffset = p.Results.xOffset;
+            
+            [tf, trialInds] = ismember(trialIds, tsi.trialId);
+            assert(all(tf), "Some trialIds not found in TrialSegmentationInfo");
+            
+            labels = p.Results.labels;
+            if isempty(labels)
+                labels = arrayfun(@(t) sprintf("Trial %d", t), trialIds);
+            else
+                labels = string(labels);
+            end
+            
+            idxStart = tsi.idxStart(trialInds);
+            
+            sample_window = p.Results.sample_window;
+            if ~isempty(sample_window)
+                mask = idxStart >= sample_window(1) & idxStart <= sample_window(2);
+            else
+                mask = true(size(idxStart));
+            end
+            idxStart = idxStart(mask);
+            
+            timeShiftSpec = p.Results.time_shifts;
+            if ~isempty(timeShiftSpec)
+                idxStart = timeShiftSpec.shiftTimes(idxStart);
+            end
+            
+            if p.Results.timeInSeconds
+                idxStart = double(idxStart) / tsi.fs;
+            end
+            hold on;
+            
+            cmap = p.Results.Color;
+            if size(cmap, 1) == 1
+                cmap = repmat(cmap, numel(idxStart), 1);
+            else
+                cmap = cmap(mask, :);
+            end
+            for iT = 1:numel(idxStart)
+                h = xline(double(idxStart(iT)) + xOffset, p.Results.LineSpecStart, labels{iT}, 'Color', cmap(iT, :), 'LineWidth', 0.5, 'Interpreter', 'none');
+                h.NodeChildren(1).NodeChildren(1).BackgroundColor = uint8(255*[1 1 1 0.5]');
             end
         end
         

@@ -2088,7 +2088,7 @@ end
             % like fileparts, but a multiple extension file like file.test.meta
             % will end up with leaf = file and ext = .test.meta
 
-            [parent, leaf, ext] = fileparts(file);
+            [parent, leaf, ext] = fileparts(char(file));
             if ~isempty(ext)
                 [leaf, ext] = strtok([leaf, ext], '.');
             end
@@ -2362,7 +2362,7 @@ end
             end
 
             [parent, leaf, ext] = Neuropixel.ImecDataset.filepartsMultiExt(outPath);
-            if ~isempty(ext) && endsWith(ext, 'bin')
+            if strlength(ext) > 0 && endsWith(ext, 'bin')
                 % specified full file
                 outPath = parent;
             else

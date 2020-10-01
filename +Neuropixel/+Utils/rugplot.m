@@ -14,7 +14,7 @@ function h = rugplot(ticks, varargin)
     end
 
     p = inputParser();
-    p.addParameter('Color', [0 0 1], @isvector);
+    p.addParameter('Color', [0 0.45 0.75], @isvector);
     p.addParameter('side', 'top', @ischar);
     p.addParameter('length', 0.01, @isscalar); % fraction of axis extents
     p.addParameter('offset', 0, @isscalar); % fraction of axis extents, + mean away from center of axis

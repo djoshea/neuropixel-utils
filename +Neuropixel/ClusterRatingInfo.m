@@ -85,7 +85,9 @@ classdef ClusterRatingInfo < handle & matlab.mixin.Copyable
 
         function setKilosortDataset(r, ks)
             assert(isa(ks, 'Neuropixel.KilosortDataset'));
-            ks.load('loadBatchwise', false, 'loadFeatures', false);
+            if ~ks.isLoaded
+                ks.load('loadBatchwise', false, 'loadFeatures', false);
+            end
             r.ks = ks;
             assert(~isempty(ks.cluster_ids));
             if ~isequal(r.cluster_ids, ks.cluster_ids)

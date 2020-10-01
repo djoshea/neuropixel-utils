@@ -475,7 +475,7 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
         end
 
         function ids = get.cluster_ids_have_spikes(ks)
-            mask = ks.cluster_spike_counts > 0 & ks.cutoff_cluster_spike_counts > 0;
+            mask = ks.cluster_spike_counts > 0 | ks.cutoff_cluster_spike_counts > 0;
             ids = ks.cluster_ids(mask);
         end
     end
@@ -1091,9 +1091,16 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
             writeNPY_local(ks.spike_clusters, 'spike_clusters.npy');
             writeNPY_local(ks.cutoff_spike_clusters, 'cutoff_spike_clusters.npy');
         end
+        
+        function markModifiedInMemory(ks)
+            ks.modifiedInMemory = true;
+            ks.metrics = [];
+        end
 
         function apply_cluster_merge(ks, mergeInfo)
-            ks.load('loadFeatures', false, 'loadBatchwise', false);
+            if ~ks.isLoaded
+                ks.load('loadFeatures', false, 'loadBatchwise', false);
+            end
             ks.create_spike_clusters_ks2orig_if_missing();
 
             % apply the merges in clusterMergeInfo
@@ -1108,7 +1115,7 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
             ks.spike_clusters = spike_clusters;
             ks.cutoff_spike_clusters = cutoff_spike_clusters;
 
-            ks.modifiedInMemory = true;
+            ks.markModifiedInMemory();
 
             function spike_clusters = apply_single_merge(spike_clusters, dst_cluster_id, src_cluster_ids)
                 mask_assign_to_dst = ismember(spike_clusters, src_cluster_ids);
@@ -1165,7 +1172,7 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                 [ks.template_features, ks.cutoff_template_features] = combineAndSort(ks.template_features, ks.cutoff_template_features);
             end
 
-            ks.modifiedInMemory = true;
+            ks.markModifiedInMemory();
         end
 
 %         function remove_zero_spike_clusters(ks)
@@ -1196,7 +1203,7 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                 ks.cutoff_template_features = ks.cutoff_template_features(sortIdx, :);
             end
 
-            ks.modifiedInMemory = true;
+            ks.markModifiedInMemory();
         end
 
         function mask_spikes(ks, mask, mask_cutoff, varargin)
@@ -1234,7 +1241,7 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
             end
 
             if p.Results.setModifiedInMemory
-                ks.modifiedInMemory = true;
+                ks.markModifiedInMemory();
             end
         end
 
@@ -1258,7 +1265,7 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                 ks.cutoff_template_features = [];
             end
 
-            ks.modifiedInMemory = true;
+            ks.markModifiedInMemory();
         end
 
         function append_spikes(ks, append)
@@ -1310,7 +1317,7 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                 ks.cutoff_template_features = cat(1, ks.cutoff_template_features, f);
             end
 
-            ks.modifiedInMemory = true;
+            ks.markModifiedInMemory();
         end
 
 %         function loadFromRez(ks, rez)
@@ -1557,6 +1564,7 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
              p.addParameter('group_ids', [], @(x) isempty(x) || isvector(x)); % for manually indicating groups to average, must match numel(spike_idx) or numel(spike_times)
              
              % and ONE OR NONE of these to pick channels (or channels for each cluster)
+             p.addParameter('channel_ids', [], @(x) isempty(x) || isvector(x));
              p.addParameter('channel_ids_by_cluster', [], @(x) isempty(x) || ismatrix(x));
              p.addParameter('best_n_channels', NaN, @isscalar); % or take the best n channels based on this clusters template when cluster_id is scalar
 
@@ -1565,6 +1573,8 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
 
              % other params:
              p.addParameter('num_waveforms', Inf, @isscalar); % caution: Inf will request ALL waveforms in order (typically useful if spike_times directly specified)
+             p.addParameter('subselect_waveforms_mode', "random", @isstringlike); % modes include "random", "first". When num_waveforms is infinite, how to pick the ones we keep
+             
              p.addParameter('window', [-40 41], @isvector); % Number of samples before and after spiketime to include in waveform
              p.addParameter('car', false, @islogical);
              p.addParameter('centerUsingFirstSamples', 20, @(x) isscalar(x) || islogical(x)); % subtract mean of each waveform's first n samples, don't do if false
@@ -1688,8 +1698,10 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
              % fetch other info
              if ~from_cutoff_spikes
                 cluster_ids = ks.spike_clusters(spike_idx);
+                spike_amp = ks.amplitudes(spike_idx);
              else
                 cluster_ids = ks.cutoff_spike_clusters(spike_idx);
+                spike_amp = ks.cutoff_amplitudes(spike_idx);
              end
              if isempty(unique_cluster_ids)
                  unique_cluster_ids = unique(cluster_ids);
@@ -1722,6 +1734,7 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
              end
 
              % take max of num_waveforms from each cluster
+             subselect_waveforms_mode = string(p.Results.subselect_waveforms_mode);
              if isfinite(p.Results.num_waveforms)
                  mask = false(numel(spike_idx), 1);
                  nSample = p.Results.num_waveforms;
@@ -1732,7 +1745,19 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                      if numel(thisC) <= nSample
                          mask(thisC) = true;
                      else
-                         mask(thisC(randsample(numel(thisC), nSample, false))) = true;
+                         % TODO: might want to add more intelligent subselection modes here, e.g. for sampling evenly with respect to batches
+                         switch subselect_waveforms_mode
+                             case "random"
+                                 mask(thisC(randsample(numel(thisC), nSample, false))) = true;
+                             case "first"
+                                 mask(thisC(1:nSample)) = true;
+                             case "largest"
+                                 % sort by amplitude
+                                 [~, inds] = maxk(spike_amp(thisC), nSample);
+                                 mask(thisC(inds)) = true;
+                             otherwise
+                                 error('Unknown subselect_waveforms_mode %s', subselect_waveforms_mode);
+                         end
                      end
                  end
 
@@ -1764,6 +1789,9 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
              elseif ~isempty(p.Results.channel_ids_by_cluster)
                  channel_ids_by_cluster = p.Results.channel_ids_by_cluster;
                  channel_id_args = {'channel_ids_by_cluster', channel_ids_by_cluster};
+             elseif ~isempty(p.Results.channel_ids)
+                 % same channel ids for each cluster
+                 channel_id_args = {'channel_ids', p.Results.channel_ids};
              else
                  channel_ids = ks.channel_ids_sorted;
                  channel_id_args = {'channel_ids', channel_ids};
@@ -2069,11 +2097,16 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
             spike_templates = ks.spike_templates;
             spike_clusters = ks.spike_clusters;
             amplitudes = ks.amplitudes;
-            W_batch = ks.W_batch;
-            U_batch = ks.U_batch;
-            whitening_mat_inv = ks.whitening_mat_inv;
-            assert(size(W_batch, 3) == 3);
-
+            
+            if use_batchwise_templates
+                % use batchwise templates for reconstructing each spike more accurately
+                W_batch = ks.W_batch;
+                U_batch = ks.U_batch;
+                spike_batches = ks.compute_which_batch(ks.spike_times);
+                whitening_mat_inv = ks.whitening_mat_inv;
+                assert(size(W_batch, 3) == 3);
+            end
+    
             % find spikes that would lie within this window (with padding),
             % excluding those from clusters we wish to exclude
             minT = int64(window(1)) - int64(relTvec_template(end));
@@ -2083,8 +2116,6 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
 %             c_nearby_spike_inds = rangesearch(double(ks.spike_times), double(times) + double(t_center_offset), search_half_width, 'SortIndices', false);
 %
             c_nearby_spike_inds = Neuropixel.Utils.simple_rangesearch(ks.spike_times, times, [minT maxT]);
-
-            spike_batches = ks.compute_which_batch(ks.spike_times);
 
             prog = ProgressBar(nTimes, 'Reconstructing templates around snippet times');
             for iT = 1:nTimes
@@ -2124,7 +2155,7 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                         % manual loop unrolling to make this faster
                         template_this = shiftdim(W(:,:,1,:)*(U(:,:,1,:)'*wmi_this) + W(:,:,2,:)*(U(:,:,2,:)'*wmi_this) + W(:,:,3,:)*(U(:,:,3,:)'*wmi_this), -1);
                     else
-                        template_this = templates(spike_templates(ind), indFromTemplate, sorted_channel_inds_this);
+                        template_this = templates(spike_templates(ind), maskFromTemplate, sorted_channel_inds_this);
                     end
                     insert = amp .* permute(template_this, [3 2 1]);
                     reconstruction_this(:, maskInsert) = reconstruction_this(:, maskInsert) + insert;
@@ -2311,11 +2342,11 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
             % lookup best channels by templates
             m = ks.computeMetrics();
 
-            % determine which templates are withinDistance of each other templates
+            % determine which templates are withinDistance of each other templates based on centroid
             temptempdist = squareform(pdist(m.template_centroid, 'euclidean'));
             temptempprox = temptempdist < withinDistance;
 
-            % mechanism originally described in Siegle et al. (2019) using template best channel
+            % mechanism originally described in Siegle et al. (2019) using template best channel instead of centroid
 %             template_best_sorted_channel_ind = m.lookup_sortedChannelIds(m.template_best_channels(:, 1));
 %             chchprox = squareform(pdist(ks.channel_positions_sorted, 'euclidean')) <= withinDistance;
 %             [R, C] = ndgrid(template_best_sorted_channel_ind, template_best_sorted_channel_ind);

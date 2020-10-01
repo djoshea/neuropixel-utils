@@ -164,6 +164,10 @@ classdef KilosortMetrics < handle
         spike_depth % column 2 (y) of center of mass
         spike_is_localized % logical
         cluster_depth
+        
+        cluster_signed_peak % nClusters x 1
+        
+        cluster_signed_extr_ratio % ratio of trough to peak ratio, sign matches which one is bigger
     end
     
     methods % Constructor / metrics and batchwise metrics computation
@@ -292,10 +296,10 @@ classdef KilosortMetrics < handle
             m.template_waveform = template_waveform;
             m.template_amplitude = templateUnscaledMaxAmp .* m.template_scale_factor;
             
-            % G. determine trough to peak time of each waveform
-            [~, template_trough] = min(m.template_waveform, [], 2);
-            [~, template_peak] = max(m.template_waveform, [], 2);
-            m.template_ttp = (template_peak - template_trough) / ks.fsAP * 1000;
+            % G. determine trough to peak time of each waveform, this should be refined
+            [~, time_template_trough] = min(m.template_waveform, [], 2);
+            [~, time_template_peak] = max(m.template_waveform, [], 2);
+            m.template_ttp = (time_template_peak - time_template_trough) / ks.fsAP * 1000;
             m.template_ttp(m.template_ttp <= 0) = NaN;
             
             if ks.hasFeaturesLoaded
@@ -565,6 +569,27 @@ classdef KilosortMetrics < handle
         
         function d = get.cluster_depth(m)
             d = m.cluster_centroid(:, 2);
+        end
+        
+        function amp = get.cluster_signed_peak(m)
+            % take a min and max over time dimension of the most used cluster waveform
+            % and return either the min or the max, depending on which absolute value is larger
+            hi = max(m.cluster_waveform(:, :, 1), [], 2, 'omitnan');
+            lo = min(m.cluster_waveform(:, :, 1), [], 2, 'omitnan');
+            
+            amp = hi;
+            amp(-lo > hi) = lo(-lo > hi);
+        end
+        
+        function ratio = get.cluster_signed_extr_ratio(m)
+            % take a min and max over time dimension of the most used cluster waveform
+            % and return either the min or the max, depending on which absolute value is larger
+            hi = max(m.cluster_waveform(:, :, 1), [], 2, 'omitnan');
+            lo = min(m.cluster_waveform(:, :, 1), [], 2, 'omitnan');
+           
+            ratio = hi ./ -lo; % will be positive (typically axonal spikes)
+            m = -lo > hi;
+            ratio(m) = lo(m) ./ hi(m); % will be negative
         end
         
         function tvec = get.templateTimeRelative(m)
@@ -1214,9 +1239,14 @@ classdef KilosortMetrics < handle
             p.addParameter('driftTimeWindow', 10, @isscalar); % in seconds
             p.addParameter('minSpikesDrift', 50, @isscalar);
             p.addParameter('tsi', [], @(x) isempty(x) || isa(x, 'Neuropixel.TrialSegmentationInfo')); % to mark trial boundaries
+            p.addParameter('trialTickColorIndex', [], @(x) isempty(x) || isvector(x));
             p.addParameter('maskRegionsOutsideTrials', false, @islogical);
             p.addParameter('markBoundaries', true, @islogical);
             p.addParameter('exciseRegionsOutsideTrials', false, @islogical);
+            
+            p.addParameter('markSpecificTrialIds', [], @(x) isempty(x) || isvector(x));
+            p.addParameter('markSpecificTrialLabels', [], @(x) isempty(x) || isvector(x));
+            
             p.addParameter('xOffset', 0, @isscalar);
             p.addParameter('ampRange', [], @(x) isvector(x) || isempty(x));
             p.addParameter('markerSize', 4, @isscalar);
@@ -1327,11 +1357,36 @@ classdef KilosortMetrics < handle
                 end
             end
             
-            if ~isempty(tsi)
+            if ~isempty(tsi)    
+                % make ticks at the bottom of the plot
                 hold on;
-                tsi.markTrialTicks('sample_window', sample_window, ...
-                    'timeInSeconds', timeInSeconds, ...
-                    'time_shifts', timeShiftsAppliedHere, 'xOffset', xOffset, 'side', 'bottom', 'Color', [0.2 0.2 1]);
+                if isempty(p.Results.trialTickColorIndex)
+                    % single color for all trials
+                    tsi.markTrialTicks('sample_window', sample_window, ...
+                        'timeInSeconds', timeInSeconds, 'trialTickColorIndex', p.Results.trialTickColorIndex, ...
+                        'time_shifts', timeShiftsAppliedHere, 'xOffset', xOffset, 'side', 'bottom');
+                else
+                    cIndex = p.Results.trialTickColorIndex;
+                    uinds = unique(cIndex);
+                    uinds = setdiff(uinds, [NaN 0]);
+                    N = numel(uinds);
+                    cmap = Neuropixel.Utils.colorcet('C2', 'N', N);
+                    for iC = 1:N
+                        mask_this = cIndex == uinds(iC);
+                        if ~any(mask_this), continue; end
+                        tsi.markTrialTicks('sample_window', sample_window, ...
+                            'timeInSeconds', timeInSeconds, 'maskTrials', mask_this, ...
+                            'time_shifts', timeShiftsAppliedHere, 'xOffset', xOffset, 'side', 'bottom', 'Color', cmap(iC, :));
+                    end
+                end
+                    
+                % optionally mark specific trial starts
+                if ~isempty(p.Results.markSpecificTrialIds)
+                    markTrialIds = Neuropixel.Utils.makecol(p.Results.markSpecificTrialIds);
+                    markTrialLabels = p.Results.markSpecificTrialLabels;
+                    tsi.markSpecificTrials(markTrialIds, 'labels', markTrialLabels, 'Color', cmap, 'sample_window', sample_window, ...
+                        'timeInSeconds', timeInSeconds, 'time_shifts', timeShiftsAppliedHere, 'xOffset', xOffset);
+                end
             end
             
             if p.Results.markBoundaries
@@ -1359,6 +1414,7 @@ classdef KilosortMetrics < handle
                     'time_shifts', timeShiftsAppliedHere, 'xOffset', xOffset);
             end
             
+            set(gca, 'LooseInset', [0 0 0 0])
             hold off;
             
             info.driftTimes = driftTimes;
@@ -2129,6 +2185,8 @@ classdef KilosortMetrics < handle
             p.addParameter('colormap', [], @(x) isempty(x) || ismatrix(x));
             p.addParameter('plotRecordingSites', false, @islogical);
             p.addParameter('useAutoAxis', false, @islogical);
+            p.addParameter('LineWidth', 1, @isscalar);
+            p.addParameter('recordingSitesMarkerSize', 5, @isscalar);
             p.parse(varargin{:});
             
             cluster_ids = p.Results.cluster_ids;
@@ -2143,24 +2201,31 @@ classdef KilosortMetrics < handle
             
             colormap = p.Results.colormap;
             if isempty(colormap)
-                % color by cluster amplitude
-                colormap = colorcet('bmy', 'N', numel(cluster_ids), 'reverse', true);
-                [~, sortIdx] = sort(m.cluster_amplitude(clusterInds), 'ascend');
-                colormap = colormap(sortIdx, :);
+%                 if numel(cluster_ids) < 20
+                    colormap = turbomap(numel(clusterInds));                 
+%                     colormap = cbrewer('div', 'Spectral', numel(clusterInds));                 
+%                 % color by cluster amplitude
+%                 colormap = cmocean('haline', numel(clusterInds));
+% %                 colormap = Neuropixel.Utils.evalColorMapAt(colormap, linspace(0, 1, numel(clusterInds)));
+%                 [~, sortIdx] = sort(m.cluster_amplitude(clusterInds), 'ascend');
+%                 [~, cmapSort] = ismember(1:numel(clusterInds), sortIdx);
+%                 colormap = colormap(cmapSort, :);
             end
             
             % nClusters x 2 or 3
             com = m.cluster_centroid(clusterInds, :);
             
+            newplot
             holding = ishold;
             
             % plot recording sites
             if p.Results.plotRecordingSites
-                m.plotRecordingSites('color', [0.5 0.5 0.5]);
+                m.plotRecordingSites('color', [0.5 0.5 0.5], 'markerSize', p.Results.recordingSitesMarkerSize);
             end
             ax = gca;
             ax.Color = [0.92 0.92 0.95];
             ax.TickDir = 'out';
+            ax.YDir = 'normal';
             
             hold on
             
@@ -2173,18 +2238,25 @@ classdef KilosortMetrics < handle
                 ud = struct('cluster_id', cluster_ids(iC), 'cluster_amplitude', sprintf('%.1f uV', m.cluster_amplitude(clusterInds(iC))), ...
                     'cluster_is_localized', m.cluster_is_localized(clusterInds(iC)), ...
                     'xname', 'Time', 'yname', 'Voltage', 'xoffset', xvec(1) + com(iC, 1), 'yoffset', com(iC, 2), 'xscale', timeScaleFactor_umtoms, 'yscale', waveScalingFactor_umtouV, 'xunits', 'ms', 'yunits', 'uV');
-                plot(xvec + com(iC, 1), waves(iC, :) + com(iC, 2), '-', 'Color', color, 'UserData', ud, 'LineWidth', 2);
+                plot(xvec + com(iC, 1), waves(iC, :) + com(iC, 2), '-', 'Color', color, 'UserData', ud, 'LineWidth', p.Results.LineWidth);
                 hold on;
             end
             
             if ~holding, hold off; end
             
             if p.Results.useAutoAxis
-                AutoAxis.replaceScaleBars('xUnits', 'ms', 'xLength', 1, 'xScaleFactor', timeScaleFactor_umtoms, ...
+                aa = AutoAxis.replaceScaleBars('xUnits', 'ms', 'xLength', 2, 'xScaleFactor', timeScaleFactor_umtoms, ...
                     'yUnits', 'uV', 'yLength', 200, 'yScaleFactor', waveScalingFactor_umtouV);
+                xlabel('x (um)', 'BackgroundColor', 'none');
+                ylabel('y (um)', 'BackgroundColor', 'none');
+                aa.addAutoAxisX();
+                aa.addAutoAxisY();
+                aa.axisPaddingRight = 0.4;
+                aa.axisMarginLeft = 1;
+                aa.axisMarginRight = 1;
             else
-                xlabel('x (um)');
-                ylabel('y (um)');
+                xlabel('x (μm)', 'BackgroundColor', 'none');
+                ylabel('y (μm)', 'BackgroundColor', 'none');
             end
             %
             %             bgcolor = [0.9 0.9 0.9];
@@ -2193,6 +2265,10 @@ classdef KilosortMetrics < handle
             box off;
             
             Neuropixel.Utils.configureDataTipsFromUserData(gcf);
+            if p.Results.useAutoAxis
+                aa.update();
+            end
+            hold off;
         end
         
         function ch_ids_sorted = plotClusterHeatmap(m, cluster_id, varargin)
@@ -2259,7 +2335,7 @@ classdef KilosortMetrics < handle
                 ss.overlay_cluster_ids = m.ks.cluster_ids;
             end
             
-            ss.plotStackedTraces('maskSnippet', 1, 'overlay_templates', true);
+            ss.plotStackedTracesWithOverlays('maskSnippet', 1, 'overlay_templates', true);
         end
         
         function ss = extractSnippets_clusterInWindow(m, cluster_id, filter_window, varargin)
