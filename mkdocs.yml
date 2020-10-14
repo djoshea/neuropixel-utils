@@ -6,19 +6,20 @@ repo_name: 'djoshea/neuropixel-utils'
 repo_url: 'https://github.com/djoshea/neuropixel-utils'
 
 theme:
+  icon:
+    logo: fontawesome/solid/brain
   name: material
-  custom_dir: docs/theme/
   feature:
-    tabs: false
+    - navigation.tabs: false
   palette:
     primary: 'blue'
     accent: 'blue'
 
 extra:
   social:
-    - type: 'github'
-      link: 'https://github.com/djoshea'
-    - type: 'twitter'
+    - icon: fontawesome/brands/github
+      link: https://github.com/djoshea
+    - icon: fontawesome/brands/twitter
       link: 'https://twitter.com/djoshea'
 
 markdown_extensions:
@@ -39,4 +40,4 @@ nav:
   - Extracting Waveforms: waveforms.md
   - Acknowledgements and Support: acknowledgements.md
 
-copyright: 'Copyright &copy; 2019 &mdash; <a href="http://djoshea.com">Daniel J. O&#39;Shea</a>'
+copyright: 'Copyright &copy; 2020 &mdash; <a href="http://djoshea.com">Daniel J. O&#39;Shea</a>'
