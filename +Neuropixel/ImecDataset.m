@@ -117,7 +117,7 @@ classdef ImecDataset < handle
             p.parse(varargin{:})
 
             fileOrFileStem = char(fileOrFileStem);
-            file = Neuropixel.ImecDataset.findImecFileInDir(fileOrFileStem, 'ap', false, false);
+            file = Neuropixel.ImecDataset.findImecFileInDir(fileOrFileStem, 'ap', true, false);
             if isempty(file)
                 file = Neuropixel.ImecDataset.findImecFileInDir(fileOrFileStem, 'lf', false, false);
                 if isempty(file)
@@ -126,9 +126,14 @@ classdef ImecDataset < handle
                     isLFOnly = true;
                     [imec.pathRoot, imec.fileStem, imec.fileTypeLF, imec.fileImecNumber] = Neuropixel.ImecDataset.parseImecFileName(file);
                 end
-            else
+            elseif numel(file) == 1
                 [imec.pathRoot, imec.fileStem, imec.fileTypeAP, imec.fileImecNumber] = Neuropixel.ImecDataset.parseImecFileName(file);
                 isLFOnly= false;
+            else
+                for iF = 1:numel(file)
+                    fprintf('Possible match: %s\n', file{iF});
+                end
+                error('Multiple imec datasets found in specified location, include file stem or a full path to refine the search');
             end
             
             if ~isLFOnly
@@ -1754,6 +1759,8 @@ end
         
         function imecOut = saveTransformedDataset(imec, outPath, varargin)
             p = inputParser();
+            p.addParameter('stem', "", @Neuropixel.Utils.isstringlike);
+            
             p.addParameter('transformAP', {}, @(x) iscell(x) || isa(x, 'function_handle')); % list of transformation functions that accept (imec, dataChunk) and return dataChunk someplace
             p.addParameter('transformLF', {}, @(x) iscell(x) || isa(x, 'function_handle')); % list of transformation functions that accept (imec, dataChunk) and return dataChunk someplace
 
@@ -1769,12 +1776,16 @@ end
             p.addParameter('mappedChannelsOnly', false, @islogical);
             
             p.addParameter('chunkSize', 2^20, @isscalar);
-            p.addParameter('chunkEdgeExtraSamples', [0 0], @isvector); 
+            p.addParameter('chunkEdgeExtraSamplesAP', [0 0], @isvector); 
+            p.addParameter('chunkEdgeExtraSamplesLF', [0 0], @isvector); 
+            
             
             p.addParameter('timeShiftsAP', {}, @(x) isempty(x) || isa(x, 'Neuropixel.TimeShiftSpec')); % cell array of time shifts for each file, a time shift is a n x 3 matrix of idxStart, idxStop, newIdxStart. These are used to excise specific time windows from the file
             p.addParameter('timeShiftsLF', {}, @(x) isempty(x) || isa(x, 'Neuropixel.TimeShiftSpec')); % cell array of time shifts for each file, a time shift is a n x 3 matrix of idxStart, idxStop, newIdxStart. These are used to excise specific time windows from the file
             
             p.addParameter('extraMeta', struct(), @isstruct);
+            
+            p.addParameter('dryRun', false, @islogical);
             p.parse(varargin{:});
 
             % this uses the same syntax as writeConcatenatedFileMatchGains
@@ -2161,23 +2172,23 @@ end
             elseif exist(fileOrFileStem, 'dir')
                 % it's a directory, assume only one imec file in directory
                 path = fileOrFileStem;
-                [~, leaf] = fileparts(path);
+%                 [~, leaf] = fileparts(path);
 
                 switch type
                     case 'ap'
                         apFiles = Neuropixel.ImecDataset.listAPFilesInDir(path);
                         if ~isempty(apFiles)
                             if numel(apFiles) > 1
-                                [tf, idx] = ismember([leaf '.imec.ap.bin'], apFiles);
-                                if tf
-                                    file = apFiles{idx};
-                                    return
-                                end
-                                [tf, idx] = ismember([leaf '.imec.ap_CAR.bin'], apFiles);
-                                if tf
-                                    file = apFiles{idx};
-                                    return
-                                end
+%                                 [tf, idx] = ismember([leaf '.ap.bin'], apFiles);
+%                                 if tf
+%                                     file = apFiles{idx};
+%                                     return
+%                                 end
+%                                 [tf, idx] = ismember([leaf '.imec.ap_CAR.bin'], apFiles);
+%                                 if tf
+%                                     file = apFiles{idx};
+%                                     return
+%                                 end
                                 if returnMultiple
                                     file = apFiles;
                                 else
@@ -2196,11 +2207,11 @@ end
                         lfFiles = Neuropixel.ImecDataset.listLFFilesInDir(path);
                         if ~isempty(lfFiles)
                             if numel(lfFiles) > 1
-                                [tf, idx] = ismember([leaf '.imec.lf.bin'], lfFiles);
-                                if tf
-                                    file = lfFiles{idx};
-                                    return
-                                end
+%                                 [tf, idx] = ismember([leaf '.imec.lf.bin'], lfFiles);
+%                                 if tf
+%                                     file = lfFiles{idx};
+%                                     return
+%                                 end
                                 if returnMultiple
                                     file = lfFiles{1};
                                     warning('Multiple LF files found in dir, choosing %s', file);
@@ -2319,6 +2330,24 @@ end
             lfFiles = {info.name}';
         end
         
+        function checkClearDestinationStem(outPathStem)
+            outPathStem = char(outPathStem);
+            assert(~isempty(outPathStem));
+            files = dir([outPathStem '*']);
+            
+            tf = false;
+            for iF = 1:numel(files)
+                if ~files(iF).isdir
+                    f = fullfile(files(iF).folder, files(iF).name);
+                    warning('This operation would overwrite file %s', f);
+                    tf = true;
+                end
+            end
+            if tf
+                error('Refusing to proceed as one or more files would be overwritten by this operation');
+            end
+        end
+        
         function clearDestinationStem(outPathStem)
             assert(~isempty(outPathStem));
             files = dir([outPathStem '*']);
@@ -2333,6 +2362,7 @@ end
 
         function [imecOut, transformAPExtraArg, transformLFExtraArg] = writeConcatenatedFileMatchGains(imecList, outPath, varargin)
             p = inputParser();
+            p.addParameter('stem', "", @Neuropixel.Utils.isstringlike);
             p.addParameter('writeAP', true, @islogical);
             p.addParameter('goodChannelsOnly', false, @islogical);
             p.addParameter('mappedChannelsOnly', false, @islogical);
@@ -2379,6 +2409,12 @@ end
             if ~exist(outPath, 'dir') && ~dryRun
                 Neuropixel.Utils.mkdirRecursive(outPath);
             end
+            
+            if p.Results.stem ~= ""
+                leaf = char(p.Results.stem);
+            else
+                leaf = char(leaf);
+            end
 
             % figure out which channels to keep
             [chIndsByFile, ~] = Neuropixel.ImecDataset.multiFile_build_channelSelectors_internal(imecList, 'goodChannelsOnly', p.Results.goodChannelsOnly, ...
@@ -2423,8 +2459,12 @@ end
         
             transformAPExtraArg = p.Results.transformAPExtraArg;
             transformLFExtraArg = p.Results.transformLFExtraArg;
+            % throw an error if there are any collisions
+            Neuropixel.ImecDataset.checkClearDestinationStem(fullfile(outPath, leaf));
+            
             if ~dryRun
-                Neuropixel.ImecDataset.clearDestinationStem(fullfile(outPath, leaf));
+                % dont do this - dangerous
+                %Neuropixel.ImecDataset.clearDestinationStem(fullfile(outPath, leaf));
             end
             
             if p.Results.writeAP || ~isempty(p.Results.transformAP)
@@ -2433,6 +2473,9 @@ end
 
                 outFile = fullfile(outPath, [leaf '.imec.ap.bin']);
                 metaOutFile = fullfile(outPath, [leaf '.imec.ap.meta']);
+                
+                complainIfExtant(outFile);
+                complainIfExtant(metaOutFile);
 
                 % generate new meta file
                 meta = imecList{1}.generateModifiedAPMeta();
@@ -2496,6 +2539,9 @@ end
 
                 outFile = fullfile(outPath, [leaf '.imec.lf.bin']);
                 metaOutFile = fullfile(outPath, [leaf '.imec.lf.meta']);
+                
+                complainIfExtant(outFile);
+                complainIfExtant(metaOutFile);
 
                 % generate new meta file
                 meta = imecList{1}.readLFMeta();
@@ -2691,6 +2737,12 @@ end
                 
                 if ~dryRun
                     fclose(fidOut);
+                end
+            end
+            
+            function complainIfExtant(dest_file)
+                if exist(dest_file, 'file')
+                    error('File %s would be overwritten by this operation', dest_file);
                 end
             end
         end

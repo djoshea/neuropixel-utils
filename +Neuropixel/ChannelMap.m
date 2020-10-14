@@ -107,7 +107,7 @@ classdef ChannelMap
                 case "phase3b2"
                     fname = "neuropixPhase3B2_kilosortChanMap.mat";
                 otherwise 
-                    error('Unknown channel map key or file %s', key);
+                    error('Unknown channel map key or file %s. Valid options are phase3a, phase3a4, phase3b1, phase3b2.', key);
             end
             
             map = Neuropixel.ChannelMap.fromMatFile(fname);
