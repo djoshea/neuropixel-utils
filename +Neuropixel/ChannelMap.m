@@ -2,20 +2,20 @@ classdef ChannelMap
 % Author: Daniel J. O'Shea (2019)
 
     properties
-        file 
-        name
+        file  (1, 1) string
+        name (1, 1) string
         
-        channelIdsMapped uint32
-        connected logical
-        shankInd
+        channelIdsMapped (:, 1) uint32
+        connected (:, 1) logical
+        shankInd (:, 1)
         
         nSpatialDims = 2;
-        xcoords
-        ycoords
-        zcoords
+        xcoords (:, 1)
+        ycoords (:, 1)
+        zcoords (:, 1)
         
-        syncChannelIndex uint32 % actual index in the AP & LF bin file
-        syncChannelId uint32 % arbitrary channel id, typically the same as index
+        syncChannelIndex (:, 1) uint32 % actual index in the AP & LF bin file
+        syncChannelId (:, 1) uint32 % arbitrary channel id, typically the same as index
     end
     
     properties(Dependent)
@@ -41,11 +41,30 @@ classdef ChannelMap
     end
     
     methods
-        function map = ChannelMap(fname)
-            if isa(fname, 'Neuropixel.ChannelMap')
+        function map = ChannelMap(spec)
+            if nargin < 1 || isempty(spec)
+                return;
+            elseif isa(spec, 'Neuropixel.ChannelMap')
+                % return the existing instance
                 map = fname;
                 return;
+            elseif isstruct(spec)
+                map = Neuropixel.ChannelMap.fromMeta(spec);
+            elseif isstring(spec)
+                if exist(spec, 'file') == 2
+                    map = Neuropixel.ChannelMap.fromMatFile(spec);
+                else
+                    map = Neuropixel.ChannelMap.fromProbeName(spec);
+                end
+            else
+                error('Unknown ChannelMap spec format');
             end
+        end
+    end
+    
+    methods(Static)
+        function map = fromMatFile(fname)
+            map = Neuropixel.ChannelMap();
             
             d = load(fname);
             map.file = fname;
@@ -75,6 +94,65 @@ classdef ChannelMap
             end
         end
         
+        function map = fromProbeName(key)
+            key = lower(string(key));
+            
+            switch key
+                case "phase3a"
+                    fname = "neuropixPhase3A_kilosortChanMap.mat";
+                case "phase3a4"
+                    fname = "neuropixPhase3A_option4_kilosortChanMap.mat";
+                case "phase3b1"
+                    fname = "neuropixPhase3B1_kilosortChanMap.mat";
+                case "phase3b2"
+                    fname = "neuropixPhase3B2_kilosortChanMap.mat";
+                otherwise 
+                    error('Unknown channel map key or file %s', key);
+            end
+            
+            map = Neuropixel.ChannelMap.fromMatFile(fname);
+        end
+        
+%         function map = fromMeta(meta)
+%             % this function is from Nick Steinmetz: takes a .meta file from spikeglx and produces a kilosort-compatible channel map.
+%             % In order to get the x and y coordinates correct in units of µm it needs a little additional info about the probe geometry
+%             % which is hard-coded there for neuropixels 2.0, but that aspect of the function could be straightforwardly improved. 
+%             
+%             chanMap = [1:nCh(1)]'; 
+%             chanMap0ind = chanMap-1;
+%             connected = true(size(chanMap)); W
+% 
+%             shankSep = 250; 
+%             rowSep = 15; 
+%             colSep = 32;
+% 
+%             openParen = find(shankMap=='('); 
+%             closeParen = find(shankMap==')'); 
+%             for c = 1:nCh(1)
+%                 thisMap = shankMap(openParen(c+1)+1: closeParen(c+1)-1); 
+%                 thisMap(thisMap==':') = ',';
+%                 n = str2num(thisMap); 
+%                 xcoords(c) = (n(1)-1)*shankSep + (n(2)-1)*colSep; 
+%                 ycoords(c) = (n(3)-1)*rowSep; 
+%             end
+% 
+%             cm = struct();
+%             cm.chanMap = chanMap; 
+%             cm.chanMap0ind = chanMap0ind;
+%             cm.xcoords = xcoords'; 
+%             cm.ycoords = ycoords'; 
+%             cm.connected = connected;
+%             [~,name] = fileparts(m.imRoFile); 
+%             cm.name = name;
+%             
+%             snsChanMap = char(snsChanMap);
+%             map = Neuropixel.ChannelMap();
+%             
+%             
+%         end
+    end
+    
+    methods
         function tf = get.syncInAPFile(map)
             tf = ~isempty(map.syncChannelIndex);
         end

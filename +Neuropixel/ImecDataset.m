@@ -24,6 +24,7 @@ classdef ImecDataset < handle
 
         adcBits = 10;
 
+        snsShankMap (1,1) string;
         channelMap = []; % can be stored using set channelMap
 
         % see markBadChannels
@@ -151,14 +152,22 @@ classdef ImecDataset < handle
             end
 
             channelMap = p.Results.channelMap;
+            if isempty(channelMap)
+                channelMap = "";
+            elseif ischar(channelMap)
+                channelMap = string(channelMap);
+            end
+            
             if isa(channelMap, 'Neuropixel.ChannelMap')
+                % manually specified channel map
                 imec.channelMap = channelMap;
-            else
-                channelMapFile = string(channelMap);
-                if isempty(channelMapFile) || channelMapFile == ""
-                    channelMapFile = Neuropixel.Utils.getDefaultChannelMapFile(true);
+                
+            elseif isstring(channelMap)
+                if channelMap == ""
+                    % use default channel map file
+                    channelMap = Neuropixel.Utils.getDefaultChannelMapFile(true);
                 end
-                imec.channelMap = Neuropixel.ChannelMap(channelMapFile);
+                imec.channelMap = Neuropixel.ChannelMap(channelMap);
             end
             assert(imec.channelMap.nChannels <= imec.nChannels, 'Channel count is less than number of channels in channel map');
 
@@ -221,6 +230,9 @@ classdef ImecDataset < handle
             if imec.hasLF
                 imec.lfRange = [metaLF.imAiRangeMin metaLF.imAiRangeMax];
             end
+            
+            % copy snsShankMap in case needed for building channel map
+            imec.snsShankMap = meta.snsShankMap;
 
             % look at AP meta fields that might have been set by us
             if isfield(meta, 'badChannels') && ~isempty(meta.badChannels)
@@ -400,7 +412,7 @@ classdef ImecDataset < handle
         function [syncRaw, fsSync] = readSync(imec, varargin)
             p = inputParser();
             p.addOptional('reload', false, @islogical); % if true, ignore cache in memory imec.syncRaw 
-            p.addParameter('preferredBand', '', @isstringlike); % prefer a band (ap or lf), though will only be obeyed if not already loaded / cached
+            p.addParameter('preferredBand', '', @Neuropixel.Utils.isstringlike); % prefer a band (ap or lf), though will only be obeyed if not already loaded / cached
             p.addParameter('ignoreCached', false, @islogical); % if true, ignore cache on disk in imec.pathSyncCached
             p.parse(varargin{:});
             preferredBand = string(p.Results.preferredBand);
@@ -455,7 +467,7 @@ classdef ImecDataset < handle
         
         function clearSyncCached(imec)
             if exist(imec.pathSyncCached, 'file') > 0
-                debug('Deleting cached sync file %s\n', imec.pathSyncCached);
+                fprintf('Deleting cached sync file %s\n', imec.pathSyncCached);
                 delete(imec.pathSyncCached);
             end
             imec.syncRaw = [];
@@ -480,7 +492,7 @@ classdef ImecDataset < handle
         
         function vec = readSync_idx(imec, idx, varargin)
             p = inputParser();
-            p.addParameter('band', '', @isstringlike);
+            p.addParameter('band', '', @Neuropixel.Utils.isstringlike);
             p.addParameter('fromSourceDatasets', false, @islogical);
             p.parse(varargin{:});
             
@@ -575,7 +587,7 @@ classdef ImecDataset < handle
         
         function data = internal_read_idx(imec, sampleIdx, varargin)
             p = inputParser();
-            p.addParameter('band', 'ap', @isstringlike);
+            p.addParameter('band', 'ap', @Neuropixel.Utils.isstringlike);
             p.addParameter('applyScaling', true, @islogical); % convert to uV before processing
             p.addParameter('fromSourceDatasets', false, @islogical);
             p.addParameter('scaleSourceToMatch', false, @islogical); % when fromSourceDatasets is true, scale the raw data to match the scaling of the cleaned datsets
@@ -734,7 +746,7 @@ classdef ImecDataset < handle
             p.addParameter('markSampleMode', 'rug', @ischar);
             p.addParameter('markSampleColor', [0.5 0 0.5], @(x) true);
             
-            p.addParameter('style', 'traces', @isstringlike);
+            p.addParameter('style', 'traces', @Neuropixel.Utils.isstringlike);
             
             p.parse(varargin{:});
             
@@ -1028,7 +1040,7 @@ classdef ImecDataset < handle
             % of samples around this time from some channels
 
             p = inputParser();
-            p.addParameter('band', 'ap', @isstringlike);
+            p.addParameter('band', 'ap', @Neuropixel.Utils.isstringlike);
             p.addParameter('fromSourceDatasets', false, @islogical);
             
             % specify one of THESE (same channels every snippet or nChannels x numel(times))
@@ -1204,11 +1216,7 @@ classdef ImecDataset < handle
             end
 
             if numel(times) > 10
-                if exist('ProgressBar', 'class') == 8
-                    prog = ProgressBar(numel(times), 'Extracting %s snippets', upper(band));
-                else
-                    prog = Neuropixel.Utils.ProgressBar(numel(times), 'Extracting %s snippets', upper(band));
-                end
+                prog = Neuropixel.Utils.ProgressBar(numel(times), 'Extracting %s snippets', upper(band));
             else
                 prog = [];
             end
@@ -1804,44 +1812,44 @@ end
             
             imec.symLinkAPIntoDirectory(savePath);
             
-            writeNPY(spikeTimes, fullfile(savePath, 'spike_times.npy'));
-            writeNPY(zeros(nSpikes, 1, 'uint32'), fullfile(savePath, 'spike_templates.npy'));
-            writeNPY(spikeClusters, fullfile(savePath, 'spike_clusters.npy'));
+            Neuropixel.writeNPY(spikeTimes, fullfile(savePath, 'spike_times.npy'));
+            Neuropixel.writeNPY(zeros(nSpikes, 1, 'uint32'), fullfile(savePath, 'spike_templates.npy'));
+            Neuropixel.writeNPY(spikeClusters, fullfile(savePath, 'spike_clusters.npy'));
     
-            writeNPY(zeros(nSpikes, 1, 'double'), fullfile(savePath, 'amplitudes.npy'));
+            Neuropixel.writeNPY(zeros(nSpikes, 1, 'double'), fullfile(savePath, 'amplitudes.npy'));
             
             templates = zeros(2, nTemplateTimepoints, nCh, 'single');
-            writeNPY(templates, fullfile(savePath, 'templates.npy'));
+            Neuropixel.writeNPY(templates, fullfile(savePath, 'templates.npy'));
     
             templatesInds = imec.goodChannels';
-            writeNPY(templatesInds, fullfile(savePath, 'templates_ind.npy'));
+            Neuropixel.writeNPY(templatesInds, fullfile(savePath, 'templates_ind.npy'));
     
             sortedInds = imec.goodChannelInds;
             chanMap0ind = int32(imec.channelMap.channelIdsMapped(sortedInds) - uint32(1));
             xcoords = imec.channelMap.xcoords(sortedInds);
             ycoords = imec.channelMap.ycoords(sortedInds);
-            writeNPY(chanMap0ind, fullfile(savePath, 'channel_map.npy'));
-            writeNPY([xcoords ycoords], fullfile(savePath, 'channel_positions.npy'));
+            Neuropixel.writeNPY(chanMap0ind, fullfile(savePath, 'channel_map.npy'));
+            Neuropixel.writeNPY([xcoords ycoords], fullfile(savePath, 'channel_positions.npy'));
     
             templateFeatures = zeros([nTemplates nTemplateFeatures], 'single');
-            writeNPY(templateFeatures, fullfile(savePath, 'template_features.npy'));
+            Neuropixel.writeNPY(templateFeatures, fullfile(savePath, 'template_features.npy'));
             
             templateFeatureInds = zeros(nTemplates, nTemplateFeatures, 'uint32');
-            writeNPY(templateFeatureInds, fullfile(savePath, 'template_feature_ind.npy'));% -1 for zero indexing
+            Neuropixel.writeNPY(templateFeatureInds, fullfile(savePath, 'template_feature_ind.npy'));% -1 for zero indexing
             
             similarTemplates = zeros(nTemplates, nTemplates, 'single');
-            writeNPY(similarTemplates, fullfile(savePath, 'similar_templates.npy'));
+            Neuropixel.writeNPY(similarTemplates, fullfile(savePath, 'similar_templates.npy'));
             
             pcFeatures = zeros([nSpikes, nFeaturesPerChannel, nPCFeatures], 'single');
-            writeNPY(pcFeatures, fullfile(savePath, 'pc_features.npy'));
+            Neuropixel.writeNPY(pcFeatures, fullfile(savePath, 'pc_features.npy'));
             
             pcFeatureInds = zeros([nTemplates, nPCFeatures], 'uint32');
-            writeNPY(pcFeatureInds, fullfile(savePath, 'pc_feature_ind.npy'));% -1 for zero indexing
+            Neuropixel.writeNPY(pcFeatureInds, fullfile(savePath, 'pc_feature_ind.npy'));% -1 for zero indexing
     
             whiteningMatrix = ones(nCh, nCh, 'double');
-            writeNPY(whiteningMatrix, fullfile(savePath, 'whitening_mat.npy'));
+            Neuropixel.writeNPY(whiteningMatrix, fullfile(savePath, 'whitening_mat.npy'));
             whiteningMatrixInv = ones(nCh, nCh, 'double');
-            writeNPY(whiteningMatrixInv, fullfile(savePath, 'whitening_mat_inv.npy'));
+            Neuropixel.writeNPY(whiteningMatrixInv, fullfile(savePath, 'whitening_mat_inv.npy'));
             
             % write params.py
             fid = fopen(fullfile(savePath,'params.py'), 'w');
@@ -2302,12 +2310,12 @@ end
         end
 
         function apFiles = listAPFilesInDir(path)
-            info = cat(1, dir(fullfile(path, '*.imec.ap.bin')), dir(fullfile(path, '*.imec.ap_CAR.bin')));
+            info = cat(1, dir(fullfile(path, '*.ap.bin')), dir(fullfile(path, '*.ap_CAR.bin')));
             apFiles = {info.name}';
         end
 
         function lfFiles = listLFFilesInDir(path)
-            info = dir(fullfile(path, '*.imec.lf.bin'));
+            info = dir(fullfile(path, '*.lf.bin'));
             lfFiles = {info.name}';
         end
         
