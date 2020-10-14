@@ -289,6 +289,13 @@ Once you've written your tranform function (or functions), you can run them on t
                              'transformLF', {cell of function handles});
 ```
 
+Here, `outPath` should include the folder where the new datasets should be written. By default, the file stem (preceeding `.ap.bin`) will match the leaf directory in `outPath`, but this can be specified manually by passing a `stem` parameter:
+
+```matlab
+[imecOut] = imec.saveTransformedDataset('/path/to/datasets/', 'stem', 'modifiedDataset', ... )
+% creates /path/to/datasets/modifiedDataset.ap.bin, .ap.meta, etc.
+```
+
 You can provide one or more function handles (e.g. ```@Neuropixel.DataProcessFn.commonAverageReference```) that will be applied sequentially. Other optional parameters include:
 
 * `dryRun`: if true, no actual data will be modified on disk, facilitating testing or step by step debugging of the transform functions before writing data. (default false)
@@ -302,6 +309,9 @@ You can provide one or more function handles (e.g. ```@Neuropixel.DataProcessFn.
 * `chunkSize`: specify the number of time samples sent to transform functions at once
 * `extraMeta`: a struct with extra meta fields to include or overwrite with the output file
 * `timeShifts`: a `Neuropixel.TimeShiftSpec` instance used to excise time windows, see [excising time windows](#excising-time-windows)
+
+!!! warning "Save transformed data to a new folder!"
+    Ensure that `outPath` refers to separate directory so that you make a copy of the dataset rather than writing over the same location. An error will be thrown if any existing files would be overwritten by this call.
 
 ### Modifying a dataset in place
 
@@ -323,21 +333,7 @@ imecOut = Neuropixel.ImecDataset.writeConcatenatedFileMatchGains(outPath, imecLi
         'transformLF', {cell of function handles}, ...);
 ```
 
-### Excising time windows
-
-Occasionally it can be beneficial to remove certain time windows from a file, or to omit them while plotting data. This may be accomplished using `Neuropixel.TimeShiftSpec` instances to indicate which windows of time to keep and how to shift them so as to remove gaps. A `TimeShiftSpec` specifies a list of sample intervals bounded by a start and stop index in properties `idxStart` and `idxStop`. The start index in `idxStart` will be shifted to lie at sample index `idxShiftStart`. You can calculate these shifts directly, but it is typically easier to specify only the sample intervals you wish to keep and then construct the `TimeShiftSpec` using:
-
-```matlab
-timeShifts = Neuropixel.TimeShiftSpec.buildToExciseGaps(idxStartList, idxStopList);
-```
-
-If you have known trial boundaries in your file (see  for more information), you can also excise the regions of time far from trial boundaries using the `TrialSegmentationInfo` instance. I've found this to be useful to exclude time windows where the subject was asleep from further analysis.
-
-```matlab
-timeShifts = tsi.computeShiftsExciseRegionsOutsideTrials('maxPauseSec', 20);
-```
-
-### Making copies and symbolic links
+## Making copies and symbolic links
 
 You can generate a copy of a dataset using
 
@@ -352,3 +348,42 @@ imecLinked = imec.symLinkAPIntoDirectory(outPath);
 ```
 
 This is useful for running Kilosort with varying parameters, since each run would ideally live in its own directory but there's no need for a real copy of the raw data.
+
+### Excising time windows
+
+Occasionally it can be beneficial to remove certain time windows from a file, or to omit them while plotting data. This may be accomplished using `Neuropixel.TimeShiftSpec` instances to indicate which windows of time to keep and how to shift them so as to remove gaps. A `TimeShiftSpec` specifies a list of sample intervals bounded by a start and stop index in properties `idxStart` and `idxStop`. The start index in `idxStart` will be shifted to lie at sample index `idxShiftStart`. You can calculate these shifts directly, but it is typically easier to specify only the sample intervals you wish to keep and then construct the `TimeShiftSpec` using:
+
+```matlab
+timeShifts = Neuropixel.TimeShiftSpec.buildToExciseGaps(idxStartList, idxStopList);
+```
+
+If you have known trial boundaries in your file (see  for more information), you can also excise the regions of time far from trial boundaries using the `TrialSegmentationInfo` instance. I've found this to be useful to exclude time windows where the subject was asleep from further analysis.
+
+```matlab
+timeShifts = tsi.computeShiftsExciseRegionsOutsideTrials('maxPauseSec', 20);
+```
+
+You can then pass along this `Neuropixel.TimeShiftSpec` to any of the data transform functions. Depending on whether the `timeShifts` object was created in indices of `AP` band sample rate or `LF` band sample rate, you should pass it along as `timeShiftsAP` or `timeShiftsLF`. The conversion to the other sampling rate will be handled automtically so that the excision is performed on both datasets appropriately.
+
+```matlab
+imecOut = imec.saveTransformedDataset(outPath, 'timeShiftsAP', timeShifts, ... );
+```
+
+A cell array of `Neuropixel.TimeShiftSpec` instances can be provided when concatenating multiple files:
+
+```matlab 
+imecOut = Neuropixel.ImecDataset.writeConcatenatedFileMatchGains(outPath, imecList, ...
+        'timeShiftsAP', {timeShift1, timeShift2, ... }, ...);
+```
+
+### Referring to Source Datasets
+
+If helpful, when loading a derived `ImecDataset`, you can specify the `sourceDatasets` parameter to provide an array of `ImecDataset` instances corresponding to the original, pre-processed source datasets. Here, this would be the set of raw datasets provided as the `imecList` argument above. For certain methods, you can then pass parameter `fromSourceDatasets`, true and the corresponding window of time from the source datasets will be plotted instead of the processed data. This will automaticaly handle any time shifts and excisions performed; consequently it is helpful for debugging processing pipelines to see the before and after data.
+
+```matlab 
+imecProcessed = Neuropixel.ImecDataset.writeConcatenatedFileMatchGains(outPath, imecList, ... );
+
+imecProcessed = Neuropixel.ImecDataset(outPath, 'sourceDatasets', {imecRaw1, imecRaw2});
+imecProcessed.inspectAP_timeWindow([1 2], 'fromSourceDatasets', true);
+```
+
