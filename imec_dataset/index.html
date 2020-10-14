@@ -356,6 +356,19 @@
   
 </li>
         
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#making-copies-and-symbolic-links" class="md-nav__link">
+    Making copies and symbolic links
+  </a>
+  
+    <nav class="md-nav" aria-label="Making copies and symbolic links">
+      <ul class="md-nav__list">
+        
           <li class="md-nav__item">
   <a href="#excising-time-windows" class="md-nav__link">
     Excising time windows
@@ -364,8 +377,8 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#making-copies-and-symbolic-links" class="md-nav__link">
-    Making copies and symbolic links
+  <a href="#referring-to-source-datasets" class="md-nav__link">
+    Referring to Source Datasets
   </a>
   
 </li>
@@ -577,6 +590,19 @@
   
 </li>
         
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#making-copies-and-symbolic-links" class="md-nav__link">
+    Making copies and symbolic links
+  </a>
+  
+    <nav class="md-nav" aria-label="Making copies and symbolic links">
+      <ul class="md-nav__list">
+        
           <li class="md-nav__item">
   <a href="#excising-time-windows" class="md-nav__link">
     Excising time windows
@@ -585,8 +611,8 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#making-copies-and-symbolic-links" class="md-nav__link">
-    Making copies and symbolic links
+  <a href="#referring-to-source-datasets" class="md-nav__link">
+    Referring to Source Datasets
   </a>
   
 </li>
@@ -821,6 +847,10 @@
 <div class="highlight"><pre><span></span><code><span class="p">[</span><span class="n">imecOut</span><span class="p">]</span> <span class="p">=</span> <span class="n">imec</span><span class="p">.</span><span class="n">saveTransformedDataset</span><span class="p">(</span><span class="n">outPath</span><span class="p">,</span> <span class="s">&#39;transformAP&#39;</span><span class="p">,</span> <span class="p">{</span><span class="n">cell</span> <span class="n">of</span> <span class="k">function</span> <span class="n">handles</span><span class="p">},</span> <span class="k">...</span>
                              <span class="s">&#39;transformLF&#39;</span><span class="p">,</span> <span class="p">{</span><span class="n">cell</span> <span class="n">of</span> <span class="k">function</span> <span class="n">handles</span><span class="p">});</span>
 </code></pre></div>
+<p>Here, <code>outPath</code> should include the folder where the new datasets should be written. By default, the file stem (preceeding <code>.ap.bin</code>) will match the leaf directory in <code>outPath</code>, but this can be specified manually by passing a <code>stem</code> parameter:</p>
+<div class="highlight"><pre><span></span><code><span class="p">[</span><span class="n">imecOut</span><span class="p">]</span> <span class="p">=</span> <span class="n">imec</span><span class="p">.</span><span class="n">saveTransformedDataset</span><span class="p">(</span><span class="s">&#39;/path/to/datasets/&#39;</span><span class="p">,</span> <span class="s">&#39;stem&#39;</span><span class="p">,</span> <span class="s">&#39;modifiedDataset&#39;</span><span class="p">,</span> <span class="k">...</span><span class="c"> )</span>
+<span class="c">% creates /path/to/datasets/modifiedDataset.ap.bin, .ap.meta, etc.</span>
+</code></pre></div>
 <p>You can provide one or more function handles (e.g. <code>@Neuropixel.DataProcessFn.commonAverageReference</code>) that will be applied sequentially. Other optional parameters include:</p>
 <ul>
 <li><code>dryRun</code>: if true, no actual data will be modified on disk, facilitating testing or step by step debugging of the transform functions before writing data. (default false)</li>
@@ -835,6 +865,10 @@
 <li><code>extraMeta</code>: a struct with extra meta fields to include or overwrite with the output file</li>
 <li><code>timeShifts</code>: a <code>Neuropixel.TimeShiftSpec</code> instance used to excise time windows, see <a href="#excising-time-windows">excising time windows</a></li>
 </ul>
+<div class="admonition warning">
+<p class="admonition-title">Save transformed data to a new folder!</p>
+<p>Ensure that <code>outPath</code> refers to separate directory so that you make a copy of the dataset rather than writing over the same location. An error will be thrown if any existing files would be overwritten by this call.</p>
+</div>
 <h3 id="modifying-a-dataset-in-place">Modifying a dataset in place<a class="headerlink" href="#modifying-a-dataset-in-place" title="Permanent link">&para;</a></h3>
 <p>Rather than generate a copy, you can also modify a file in place if you&rsquo;re short on disk space, but be careful, as there&rsquo;s no undo if anything goes wrong. The same additional parameters are accepted, and you may wish to test your code first by passing <code>'dryRun', true</code>.</p>
 <div class="highlight"><pre><span></span><code><span class="n">imec</span><span class="p">.</span><span class="n">modifyAPInPlace</span><span class="p">(</span><span class="n">outPath</span><span class="p">,</span> <span class="p">{</span><span class="n">cell</span> <span class="n">of</span> <span class="k">function</span> <span class="n">handles</span><span class="p">},</span> <span class="k">...</span><span class="c">);</span>
@@ -847,14 +881,7 @@
         <span class="s">&#39;transformAP&#39;</span><span class="p">,</span> <span class="p">{</span><span class="n">cell</span> <span class="n">of</span> <span class="k">function</span> <span class="n">handles</span><span class="p">},</span> <span class="k">...</span>
         <span class="s">&#39;transformLF&#39;</span><span class="p">,</span> <span class="p">{</span><span class="n">cell</span> <span class="n">of</span> <span class="k">function</span> <span class="n">handles</span><span class="p">},</span> <span class="k">...</span><span class="c">);</span>
 </code></pre></div>
-<h3 id="excising-time-windows">Excising time windows<a class="headerlink" href="#excising-time-windows" title="Permanent link">&para;</a></h3>
-<p>Occasionally it can be beneficial to remove certain time windows from a file, or to omit them while plotting data. This may be accomplished using <code>Neuropixel.TimeShiftSpec</code> instances to indicate which windows of time to keep and how to shift them so as to remove gaps. A <code>TimeShiftSpec</code> specifies a list of sample intervals bounded by a start and stop index in properties <code>idxStart</code> and <code>idxStop</code>. The start index in <code>idxStart</code> will be shifted to lie at sample index <code>idxShiftStart</code>. You can calculate these shifts directly, but it is typically easier to specify only the sample intervals you wish to keep and then construct the <code>TimeShiftSpec</code> using:</p>
-<div class="highlight"><pre><span></span><code><span class="n">timeShifts</span> <span class="p">=</span> <span class="n">Neuropixel</span><span class="p">.</span><span class="n">TimeShiftSpec</span><span class="p">.</span><span class="n">buildToExciseGaps</span><span class="p">(</span><span class="n">idxStartList</span><span class="p">,</span> <span class="n">idxStopList</span><span class="p">);</span>
-</code></pre></div>
-<p>If you have known trial boundaries in your file (see  for more information), you can also excise the regions of time far from trial boundaries using the <code>TrialSegmentationInfo</code> instance. I&rsquo;ve found this to be useful to exclude time windows where the subject was asleep from further analysis.</p>
-<div class="highlight"><pre><span></span><code><span class="n">timeShifts</span> <span class="p">=</span> <span class="n">tsi</span><span class="p">.</span><span class="n">computeShiftsExciseRegionsOutsideTrials</span><span class="p">(</span><span class="s">&#39;maxPauseSec&#39;</span><span class="p">,</span> <span class="mi">20</span><span class="p">);</span>
-</code></pre></div>
-<h3 id="making-copies-and-symbolic-links">Making copies and symbolic links<a class="headerlink" href="#making-copies-and-symbolic-links" title="Permanent link">&para;</a></h3>
+<h2 id="making-copies-and-symbolic-links">Making copies and symbolic links<a class="headerlink" href="#making-copies-and-symbolic-links" title="Permanent link">&para;</a></h2>
 <p>You can generate a copy of a dataset using</p>
 <div class="highlight"><pre><span></span><code><span class="p">[</span><span class="n">imecOut</span><span class="p">]</span> <span class="p">=</span> <span class="n">imec</span><span class="p">.</span><span class="n">saveTransformedDataset</span><span class="p">(</span><span class="n">outPath</span><span class="p">,</span> <span class="s">&#39;writeAP&#39;</span><span class="p">,</span> <span class="nb">true</span><span class="p">,</span> <span class="s">&#39;writeLF&#39;</span><span class="p">,</span> <span class="nb">true</span><span class="p">);</span>
 </code></pre></div>
@@ -862,6 +889,27 @@
 <div class="highlight"><pre><span></span><code><span class="n">imecLinked</span> <span class="p">=</span> <span class="n">imec</span><span class="p">.</span><span class="n">symLinkAPIntoDirectory</span><span class="p">(</span><span class="n">outPath</span><span class="p">);</span>
 </code></pre></div>
 <p>This is useful for running Kilosort with varying parameters, since each run would ideally live in its own directory but there&rsquo;s no need for a real copy of the raw data.</p>
+<h3 id="excising-time-windows">Excising time windows<a class="headerlink" href="#excising-time-windows" title="Permanent link">&para;</a></h3>
+<p>Occasionally it can be beneficial to remove certain time windows from a file, or to omit them while plotting data. This may be accomplished using <code>Neuropixel.TimeShiftSpec</code> instances to indicate which windows of time to keep and how to shift them so as to remove gaps. A <code>TimeShiftSpec</code> specifies a list of sample intervals bounded by a start and stop index in properties <code>idxStart</code> and <code>idxStop</code>. The start index in <code>idxStart</code> will be shifted to lie at sample index <code>idxShiftStart</code>. You can calculate these shifts directly, but it is typically easier to specify only the sample intervals you wish to keep and then construct the <code>TimeShiftSpec</code> using:</p>
+<div class="highlight"><pre><span></span><code><span class="n">timeShifts</span> <span class="p">=</span> <span class="n">Neuropixel</span><span class="p">.</span><span class="n">TimeShiftSpec</span><span class="p">.</span><span class="n">buildToExciseGaps</span><span class="p">(</span><span class="n">idxStartList</span><span class="p">,</span> <span class="n">idxStopList</span><span class="p">);</span>
+</code></pre></div>
+<p>If you have known trial boundaries in your file (see  for more information), you can also excise the regions of time far from trial boundaries using the <code>TrialSegmentationInfo</code> instance. I&rsquo;ve found this to be useful to exclude time windows where the subject was asleep from further analysis.</p>
+<div class="highlight"><pre><span></span><code><span class="n">timeShifts</span> <span class="p">=</span> <span class="n">tsi</span><span class="p">.</span><span class="n">computeShiftsExciseRegionsOutsideTrials</span><span class="p">(</span><span class="s">&#39;maxPauseSec&#39;</span><span class="p">,</span> <span class="mi">20</span><span class="p">);</span>
+</code></pre></div>
+<p>You can then pass along this <code>Neuropixel.TimeShiftSpec</code> to any of the data transform functions. Depending on whether the <code>timeShifts</code> object was created in indices of <code>AP</code> band sample rate or <code>LF</code> band sample rate, you should pass it along as <code>timeShiftsAP</code> or <code>timeShiftsLF</code>. The conversion to the other sampling rate will be handled automtically so that the excision is performed on both datasets appropriately.</p>
+<div class="highlight"><pre><span></span><code><span class="n">imecOut</span> <span class="p">=</span> <span class="n">imec</span><span class="p">.</span><span class="n">saveTransformedDataset</span><span class="p">(</span><span class="n">outPath</span><span class="p">,</span> <span class="s">&#39;timeShiftsAP&#39;</span><span class="p">,</span> <span class="n">timeShifts</span><span class="p">,</span> <span class="k">...</span><span class="c"> );</span>
+</code></pre></div>
+<p>A cell array of <code>Neuropixel.TimeShiftSpec</code> instances can be provided when concatenating multiple files:</p>
+<div class="highlight"><pre><span></span><code><span class="n">imecOut</span> <span class="p">=</span> <span class="n">Neuropixel</span><span class="p">.</span><span class="n">ImecDataset</span><span class="p">.</span><span class="n">writeConcatenatedFileMatchGains</span><span class="p">(</span><span class="n">outPath</span><span class="p">,</span> <span class="n">imecList</span><span class="p">,</span> <span class="k">...</span>
+        <span class="s">&#39;timeShiftsAP&#39;</span><span class="p">,</span> <span class="p">{</span><span class="n">timeShift1</span><span class="p">,</span> <span class="n">timeShift2</span><span class="p">,</span> <span class="k">...</span><span class="c"> }, ...);</span>
+</code></pre></div>
+<h3 id="referring-to-source-datasets">Referring to Source Datasets<a class="headerlink" href="#referring-to-source-datasets" title="Permanent link">&para;</a></h3>
+<p>If helpful, when loading a derived <code>ImecDataset</code>, you can specify the <code>sourceDatasets</code> parameter to provide an array of <code>ImecDataset</code> instances corresponding to the original, pre-processed source datasets. Here, this would be the set of raw datasets provided as the <code>imecList</code> argument above. For certain methods, you can then pass parameter <code>fromSourceDatasets</code>, true and the corresponding window of time from the source datasets will be plotted instead of the processed data. This will automaticaly handle any time shifts and excisions performed; consequently it is helpful for debugging processing pipelines to see the before and after data.</p>
+<div class="highlight"><pre><span></span><code><span class="n">imecProcessed</span> <span class="p">=</span> <span class="n">Neuropixel</span><span class="p">.</span><span class="n">ImecDataset</span><span class="p">.</span><span class="n">writeConcatenatedFileMatchGains</span><span class="p">(</span><span class="n">outPath</span><span class="p">,</span> <span class="n">imecList</span><span class="p">,</span> <span class="k">...</span><span class="c"> );</span>
+
+<span class="n">imecProcessed</span> <span class="p">=</span> <span class="n">Neuropixel</span><span class="p">.</span><span class="n">ImecDataset</span><span class="p">(</span><span class="n">outPath</span><span class="p">,</span> <span class="s">&#39;sourceDatasets&#39;</span><span class="p">,</span> <span class="p">{</span><span class="n">imecRaw1</span><span class="p">,</span> <span class="n">imecRaw2</span><span class="p">});</span>
+<span class="n">imecProcessed</span><span class="p">.</span><span class="n">inspectAP_timeWindow</span><span class="p">([</span><span class="mi">1</span> <span class="mi">2</span><span class="p">],</span> <span class="s">&#39;fromSourceDatasets&#39;</span><span class="p">,</span> <span class="nb">true</span><span class="p">);</span>
+</code></pre></div>
                 
               
               
