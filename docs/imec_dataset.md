@@ -285,7 +285,7 @@ Essentially, your transform function can perform any modifications to the data m
 Once you've written your tranform function (or functions), you can run them on the dataset using:
 
 ```matlab
-[imecOut] = imec.saveTranformedDataset(outPath, 'transformAP', {cell of function handles}, ...
+[imecOut] = imec.saveTransformedDataset(outPath, 'transformAP', {cell of function handles}, ...
                              'transformLF', {cell of function handles});
 ```
 
@@ -342,7 +342,7 @@ timeShifts = tsi.computeShiftsExciseRegionsOutsideTrials('maxPauseSec', 20);
 You can generate a copy of a dataset using
 
 ```matlab
-[imecOut] = imec.saveTranformedDataset(outPath, 'writeAP', true, 'writeLF', true);
+[imecOut] = imec.saveTransformedDataset(outPath, 'writeAP', true, 'writeLF', true);
 ```
 
 Alternatively, you can create symbolic links to the AP bin and meta files in a new location using:

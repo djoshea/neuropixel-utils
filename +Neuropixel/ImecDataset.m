@@ -1752,7 +1752,7 @@ end
             imecSym = Neuropixel.ImecDataset(newAPPath, 'channelMap', imec.channelMapFile);
         end
         
-        function imecOut = saveTranformedDataset(imec, outPath, varargin)
+        function imecOut = saveTransformedDataset(imec, outPath, varargin)
             p = inputParser();
             p.addParameter('transformAP', {}, @(x) iscell(x) || isa(x, 'function_handle')); % list of transformation functions that accept (imec, dataChunk) and return dataChunk someplace
             p.addParameter('transformLF', {}, @(x) iscell(x) || isa(x, 'function_handle')); % list of transformation functions that accept (imec, dataChunk) and return dataChunk someplace
