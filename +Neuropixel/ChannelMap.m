@@ -50,7 +50,7 @@ classdef ChannelMap
                 return;
             elseif isstruct(spec)
                 map = Neuropixel.ChannelMap.fromMeta(spec);
-            elseif isstring(spec)
+            elseif ischar(spec) || isstring(spec)
                 if exist(spec, 'file') == 2
                     map = Neuropixel.ChannelMap.fromMatFile(spec);
                 else
