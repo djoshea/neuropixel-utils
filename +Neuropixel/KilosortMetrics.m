@@ -2187,6 +2187,7 @@ classdef KilosortMetrics < handle
             p.addParameter('useAutoAxis', false, @islogical);
             p.addParameter('LineWidth', 1, @isscalar);
             p.addParameter('recordingSitesMarkerSize', 5, @isscalar);
+            p.addParameter('recordingSitesColor', [0.5 0.5 0.5], @(x) true);
             p.parse(varargin{:});
             
             cluster_ids = p.Results.cluster_ids;
@@ -2220,10 +2221,10 @@ classdef KilosortMetrics < handle
             
             % plot recording sites
             if p.Results.plotRecordingSites
-                m.plotRecordingSites('color', [0.5 0.5 0.5], 'markerSize', p.Results.recordingSitesMarkerSize);
+                m.plotRecordingSites('color', p.Results.recordingSitesColor, 'markerSize', p.Results.recordingSitesMarkerSize);
             end
             ax = gca;
-            ax.Color = [0.92 0.92 0.95];
+            %ax.Color = [0.92 0.92 0.95];
             ax.TickDir = 'out';
             ax.YDir = 'normal';
             
