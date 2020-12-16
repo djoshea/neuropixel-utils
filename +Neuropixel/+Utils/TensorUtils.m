@@ -851,7 +851,7 @@ classdef TensorUtils
                 % accumarray won't return a cell if it never evaluates the function handle
                 out = repmat({zeros(szInnerArgs{:}, 'like', t)}, outSz);
             else
-                out = accumarray(subsSorted, t(subSortIdx), outSz, @(x) {x}, zeros(0, 1, 'like', t));
+                out = accumarray(subsSorted, t(subSortIdx), outSz, @(x) {x}, {zeros(0, 1, 'like', t)});
                 % reshape out{:} back to tensors 
                 out = cellfun(@(x) reshape(x, szInnerArgs{:}), out, 'UniformOutput', false);
             end
