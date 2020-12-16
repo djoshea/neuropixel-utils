@@ -60,6 +60,8 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
 
         nBatches
         nSpikesCutoff
+        
+        isLoadedAll
     end
 
     properties(Constant)
@@ -679,6 +681,10 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
             if isfield(params, 'scale_to_uv')
                 ks.apScaleToUv = params.scale_to_uv;
             end
+        end
+        
+        function tf = get.isLoadedAll(ks)
+            tf = ks.isLoadedBatchwise && ks.isLoadedFeatures && ks.isLoadedCutoff && ks.isLoadedPreSplit;
         end
 
         function load(ks, varargin)
