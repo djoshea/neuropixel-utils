@@ -1,10 +1,11 @@
-classdef KilosortPartialResort < handle
+classdef KilosortPartialResort < handle & matlab.mixin.Copyable
 
     properties(Transient)
         ks  % Neuropixel.KilosortDataset
     end
     
     properties
+        cluster_ids % stored from ks
         fsAP % stored from ks
         sort_windows (:, 2) uint64 % nWindows x 2 list of start, stop samples which were actually resorted
         
@@ -50,6 +51,7 @@ classdef KilosortPartialResort < handle
     end
     
     properties(Dependent)
+        hasFeaturesLoaded
         nSpikes
         nSpikesCutoff
         nSortWindows
@@ -78,6 +80,10 @@ classdef KilosortPartialResort < handle
             n = sum(durations);
         end
         
+        function tf = get.hasFeaturesLoaded(kspr)
+            tf = ~isempty(kspr.pc_features);
+        end
+        
         function splice_into_ks(kspr, ks)
             assert(isa(ks, 'Neuropixel.KilosortDataset'));
             
@@ -96,18 +102,28 @@ classdef KilosortPartialResort < handle
             ks.sort_spikes();
         end
         
-        function [spike_idx_segmented, cutoff_spike_idx_segmented] = segment_into_windows_clusters(kspr, cluster_ids)
+        function [spike_idx_segmented, cutoff_spike_idx_segmented] = segment_into_windows_clusters(kspr, varargin)
             % used mostly for evaluating the response, quickly segments spike times into sort_windows and cluster_ids
             % spike_idx_segmented is a nSortWindows x nClusters 
+            p = inputParser();
+            p.addParameter('cluster_ids', kspr.cluster_ids, @isvector);
+            p.addParameter('elide_padding', [0 0], @isvector); % in samples
+            p.parse(varargin{:});
+            
+            cluster_ids = p.Results.cluster_ids;
+            elide_padding = p.Results.elide_padding;
             
             windows = kspr.sort_windows;
-            nWindows = size(windows, 1);
-            nClusters = numel(cluster_ids);
+            windows(:, 1) = windows(:, 1) + elide_padding(1);
+            windows(:, 2) = windows(:, 2) - elide_padding(2);
             
             spike_idx_segmented = do_segment(kspr.spike_times, kspr.spike_clusters);
             cutoff_spike_idx_segmented = do_segment(kspr.cutoff_spike_times, kspr.cutoff_spike_clusters);
             
             function idx_segmented = do_segment(times, clusters)
+                nWindows = size(windows, 1);
+                nClusters = numel(cluster_ids);
+                
                 idx = (1:numel(times))';
                 [mask_in_cluster, cluster_ind] = ismember(clusters, cluster_ids);
                 window_ind = Neuropixel.Utils.discretize_windows(times, windows);
@@ -116,6 +132,66 @@ classdef KilosortPartialResort < handle
                 mask = mask_in_cluster & mask_in_window;
                 subs = [window_ind(mask), cluster_ind(mask)];
                 idx_segmented = Neuropixel.Utils.TensorUtils.splitAlongDimensionBySubscripts(idx(mask), 1, [nWindows, nClusters], subs);
+            end
+        end
+        
+        function [spike_time_segmented_rel, cutoff_spike_time_segmented_rel] = segment_align_into_windows_clusters(kspr, varargin)
+            % spike_time_segmented_rel is nSortWindows x nClusters { nTimes } where each time is relative to (start of the sort window plus elide_padding(1)) 
+            % unless convert_to_ms is true, times are in samples, not ms
+            p = inputParser();
+            p.addParameter('sort_window_mask', true(kspr.nSortWindows, 1), @isvector);
+            p.addParameter('cluster_ids', kspr.cluster_ids, @isvector);
+            p.addParameter('elide_padding', [0 0], @isvector); % in samples
+            p.addParameter('convert_to_ms', false, @islogical);
+            p.addParameter('align_sample_offset', 0, @isscalar); % for alignment, treat window(:, 1) + align_sample_offset as time 0
+            p.parse(varargin{:});
+            
+            % used mostly for evaluating the response, quickly segments spike times into sort_windows and cluster_ids
+            % spike_idx_segmented is a nSortWindows x nClusters 
+            sort_window_mask = Neuropixel.Utils.TensorUtils.vectorIndicesToMask(p.Results.sort_window_mask, kspr.nSortWindows);
+            cluster_ids = p.Results.cluster_ids;
+            elide_padding = p.Results.elide_padding;
+            convert_to_ms = p.Results.convert_to_ms;
+            align_sample_offset = p.Results.align_sample_offset;
+            
+            windows = kspr.sort_windows(sort_window_mask, :);
+            windows(:, 1) = windows(:, 1) + elide_padding(1);
+            windows(:, 2) = windows(:, 2) - elide_padding(2);
+            
+            sample0 = int64(windows(:, 1) + align_sample_offset);
+            
+            nWindows = size(windows, 1);
+            nClusters = numel(cluster_ids);
+                
+            if nWindows == 0 || nClusters == 0
+                [spike_time_segmented_rel, cutoff_spike_time_segmented_rel] = deal(cell(nWindows, nClusters));
+                return;
+            end
+            
+            spike_time_segmented_rel = do_segment(kspr.spike_times, kspr.spike_clusters);
+            cutoff_spike_time_segmented_rel = do_segment(kspr.cutoff_spike_times, kspr.cutoff_spike_clusters);
+            
+            function time_seg_rel = do_segment(times, clusters)
+                if isempty(times)
+                    time_seg_rel = cell(nWindows, nClusters);
+                    time_seg_rel(:) = {zeros(0, 1, 'like', times)};
+                    return;
+                end
+            
+                [mask_in_cluster, cluster_ind] = ismember(clusters, cluster_ids);
+                window_ind = Neuropixel.Utils.discretize_windows(times, windows);
+                mask_in_window = ~isnan(window_ind);
+                
+                times_rel = int64(times);
+                times_rel(mask_in_window) = times_rel(mask_in_window) - sample0(window_ind(mask_in_window));
+                
+                if convert_to_ms
+                    times_rel = single(times_rel) ./ single(kspr.fsAP / 1000);
+                end
+                
+                mask = mask_in_cluster & mask_in_window;
+                subs = [window_ind(mask), cluster_ind(mask)];
+                time_seg_rel = Neuropixel.Utils.TensorUtils.splitAlongDimensionBySubscripts(times_rel(mask), 1, [nWindows, nClusters], subs);
             end
         end
         
@@ -139,6 +215,207 @@ classdef KilosortPartialResort < handle
         end
     end
     
+    methods % post-sort modifications matching those in KilosortDataset
+        function accept_cutoff_spikes(kspr, ratings_or_cluster_ids)
+            if isempty(kspr.cutoff_spike_times)
+                return;
+            end
+            
+            if isa(ratings_or_cluster_ids, 'Neuropixel.ClusterRatingInfo')
+                cluster_ids = ratings_or_cluster_ids.cluster_ids(ratings_or_cluster_ids.includeCutoffSpikes); %#ok<*PROPLC>
+            elseif islogical(ratings_or_cluster_ids)
+                assert(numel(ratings_or_cluster_ids) == kspr.nClusters);
+                cluster_ids = kspr.cluster_ids(ratings_or_cluster_ids);
+            else
+                cluster_ids = ratings_or_cluster_ids;
+            end
+
+            accept_cutoff_mask = ismember(kspr.cutoff_spike_clusters, cluster_ids);
+            nCurrent = kspr.nSpikes;
+            nAccepted = nnz(accept_cutoff_mask);
+            nTotal = nAccepted + nCurrent;
+            [kspr.spike_times, sortIdx] = sort(cat(1, kspr.spike_times, kspr.cutoff_spike_times(accept_cutoff_mask)));
+            kspr.cutoff_spike_times = kspr.cutoff_spike_times(~accept_cutoff_mask);
+            [~, insertOrigAt] = ismember((1:nCurrent)', sortIdx);
+            [~, insertCutoffAt] = ismember((nCurrent+1:nTotal)', sortIdx);
+
+            function [combined, cutoff] = combineAndSort(orig, cutoff)
+                sz = size(orig);
+                sz(1) = nTotal;
+                combined = zeros(sz, 'like', orig);
+                combined(insertOrigAt, :, :, :) = orig;
+                combined(insertCutoffAt, :, :, :) = cutoff(accept_cutoff_mask, :, :, :);
+                cutoff = cutoff(~accept_cutoff_mask, :, :, :);
+            end
+
+            [kspr.spike_templates, kspr.cutoff_spike_templates] = combineAndSort(kspr.spike_templates, kspr.cutoff_spike_templates);
+            [kspr.spike_templates_preSplit, kspr.cutoff_spike_templates_preSplit] = combineAndSort(kspr.spike_templates_preSplit, kspr.cutoff_spike_templates_preSplit);
+            [kspr.amplitudes, kspr.cutoff_amplitudes] = combineAndSort(kspr.amplitudes, kspr.cutoff_amplitudes);
+            [kspr.spike_clusters, kspr.cutoff_spike_clusters] = combineAndSort(kspr.spike_clusters, kspr.cutoff_spike_clusters);
+            if kspr.hasFeaturesLoaded
+                [kspr.pc_features, kspr.cutoff_pc_features] = combineAndSort(kspr.pc_features, kspr.cutoff_pc_features);
+                [kspr.template_features, kspr.cutoff_template_features] = combineAndSort(kspr.template_features, kspr.cutoff_template_features);
+            end
+        end
+        
+        function drop_cutoff_spikes(kspr)
+            kspr.cutoff_spike_times = [];
+            kspr.cutoff_spike_templates = [];
+            kspr.cutoff_spike_templates_preSplit = [];
+            kspr.cutoff_amplitudes = [];
+            kspr.cutoff_spike_clusters = [];
+            if kspr.hasFeaturesLoaded
+                kspr.cutoff_pc_features = [];
+                kspr.cutoff_template_features = [];
+            end
+        end
+        
+        function apply_cluster_merge(kspr, mergeInfo)
+            % apply the merges in clusterMergeInfo
+            assert(isa(mergeInfo, 'Neuropixel.ClusterMergeInfo'));
+
+            spike_clusters = kspr.spike_clusters;
+            cutoff_spike_clusters = kspr.cutoff_spike_clusters;
+            for iM = 1:mergeInfo.nMerges
+                spike_clusters = apply_single_merge(spike_clusters, mergeInfo.new_cluster_ids(iM), mergeInfo.merges{iM});
+                cutoff_spike_clusters = apply_single_merge(cutoff_spike_clusters, mergeInfo.new_cluster_ids(iM), mergeInfo.merges{iM});
+            end
+            kspr.spike_clusters = spike_clusters;
+            kspr.cutoff_spike_clusters = cutoff_spike_clusters;
+
+            function spike_clusters = apply_single_merge(spike_clusters, dst_cluster_id, src_cluster_ids)
+                mask_assign_to_dst = ismember(spike_clusters, src_cluster_ids);
+                spike_clusters(mask_assign_to_dst) = dst_cluster_id;
+            end
+        end
+        
+        function [clusterInds, cluster_ids] = lookup_clusterIds(kspr, cluster_ids)
+            if islogical(cluster_ids)
+                cluster_ids = kspr.cluster_ids(cluster_ids);
+             end
+            [tf, clusterInds] = ismember(cluster_ids, kspr.cluster_ids);
+            assert(all(tf, 'all'), 'Some cluster ids were not found in kspr.clusterids');
+        end
+        
+        function mask_clusters(kspr, cluster_ids)
+            [~, cluster_ids] = kspr.lookup_clusterIds(cluster_ids);
+
+            mask = ismember(kspr.spike_clusters, cluster_ids);
+            cutoff_mask = ismember(kspr.cutoff_spike_clusters, cluster_ids);
+            kspr.mask_spikes(mask, cutoff_mask);
+        end
+        
+        function mask_spikes(kspr, mask, mask_cutoff)
+            assert(islogical(mask) && numel(mask) == kspr.nSpikes);
+            assert(islogical(mask_cutoff) && numel(mask_cutoff) == kspr.nSpikesCutoff);
+
+            kspr.spike_times = kspr.spike_times(mask);
+            kspr.spike_templates = kspr.spike_templates(mask);
+            if ~isempty(kspr.spike_templates_preSplit)
+                kspr.spike_templates_preSplit = kspr.spike_templates_preSplit(mask);
+            end
+            kspr.amplitudes = kspr.amplitudes(mask);
+            kspr.spike_clusters = kspr.spike_clusters(mask);
+            
+            kspr.cutoff_spike_times = kspr.cutoff_spike_times(mask_cutoff);
+            kspr.cutoff_spike_templates = kspr.cutoff_spike_templates(mask_cutoff);
+            kspr.cutoff_spike_templates_preSplit = kspr.cutoff_spike_templates_preSplit(mask_cutoff);
+            kspr.cutoff_amplitudes = kspr.cutoff_amplitudes(mask_cutoff);
+            kspr.cutoff_spike_clusters = kspr.cutoff_spike_clusters(mask_cutoff);
+            
+            if kspr.hasFeaturesLoaded
+                kspr.pc_features = kspr.pc_features(mask, :, :);
+                kspr.template_features = kspr.template_features(mask, :);
+                kspr.cutoff_pc_features = kspr.cutoff_pc_features(mask_cutoff, :, :);
+                kspr.cutoff_template_features = kspr.cutoff_template_features(mask_cutoff, :);
+            end
+        end
+        
+        function cluster_ids_retained = apply_subgroup_cutoff_merges_selection(kspr, subgroup, cluster_rating_info, cluster_merge_info, varargin)
+            p = inputParser();
+            p.addParameter('ignore_cluster_ratings', false, @islogical); % used primarily for debugging, allowing this to be tested even when no cluster is rated
+            p.addParameter('ignore_cluster_merges', false, @islogical); % used primarily for debugging, allowing this to be tested even when no cluster is rated
+            p.addParameter('ignore_cutoff_spikes', false, @islogical); % used primarily for waveform extraction, only effective when ignore_cluster_ratings is false
+            p.addParameter('remove_duplicate_cluster_ids', [], @(x) isempty(x) || isvector(x));
+            p.addParameter('ratings_accept', ["good", "unstable"], @isstring)
+            p.addParameter('verbose', true, @islogical);
+            p.parse(varargin{:});
+            
+            ratings_accept = string(p.Results.ratings_accept);
+            ignore_cluster_ratings = p.Results.ignore_cluster_ratings;
+            ignore_cluster_merges = p.Results.ignore_cluster_merges;
+            ignore_cutoff_spikes = p.Results.ignore_cutoff_spikes;
+            remove_duplicate_cluster_ids = p.Results.remove_duplicate_cluster_ids;
+            verbose = p.Results.verbose;
+            assert(ignore_cluster_ratings || isa(cluster_rating_info, 'Neuropixel.ClusterRatingInfo'));
+            assert(ignore_cluster_merges || isa(cluster_merge_info, 'Neuropixel.ClusterMergeInfo'));
+            
+            if verbose
+                print = @(varargin) debug(varargin{:});
+            else
+                print = @(varargin) 1;
+            end
+            
+            if ~ignore_cluster_ratings && ~ignore_cutoff_spikes
+                % do post-hoc modifications to ks according to user ratings in cluster_rating_info'
+                % 1. accept cutoff spikes from selected units
+                print('Accepting cutoff spikes from %d / %d clusters\n', nnz(cluster_rating_info.includeCutoffSpikes), cluster_rating_info.nClusters);
+                kspr.accept_cutoff_spikes(cluster_rating_info);
+            end
+            kspr.drop_cutoff_spikes();
+            
+            if ~ignore_cluster_merges
+                % 2. apply merges
+                print('Performing %d cluster merges\n', cluster_merge_info.nMerges);
+                kspr.apply_cluster_merge(cluster_merge_info);
+                
+                if ~ignore_cluster_ratings
+                    % 3. apply the cluster merges to the ratings list, allowing it to pick the best rating for each cluster
+                    cluster_rating_info_merged = copy(cluster_rating_info);
+                    cluster_rating_info_merged.apply_cluster_merge(cluster_merge_info);
+                end
+            elseif ~ignore_cluster_ratings
+                cluster_rating_info_merged = cluster_rating_info;
+            end
+            
+            if ~isempty(remove_duplicate_cluster_ids)
+                print('Removing %d / %d clusters as detected duplicates\n', numel(remove_duplicate_cluster_ids), numel(kspr.cluster_ids));
+            else
+                remove_duplicate_cluster_ids = zeros(0, 1, 'uint32');
+            end
+            
+            if ~ignore_cluster_ratings
+                % 4. subselect units acceptable for this subgroup / these subgroups
+                if ~ignore_cluster_merges
+                    [num_clusters_unrated, num_clusters_postMerge] = cluster_rating_info.computeClusterUnratedCountAfterApplyingMerges(cluster_merge_info);
+                else
+                    num_clusters_unrated = cluster_rating_info.nClustersUnrated;
+                    num_clusters_postMerge = cluster_rating_info.nClusters;
+                end
+                if num_clusters_unrated > 0
+                    warning('%d / %d clusters post-merge are unrated in cluster_rating_info', num_clusters_unrated, num_clusters_postMerge);
+                end
+                
+                cluster_ids_retained = cluster_rating_info_merged.listClusterIdsUsableAcrossSubgroupsWithRating(subgroup, ratings_accept);
+                print('Subselecting %d/ %d %s clusters post-merge for subgroup %s\n', numel(cluster_ids_retained), num_clusters_postMerge, strjoin(ratings_accept, "+"), subgroup);
+                
+                % remove duplicates if requested
+                cluster_ids_retained = setdiff(cluster_ids_retained, remove_duplicate_cluster_ids);
+                
+                kspr.mask_clusters(cluster_ids_retained);
+                
+                cluster_rating_info_merged.lookupClusterRatings(cluster_ids_retained);
+            else
+                cluster_ids_retained = kspr.cluster_ids;
+                
+                % remove duplicates if requested
+                cluster_ids_retained = setdiff(cluster_ids_retained, remove_duplicate_cluster_ids);
+                
+                kspr.mask_clusters(cluster_ids_retained);
+            end
+        end
+    end
+    
     methods(Static)
         function kspr = construct_reextractSpikesWithFixedTemplates(ks, varargin)
             p = inputParser();
@@ -157,6 +434,7 @@ classdef KilosortPartialResort < handle
             kspr = Neuropixel.KilosortPartialResort();
             kspr.ks = ks;
             kspr.fsAP = ks.fsAP;
+            kspr.cluster_ids = ks.cluster_ids;
             
             data_replace = p.Results.data_replace;
             data_replace_windows = p.Results.data_replace_windows;

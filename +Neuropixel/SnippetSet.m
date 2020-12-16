@@ -339,9 +339,9 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
             else
                 nChannelsMaxPerCluster = min(nChannels, p.Results.maxChannelsPerCluster);
             end
-            handlesIndiv = cell(nChannels, nUniqueClusters);
-            handlesMean = gobjects(nChannels, nUniqueClusters);
-            handlesMedian = gobjects(nChannels, nUniqueClusters);
+            handlesIndiv = cell(nChannelsMaxPerCluster, nUniqueClusters);
+            handlesMean = gobjects(nChannelsMaxPerCluster, nUniqueClusters);
+            handlesMedian = gobjects(nChannelsMaxPerCluster, nUniqueClusters);
             channels_plotted = false(ss.channelMap.nChannels, 1);
             
             cmap = p.Results.colormap;
@@ -361,15 +361,21 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
                 this_snippet_mask_subset = ss.cluster_ids(maskSnippets) == this_cluster_id;
                 if isfinite(p.Results.maxPerCluster)
                     idxKeep = find(this_snippet_mask_subset, p.Results.maxPerCluster, 'first');
-                    this_snippet_mask_subset(idxKeep(end)+1:end) = false;
+                    if ~isempty(idxKeep)
+                        this_snippet_mask_subset(idxKeep(end)+1:end) = false;
+                    end
                 end
                 this_snippet_mask_full = maskSnippets;
                 this_snippet_mask_full(~this_snippet_mask_subset) = false;
                 
                 % assume that all snippets for this cluster use the same channels
+                if ~any(this_snippet_mask_full)
+                    continue;
+                end
                 this_channel_ids = ss.channel_ids_by_snippet(:, this_snippet_mask_full);
                 this_channel_ids = this_channel_ids(:, 1);
                 this_channel_ids = this_channel_ids(p.Results.maskChannels);
+                this_channel_ids = this_channel_ids(1:nChannelsMaxPerCluster);
                 
                 this_channel_inds = ss.channelMap.lookup_channelIds(this_channel_ids); % in channel map
                 xc = ss.channelMap.xcoords(this_channel_inds);
