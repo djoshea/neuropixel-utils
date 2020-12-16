@@ -17,16 +17,22 @@ function h = rugplot(ticks, varargin)
     p.addParameter('Color', [0 0.45 0.75], @isvector);
     p.addParameter('side', 'top', @ischar);
     p.addParameter('length', 0.01, @isscalar); % fraction of axis extents
+    p.addParameter('LineWidth', 0.5, @isscalar);
     p.addParameter('offset', 0, @isscalar); % fraction of axis extents, + mean away from center of axis
     p.addParameter('expand_limits', false, @islogical);
     p.addParameter('dataTipTemplateRows', [], @(x) isempty(x) || isa(x, 'matlab.graphics.datatip.DataTipTextRow'));
     p.parse(varargin{:});
     
+    if isempty(ticks)
+        h = gobjects(1,1);
+        return;
+    end
+    
     side = p.Results.side;
     ylfull = ylim;
     xlfull = xlim;  
     expand = p.Results.expand_limits;
-
+    
     switch side
         case {'top', 'bottom'}
             full = ylfull;
@@ -74,7 +80,7 @@ function h = rugplot(ticks, varargin)
     % convert many small lines to one line with NaNs in between
     X = cat(1, x, nan(1, size(x, 2)));
     Y = cat(1, y, nan(1, size(y, 2)));
-    h = plot(X(:), Y(:), '-', 'Color', p.Results.Color, 'LineWidth', 0.5);
+    h = plot(X(:), Y(:), '-', 'Color', p.Results.Color, 'LineWidth', p.Results.LineWidth);
     
     %h = plot(x, y, '-', 'Color', p.Results.Color, 'LineWidth', 0.5);
     
