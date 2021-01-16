@@ -33,3 +33,7 @@ And add it to your path in Matlab:
 ```matlab
 >> addpath('/path/to/neuropixel-utils')
 ```
+
+## Requirements
+
+Neuropixel Utils requires Matlab R2019b or later.
