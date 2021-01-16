@@ -42,7 +42,6 @@ With this functionality in place, it is very easy to extract raw waveforms from 
 
 By default, waveforms will be extracted for every channel on the probe, unless you request specific `channel_ids_by_cluster` as a `nClusters` x `nChannels` matrix, or specify `best_n_channels` which will pick the best channels separately for each cluster.
 
-
 ```matlab
 snippetSet = ks.getWaveformsFromRawData('cluster_ids', cluster_id, ...
     'num_waveforms', 50, 'best_n_channels', 20, 'car', true);
@@ -51,7 +50,7 @@ snippetSet.plotAtProbeLocations('alpha', 0.8);
 
 ![cluster_snippets](images/cluster_snippets.png "Cluster waveforms")
 
-As you can see, there are other waveforms in the background corrupting these extracted waveforms. We can use the other Kilkosort detected spike times and their respective templates to automatically clean these waveforms by subtracting the appropriate template at the appropriate times.
+As you can see, there are other waveforms in the background corrupting these extracted waveforms. We can use the other Kilosort detected spike times and their respective templates to automatically clean these waveforms by subtracting the appropriate template at the appropriate times.
 
 ```matlab
 snippetSet = ks.getWaveformsFromRawData('cluster_ids', cluster_id, ...
@@ -66,7 +65,7 @@ snippetSet.plotAtProbeLocations('alpha', 0.8);
 
 If you have already [segmented the data into trials](kilosort.md#segmenting-a-kilosort-dataset-into-trials), you might wish to extract these waveforms for specific trials or even specific time windows within a trial, e.g. to check for  behaviorally-triggered probe movement.
 
-For example, this will extract all spikes that occurred in the first 50 ms of each trial.
+For example, this will extract all spikes that occurred in the first 50 ms of each trial:
 
 ```matlab
 cluster_ind = seg.lookup_clusterIds(cluster_id);

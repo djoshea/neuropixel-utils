@@ -18,11 +18,13 @@ Neuropixel Utils was authored by [Daniel J O'Shea](http://djoshea.com) ([@djoshe
 ## Download and install
 
 To get started, clone the repo:
+
 ```bash
 git clone https://github.com/djoshea/neuropixel-utils.git
 ```
 
 And add it to your path in Matlab:
+
 ```matlab
 >> addpath('/path/to/neuropixel-utils')
 ```
@@ -250,6 +252,7 @@ KilosortMetrics with properties:
 % Plot a drift map, annotated with trial start markers
 >> metrics.plotDriftmap('tsi', tsi);
 ```
+
 ![driftmap](images/driftmap.png "Cluster driftmap")
 
 Note that the cluster structure looks distinct during a few time windows near the beginning and end of the recording, corresponding to regions when no trials were being performed (blue ticks near the bottom).
@@ -282,4 +285,5 @@ SnippetSet with properties:
 % Plot these waveforms at their physical coordinates on the neuropixel
 >> ss.plotAtProbeLocations()
 ```
+
 ![driftmap](images/waveforms_on_probe.png "Waveforms on probe")

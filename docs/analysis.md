@@ -1,4 +1,4 @@
-#  Analysis of Kilosort Results
+# Analysis of Kilosort Results
 
 ## Simple statistics
 
@@ -31,7 +31,8 @@ stats =
 
 ## KilosortMetrics
 
-More computed statistics can be computed on demand by calling
+More computed statistics can be computed on demand by calling:
+
 ```matlab
 metrics = ks.computeMetrics();
 ```
@@ -48,6 +49,7 @@ Many properties are computed for each cluster, for each template (as multiple te
 
   KilosortMetrics with properties:
 
+```
                            ks: [1×1 Neuropixel.KilosortDataset]
                       nSpikes: 8181228
               nChannelsSorted: 371
@@ -102,6 +104,7 @@ Many properties are computed for each cluster, for each template (as multiple te
 A drift map plots the spatial depth of all spikes over time as individual dots, where the dot color darkness increases for large amplitude spikes, allowing the eye to follow bands of spikes over time. The code for generating this plot was largely copied from the [Cortex lab spikes repo](https://github.com/cortex-lab/spikes) and modified to use the KilosortMetrics structure and add some additional metadata.
 
 You can plot a standard driftmap using:
+
 ```matlab
 metrics.plotDriftmap();
 ```
@@ -124,7 +127,7 @@ metrics.plotDriftmap('tsi', tsi);
 
 ![driftmap_tsi](images/driftmap_tsi.png "Driftmap")
 
-As you can see, the vertical bands where spiking activity looks very different from other timepoints occur when no trials were present. Indeed, these were time periods where the task was paused and the subject was asleep. We can mask out these regions to better assess drift over the time periods we're most concerned with:
+As you can see, the vertical bands where spiking activity look very different from other timepoints occur when no trials were present. Indeed, these were time periods where the task was paused and the subject was asleep. We can mask out these regions to better assess drift over the time periods we're most concerned with:
 
 ```matlab
 metrics.plotDriftmap('tsi', tsi, 'maskRegionsOutsideTrials', true);
@@ -200,6 +203,7 @@ metrics.plotClusterImage(cluster_id, 'ymag', 10, 'xmag', 2)
 ![cluster_image](images/cluster_image.png "Cluster image")
 
 Rather than plotting every channel, you can select the best N contiguous channels:
+
 ```matlab
 metrics.plotClusterImage(cluster_id, 'best_n_channels', 20);
 ```

@@ -1,6 +1,6 @@
 # Running Kilosort 1/2 and loading the results
 
-`KilosortDatset` is a wrapper around the output of Kilosort or Kilosort2, which will load the output files back into Matlab for further analysis. Most of these fields are explained in detail in the [Phy documentation](https://phy-contrib.readthedocs.io/en/latest/template-gui/) but we document them here for convenience.
+`KilosortDataset` is a wrapper around the output of Kilosort or Kilosort2, which will load the output files back into Matlab for further analysis. Most of these fields are explained in detail in the [Phy documentation](https://phy-contrib.readthedocs.io/en/latest/template-gui/) but we document them here for convenience.
 
 ## Running Kilosort
 
@@ -11,6 +11,7 @@ Neuropixel.runKilosort1(imec, ...);
 ```
 
 Or for Kilosort 2:
+
 ```matlab
 Neuropixel.runKilosort2(imec, ...);
 ```
@@ -31,9 +32,9 @@ ks = Neuropixel.KilosortDataset(pathToKilosortOutput();
 ks.load();
 ```
 
-The constructor will optionally take an 'imecDataset' parameter providing the `Neuropixel.ImecDataset' instance if there is no `.imec.ap.bin` file in the Kilosort directory, and a 'channelMap' parameter in case the default is not correct. The results can then be loaded using `ks.load()`.
+The constructor will optionally take an 'imecDataset' parameter providing the `Neuropixel.ImecDataset` instance if there is no `.imec.ap.bin` file in the Kilosort directory, and a 'channelMap' parameter in case the default is not correct. The results can then be loaded using `ks.load()`.
 
-The descriptions of each property can be found in the `+Neuropixel/KilosortDataset.m` code, copied here for convenience, originally described in the (Phy documentation)[https://phy-contrib.readthedocs.io/en/latest/template-gui/]:
+The descriptions of each property can be found in the `+Neuropixel/KilosortDataset.m` code, copied here for convenience, originally described in the [Phy documentation](https://phy-contrib.readthedocs.io/en/latest/template-gui/):
 
 ```matlab
 >> ks
@@ -114,7 +115,7 @@ similar_templates(:, :) single
 
 * `spike_times` - `[nSpikes]` uint64 vector giving the spike time of each spike in samples. To convert to seconds, divide by sample_rate from params.py.
 
-* `template_features` - `[nSpikes, nTempFeatures]` single matrix giving the magnitude of the projection of each spike onto nTempFeatures other features. Which other features is specified in template_feature_ind
+* `template_features` - `[nSpikes, nTempFeatures]` single matrix giving the magnitude of the projection of each spike onto nTempFeatures other features. Which other features is specified in template_feature_ind.
 
 * `template_feature_ind` - `[nTemplates, nTempFeatures]` uint32 matrix specifying which templateFeatures are included in the template_features matrix.
 

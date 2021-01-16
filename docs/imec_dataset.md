@@ -23,6 +23,7 @@ imec = Neuropixel.ImecDataset('/data/raw_datasets/neuropixel_01');
 ```
 
 You can also point at the parent directory as long as only one `.ap.bin` file is contained within.
+
 ```matlab
 imec = Neuropixel.ImecDataset('/data/raw_datasets/');
 ```
@@ -55,6 +56,7 @@ chanMap = Neuropixel.ChannelMap(mat_file_path);
 ```
 
 Then you can use this map for an ImecDataset using:
+
 ```matlab
 imec = Neuropixel.ImecDataset('channelMap', chanMap);
 imec = Neuropixel.ImecDataset('channelMap', mat_file_path);
@@ -62,7 +64,7 @@ imec = Neuropixel.ImecDataset('channelMap', mat_file_path);
 
 ## Exploring metadata
 
-When the ImecDatset is created, the metadata are loaded from the `.ap.meta` file. You can request the full metadata using
+When the ImecDataset is created, the metadata are loaded from the `.ap.meta` file. You can request the full metadata using
 
 ```matlab
 meta = imec.readAPMeta()
@@ -82,6 +84,7 @@ meta = imec.readAPMeta()
 ```
 
 The most commonly accessed metadata is stored in properties of the ImecDataset:
+
 ```matlab
 ImecDataset with properties:
 
@@ -155,7 +158,8 @@ idx = imec.lookupSyncBitByName("trialStart")
 ### Marking bad channels
 
 You can manually mark specific channels as bad using:
-```
+
+```matlab
 imec.markBadChannels(channelIds);
 ```
 
@@ -168,7 +172,8 @@ imec.markBadChannels(channelIds);
     ```
 
 One common task is marking channels as bad if their RMS voltage lies outside a reasonable range:
-```
+
+```matlab
 imec.markBadChannelsByRMS('rmsRange', [3 100]); % [low high] range of RMS in uV
 ```
 
@@ -183,6 +188,7 @@ imec.writeModifiedAPMeta();
 ```
 
 You can also append whatever fields you want to the meta file using the `extraMeta` parameter:
+
 ```matlab
 extraMeta.cleaned = true;
 extraMeta.cleaningAlgorithm = 'v1';
@@ -194,12 +200,14 @@ imec.writeModifiedAPMeta('extraMeta', extraMeta);
 ### Raw memory maps
 
 The most convenient way to access the data is to request a memory map:
+
 ```matlab
 mmap = imec.memmapAP_full();
 value = mmap.Data.x(ch_index, sample_index); % access a specific sample
 ```
 
-Equivalent functionality is available for LF files using `imec.memmapLF_full()'. If you wish to modify the underlying data file directly, you can also request a Writeable version of the memory map:
+Equivalent functionality is available for LF files using `imec.memmapLF_full()`. If you wish to modify the underlying data file directly, you can also request a Writeable version of the memory map:
+
 ```matlab
 mmap = imec.memmapAP_full('Writiable', true);
 mmap.Data.x(ch_index, sample_index) = new_value; % overwrite a specific sample
@@ -208,6 +216,7 @@ mmap.Data.x(ch_index, sample_index) = new_value; % overwrite a specific sample
 ### Reading specific time window
 
 You can also request a specific sample or time window directly:
+
 ```matlab
 idxWindow = [idxFirst idxLast];
 [data_partial, sampleIdx] = imec.readAP_idx(idxWindow);
@@ -231,7 +240,7 @@ There are additional optional parameters you can specify:
 * `syncBits` : which sync bits to plot individually, defaults to `imec.syncBitsNamed`
 * `gain`: global scaling factor, values larger then 1 will magnify the individual channels, defaults to 0.95
 * `car`: perform common average referencing before plotting, defaults to false
-` `downsample` : take every nth sample to speed up plotting, defaults to 1
+* `downsample` : take every nth sample to speed up plotting, defaults to 1
 
 Good channels are plotted in black, non-connected channels in blue, and bad channels in red. Sync bits are also shown in red and are not affected by the normalization gain.
 
@@ -247,12 +256,14 @@ trialStartBit = imec.readSyncBit("trialStart");
 ```
 
 Or a specific sample or time window using:
+
 ```matlab
 [sync_partial, sampleIdx] = imec.readSync_idx(idxWindow);
 [sync_partial, sampleIdx] = imec.readSync_timeWindow(timeWindow);
 ```
 
 You can also access the logical values of specific bits either by bit index or name using:
+
 ```matlab
 partial = imec.readSyncBits_idx(bits_or_names, idxWindow); %  nTime x nBits
 trialStart_partial = imec.readSyncBits_idx("trialStart", idxWindow); % nTime x 1
@@ -260,7 +271,7 @@ trialStart_partial = imec.readSyncBits_idx("trialStart", idxWindow); % nTime x 1
 
 ## Building a preprocessing pipeline
 
-If the raw `.imec.ap.bin` file must be propcessed in some way before running Kilosort, e.g. to remove artifacts, you can implement this efficiently by writing a transformation function that will act on chunks of the data. One example is found in `Neuropixel.DataProcessFn.commonAverageReference`:
+If the raw `.imec.ap.bin` file must be processed in some way before running Kilosort, e.g. to remove artifacts, you can implement this efficiently by writing a transformation function that will act on chunks of the data. One example is found in `Neuropixel.DataProcessFn.commonAverageReference`:
 
 ```matlab
 function [data, extra] = commonAverageReference(imec, data, chIds, sampleIdx) %#ok<INUSD>
@@ -282,7 +293,7 @@ Essentially, your transform function can perform any modifications to the data m
 
 ### Modifying a dataset during copy to new location
 
-Once you've written your tranform function (or functions), you can run them on the dataset using:
+Once you've written your transform function (or functions), you can run them on the dataset using:
 
 ```matlab
 [imecOut] = imec.saveTransformedDataset(outPath, 'transformAP', {cell of function handles}, ...
@@ -335,7 +346,7 @@ imecOut = Neuropixel.ImecDataset.writeConcatenatedFileMatchGains(outPath, imecLi
 
 ## Making copies and symbolic links
 
-You can generate a copy of a dataset using
+You can generate a copy of a dataset using:
 
 ```matlab
 [imecOut] = imec.saveTransformedDataset(outPath, 'writeAP', true, 'writeLF', true);
@@ -363,7 +374,7 @@ If you have known trial boundaries in your file (see [Segmenting a Kilosort data
 timeShifts = tsi.computeShiftsExciseRegionsOutsideTrials('maxPauseSec', 20);
 ```
 
-You can then pass along this `Neuropixel.TimeShiftSpec` to any of the data transform functions. Depending on whether the `timeShifts` object was created in indices of `AP` band sample rate or `LF` band sample rate, you should pass it along as `timeShiftsAP` or `timeShiftsLF`. The conversion to the other sampling rate will be handled automtically so that the excision is performed on both datasets appropriately.
+You can then pass along this `Neuropixel.TimeShiftSpec` to any of the data transform functions. Depending on whether the `timeShifts` object was created in indices of `AP` band sample rate or `LF` band sample rate, you should pass it along as `timeShiftsAP` or `timeShiftsLF`. The conversion to the other sampling rate will be handled automatically so that the excision is performed on both datasets appropriately.
 
 ```matlab
 imecOut = imec.saveTransformedDataset(outPath, 'timeShiftsAP', timeShifts, ... );
@@ -378,7 +389,7 @@ imecOut = Neuropixel.ImecDataset.writeConcatenatedFileMatchGains(outPath, imecLi
 
 ### Referring to Source Datasets
 
-If helpful, when loading a derived `ImecDataset`, you can specify the `sourceDatasets` parameter to provide an array of `ImecDataset` instances corresponding to the original, pre-processed source datasets. Here, this would be the set of raw datasets provided as the `imecList` argument above. For certain methods, you can then pass parameter `fromSourceDatasets`, true and the corresponding window of time from the source datasets will be plotted instead of the processed data. This will automaticaly handle any time shifts and excisions performed; consequently it is helpful for debugging processing pipelines to see the before and after data.
+If helpful, when loading a derived `ImecDataset`, you can specify the `sourceDatasets` parameter to provide an array of `ImecDataset` instances corresponding to the original, pre-processed source datasets. Here, this would be the set of raw datasets provided as the `imecList` argument above. For certain methods, you can then pass parameter `fromSourceDatasets`, true and the corresponding window of time from the source datasets will be plotted instead of the processed data. This will automatically handle any time shifts and excisions performed; consequently it is helpful for debugging processing pipelines to see the before and after data.
 
 ```matlab 
 imecProcessed = Neuropixel.ImecDataset.writeConcatenatedFileMatchGains(outPath, imecList, ... );
