@@ -1,10 +1,11 @@
 # neuropixel-utils
+
 [![View Neuropixel Utils on File Exchange](https://www.mathworks.com/matlabcentral/images/matlab-file-exchange.svg)](https://www.mathworks.com/matlabcentral/fileexchange/81238-neuropixel-utils)
 [![View Documentation](https://img.shields.io/badge/docs-latest-blue)](https://djoshea.github.io/neuropixel-utils/)
 
 Neuropixel Utils is a toolkit written in Matlab for manipulating datasets collected by [SpikeGLX](https://github.com/billkarsh/SpikeGLX) (e.g. `imec.ap.bin` files) and the results produced by [Kilosort](https://github.com/cortex-lab/KiloSort) / [Kilosort 2](https://github.com/MouseLand/Kilosort2/). Please note that some of this functionality is redundant with the tools found in the Cortex Lab's [spikes repository](https://github.com/cortex-lab/spikes), authored By Nick Steinmetz, Mush Okun, and others. Here, we prioritize an organized, easy to use, object-oriented approach to accessing, manipulating, and visualizing the data. This reduces the need to worry about metadata.
 
-See full documentation at https://djoshea.github.io/neuropixel-utils/.
+See full documentation at <https://djoshea.github.io/neuropixel-utils>.
 
 Neuropixel Utils facilitates the following data processing steps:
 
@@ -22,11 +23,13 @@ Neuropixel Utils was authored by [Daniel J O'Shea](http://djoshea.com) ([@djoshe
 ## Download and install
 
 To get started, clone the repo:
+
 ```bash
 git clone https://github.com/djoshea/neuropixel-utils.git
 ```
 
 And add it to your path in Matlab:
+
 ```matlab
 >> addpath('/path/to/neuropixel-utils')
 ```
