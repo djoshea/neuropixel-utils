@@ -357,7 +357,7 @@ Occasionally it can be beneficial to remove certain time windows from a file, or
 timeShifts = Neuropixel.TimeShiftSpec.buildToExciseGaps(idxStartList, idxStopList);
 ```
 
-If you have known trial boundaries in your file (see  for more information), you can also excise the regions of time far from trial boundaries using the `TrialSegmentationInfo` instance. I've found this to be useful to exclude time windows where the subject was asleep from further analysis.
+If you have known trial boundaries in your file (see [Segmenting a Kilosort dataset into trials](kilosort.md#segmenting-a-kilosort-dataset-into-trials) for more information), you can also excise the regions of time far from trial boundaries using the `TrialSegmentationInfo` instance. I've found this to be useful to exclude time windows where the subject was asleep from further analysis.
 
 ```matlab
 timeShifts = tsi.computeShiftsExciseRegionsOutsideTrials('maxPauseSec', 20);
