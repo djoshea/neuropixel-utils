@@ -1743,6 +1743,16 @@ classdef KilosortMetrics < handle
             [channelInds, channel_ids] = m.channelMap.lookup_channelIds(channel_ids);
         end
         
+        function cluster_templates = buildClusterTemplateScaled(m, varargin)
+            p = inputParser();
+            p.addParameter('cluster_ids', m.cluster_ids, @isvector);
+            p.parse(varargin{:});
+            
+            clusterInds = m.lookup_clusterIds(p.Results.cluster_ids);
+            templateInds = m.cluster_template_mostUsed(clusterInds);
+            cluster_templates = m.template_scaled(templateInds, :, :);
+        end
+        
         function plotClusterImage(m, cluster_ids, varargin)
             clusterInds = m.lookup_clusterIds(cluster_ids);
             templateLists = m.cluster_template_list(clusterInds);
