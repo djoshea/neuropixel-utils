@@ -96,7 +96,7 @@ function rezFull = runKilosort2(imec, varargin)
     rezToPhy(rez, ops.saveDir);
 
     fprintf('Kilosort2: Saving rez to rez.mat\n')
-    exportRezToMat(rez, fullfile(ops.saveDir, 'rez.mat'));
+    Neuropixel.exportRezToMat(rez, ops.saveDir);
 
 %     % mark templates that maybe should be split
 %     fprintf('Marking split candidates')
