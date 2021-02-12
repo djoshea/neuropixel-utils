@@ -2123,7 +2123,7 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
 %
             c_nearby_spike_inds = Neuropixel.Utils.simple_rangesearch(ks.spike_times, times, [minT maxT]);
 
-            prog = ProgressBar(nTimes, 'Reconstructing templates around snippet times');
+            prog = Neuropixel.Utils.ProgressBar(nTimes, 'Reconstructing templates around snippet times');
             for iT = 1:nTimes
                 t = int64(times(iT));
                 reconstruction_this = zeros(nChannelsSorted, numel(relTvec_snippet), 'single');
@@ -2383,7 +2383,7 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
             mask_dup = false(size(spikes));
             dup_from_template = zeros(size(spikes), 'like', templates);
             dup_from_cluster_ind = zeros(size(spikes), 'like', cluster_inds);
-            prog = ProgressBar(numel(spikes), 'Checking for duplicate spikes');
+            prog = Neuropixel.Utils.ProgressBar(numel(spikes), 'Checking for duplicate spikes');
             for iS = 1:numel(spikes)
                 if mask_dup(iS), continue, end
                 temp1 = templates(iS);
