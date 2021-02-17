@@ -2213,7 +2213,11 @@ classdef KilosortMetrics < handle
             colormap = p.Results.colormap;
             if isempty(colormap)
 %                 if numel(cluster_ids) < 20
-                    colormap = turbomap(numel(clusterInds));                 
+                if exist('turbo', 'file')
+                    colormap = turbo(numel(clusterInds));
+                else
+                    colormap = Neuropixel.Utils.turbomap(numel(clusterInds));
+                end
 %                     colormap = cbrewer('div', 'Spectral', numel(clusterInds));                 
 %                 % color by cluster amplitude
 %                 colormap = cmocean('haline', numel(clusterInds));
