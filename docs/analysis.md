@@ -179,7 +179,7 @@ metrics.plotDriftmap('tsi', tsi, 'exciseRegionsOutsideTrials', true, 'cluster_id
 To see the distribution of cluster waveforms over the probe:
 
 ```matlab
-metrics.plotClusterWaveformAtCenterOfMass()
+metrics.plotClusterWaveformAtCentroid()
 ```
 
 ![clustermap_com](images/cluster_com.png "Cluster center of mass")
