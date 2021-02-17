@@ -651,9 +651,9 @@
 <p>The common prefix can be shorter as long as there is no ambiguity:</p>
 <div class="highlight"><pre><span></span><code><span class="n">imec</span> <span class="p">=</span> <span class="n">Neuropixel</span><span class="p">.</span><span class="n">ImecDataset</span><span class="p">(</span><span class="s">&#39;/data/raw_datasets/neuropixel_01&#39;</span><span class="p">);</span>
 </code></pre></div>
-<p>You can also point at the parent directory as long as only one <code>.ap.bin</code> file is contained within.
+<p>You can also point at the parent directory as long as only one <code>.ap.bin</code> file is contained within.</p>
 <div class="highlight"><pre><span></span><code><span class="n">imec</span> <span class="p">=</span> <span class="n">Neuropixel</span><span class="p">.</span><span class="n">ImecDataset</span><span class="p">(</span><span class="s">&#39;/data/raw_datasets/&#39;</span><span class="p">);</span>
-</code></pre></div></p>
+</code></pre></div>
 <p>These are all equivalent, in that the resulting <code>imec</code> instance will wrap both AP and LF bin and meta files. (Though it&rsquo;s okay if the LF files are missing).</p>
 <h3 id="specifying-a-channel-map">Specifying a Channel Map<a class="headerlink" href="#specifying-a-channel-map" title="Permanent link">&para;</a></h3>
 <p>When constructing the ImecDataset, you can specify a channel map. If you don&rsquo;t specify one, the default will be returned by <code>Neuropixel.Utils.getDefaultChannelMapFile()</code>, which in turn will look for the file pointed to by the environment variables <code>'NEUROPIXEL_MAP_FILE'</code> or <code>'NPIX_MAP_FILE'</code>. You can set these using Matlab&rsquo;s <code>setenv</code> function.</p>
@@ -672,12 +672,12 @@
 <p>You can construct a ChannelMap directly by pointing at the <code>.mat</code> file, although every function within <code>neuropixel-utils</code> will also accept the filename and construct the <code>ChannelMap</code> for you:</p>
 <div class="highlight"><pre><span></span><code><span class="n">chanMap</span> <span class="p">=</span> <span class="n">Neuropixel</span><span class="p">.</span><span class="n">ChannelMap</span><span class="p">(</span><span class="n">mat_file_path</span><span class="p">);</span>
 </code></pre></div>
-<p>Then you can use this map for an ImecDataset using:
+<p>Then you can use this map for an ImecDataset using:</p>
 <div class="highlight"><pre><span></span><code><span class="n">imec</span> <span class="p">=</span> <span class="n">Neuropixel</span><span class="p">.</span><span class="n">ImecDataset</span><span class="p">(</span><span class="s">&#39;channelMap&#39;</span><span class="p">,</span> <span class="n">chanMap</span><span class="p">);</span>
 <span class="n">imec</span> <span class="p">=</span> <span class="n">Neuropixel</span><span class="p">.</span><span class="n">ImecDataset</span><span class="p">(</span><span class="s">&#39;channelMap&#39;</span><span class="p">,</span> <span class="n">mat_file_path</span><span class="p">);</span>
-</code></pre></div></p>
+</code></pre></div>
 <h2 id="exploring-metadata">Exploring metadata<a class="headerlink" href="#exploring-metadata" title="Permanent link">&para;</a></h2>
-<p>When the ImecDatset is created, the metadata are loaded from the <code>.ap.meta</code> file. You can request the full metadata using</p>
+<p>When the ImecDataset is created, the metadata are loaded from the <code>.ap.meta</code> file. You can request the full metadata using</p>
 <div class="highlight"><pre><span></span><code><span class="n">meta</span> <span class="p">=</span> <span class="n">imec</span><span class="p">.</span><span class="n">readAPMeta</span><span class="p">()</span>
 
   <span class="n">struct</span> <span class="s">with</span> <span class="s">fields:</span>
@@ -693,7 +693,7 @@
                 <span class="n">gateMode</span><span class="p">:</span> <span class="s">&#39;Immediate&#39;</span>
                     <span class="k">...</span>
 </code></pre></div>
-<p>The most commonly accessed metadata is stored in properties of the ImecDataset:
+<p>The most commonly accessed metadata is stored in properties of the ImecDataset:</p>
 <div class="highlight"><pre><span></span><code><span class="n">ImecDataset</span> <span class="s">with</span> <span class="s">properties:</span>
 
             <span class="n">pathRoot</span><span class="p">:</span> <span class="s">&#39;/data/neuropixel/raw_datasets&#39;</span> <span class="c">% parent directories</span>
@@ -747,7 +747,7 @@
      <span class="n">creationTimeStr</span><span class="p">:</span> <span class="s">&#39;08-Jun-2018 12:09:07&#39;</span>
          <span class="n">apScaleToUv</span><span class="p">:</span> <span class="mf">2.3438</span> <span class="c">% conversion factor. Multiply raw AP int16s by this to get uV</span>
          <span class="n">lfScaleToUv</span><span class="p">:</span> <span class="mf">2.3438</span> <span class="c">% conversion factor. Multiply raw LF int16s by this to get uV</span>
-</code></pre></div></p>
+</code></pre></div>
 <h3 id="setting-sync-bit-names">Setting sync bit names<a class="headerlink" href="#setting-sync-bit-names" title="Permanent link">&para;</a></h3>
 <p>For convenience, if you use the sync bits for individual TTL signals during your recordings, you can set their names for the recording so that subsequent processing can refer to the bits by name rather than index. You may also find it useful to store additional data in some sync bits during subsequent processing, such as marking regions of time where an artifact was detected, such that specifying the bit by name is useful. Bits are ordered like <code>bitget</code>, i.e. 1 is the least significant bit.</p>
 <div class="highlight"><pre><span></span><code><span class="n">imec</span><span class="p">.</span><span class="n">setSyncBitNames</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="s">&quot;trialStart&quot;</span><span class="p">)</span>
@@ -756,9 +756,9 @@
 <div class="highlight"><pre><span></span><code><span class="n">idx</span> <span class="p">=</span> <span class="n">imec</span><span class="p">.</span><span class="n">lookupSyncBitByName</span><span class="p">(</span><span class="s">&quot;trialStart&quot;</span><span class="p">)</span>
 </code></pre></div>
 <h3 id="marking-bad-channels">Marking bad channels<a class="headerlink" href="#marking-bad-channels" title="Permanent link">&para;</a></h3>
-<p>You can manually mark specific channels as bad using:
-<div class="highlight"><pre><span></span><code>imec.markBadChannels(channelIds);
-</code></pre></div></p>
+<p>You can manually mark specific channels as bad using:</p>
+<div class="highlight"><pre><span></span><code><span class="n">imec</span><span class="p">.</span><span class="n">markBadChannels</span><span class="p">(</span><span class="n">channelIds</span><span class="p">);</span>
+</code></pre></div>
 <div class="admonition warning">
 <p class="admonition-title">Use channel IDs, not indices</p>
 <p>Note that like all channel lists, <code>channelIds</code> is specified using the actual unique ids of each channel (as specified in the ChannelMap), which is not necessarily their index into the channel map if the channels are not contiguously numbered.</p>
@@ -766,37 +766,37 @@
 <div class="highlight"><pre><span></span><code><span class="p">[</span><span class="n">channelInds</span><span class="p">,</span> <span class="n">channelIds</span><span class="p">]</span> <span class="p">=</span> <span class="n">imec</span><span class="p">.</span><span class="n">lookup_channelIds</span><span class="p">(</span><span class="n">channelIds</span><span class="p">)</span>
 </code></pre></div></p>
 </div>
-<p>One common task is marking channels as bad if their RMS voltage lies outside a reasonable range:
-<div class="highlight"><pre><span></span><code>imec.markBadChannelsByRMS(&#39;rmsRange&#39;, [3 100]); % [low high] range of RMS in uV
-</code></pre></div></p>
+<p>One common task is marking channels as bad if their RMS voltage lies outside a reasonable range:</p>
+<div class="highlight"><pre><span></span><code><span class="n">imec</span><span class="p">.</span><span class="n">markBadChannelsByRMS</span><span class="p">(</span><span class="s">&#39;rmsRange&#39;</span><span class="p">,</span> <span class="p">[</span><span class="mi">3</span> <span class="mi">100</span><span class="p">]);</span> <span class="c">% [low high] range of RMS in uV</span>
+</code></pre></div>
 <p>The remaining &ldquo;good&rdquo; channel ids can always be accessed using <code>imec.goodChannels</code> which will be the set of connected channels excluding the bad channels.</p>
 <h3 id="writing-modified-metadata-back-to-disk">Writing modified metadata back to disk<a class="headerlink" href="#writing-modified-metadata-back-to-disk" title="Permanent link">&para;</a></h3>
 <p>After making any modifications to the metadata, such as setting the sync bit names or marking bad channels, you can write it back to disk (in the <code>.imec.ap.meta</code> file) such that it will be reloaded automatically the next time you create an ImecDataset instance for that file.</p>
 <div class="highlight"><pre><span></span><code><span class="n">imec</span><span class="p">.</span><span class="n">writeModifiedAPMeta</span><span class="p">();</span>
 </code></pre></div>
-<p>You can also append whatever fields you want to the meta file using the <code>extraMeta</code> parameter:
+<p>You can also append whatever fields you want to the meta file using the <code>extraMeta</code> parameter:</p>
 <div class="highlight"><pre><span></span><code><span class="n">extraMeta</span><span class="p">.</span><span class="n">cleaned</span> <span class="p">=</span> <span class="nb">true</span><span class="p">;</span>
 <span class="n">extraMeta</span><span class="p">.</span><span class="n">cleaningAlgorithm</span> <span class="p">=</span> <span class="s">&#39;v1&#39;</span><span class="p">;</span>
 <span class="n">imec</span><span class="p">.</span><span class="n">writeModifiedAPMeta</span><span class="p">(</span><span class="s">&#39;extraMeta&#39;</span><span class="p">,</span> <span class="n">extraMeta</span><span class="p">);</span>
-</code></pre></div></p>
+</code></pre></div>
 <h2 id="accessing-data">Accessing data<a class="headerlink" href="#accessing-data" title="Permanent link">&para;</a></h2>
 <h3 id="raw-memory-maps">Raw memory maps<a class="headerlink" href="#raw-memory-maps" title="Permanent link">&para;</a></h3>
-<p>The most convenient way to access the data is to request a memory map:
+<p>The most convenient way to access the data is to request a memory map:</p>
 <div class="highlight"><pre><span></span><code><span class="n">mmap</span> <span class="p">=</span> <span class="n">imec</span><span class="p">.</span><span class="n">memmapAP_full</span><span class="p">();</span>
 <span class="n">value</span> <span class="p">=</span> <span class="n">mmap</span><span class="p">.</span><span class="n">Data</span><span class="p">.</span><span class="n">x</span><span class="p">(</span><span class="n">ch_index</span><span class="p">,</span> <span class="n">sample_index</span><span class="p">);</span> <span class="c">% access a specific sample</span>
-</code></pre></div></p>
-<p>Equivalent functionality is available for LF files using `imec.memmapLF_full()&rsquo;. If you wish to modify the underlying data file directly, you can also request a Writeable version of the memory map:
+</code></pre></div>
+<p>Equivalent functionality is available for LF files using <code>imec.memmapLF_full()</code>. If you wish to modify the underlying data file directly, you can also request a Writeable version of the memory map:</p>
 <div class="highlight"><pre><span></span><code><span class="n">mmap</span> <span class="p">=</span> <span class="n">imec</span><span class="p">.</span><span class="n">memmapAP_full</span><span class="p">(</span><span class="s">&#39;Writiable&#39;</span><span class="p">,</span> <span class="nb">true</span><span class="p">);</span>
 <span class="n">mmap</span><span class="p">.</span><span class="n">Data</span><span class="p">.</span><span class="n">x</span><span class="p">(</span><span class="n">ch_index</span><span class="p">,</span> <span class="n">sample_index</span><span class="p">)</span> <span class="p">=</span> <span class="n">new_value</span><span class="p">;</span> <span class="c">% overwrite a specific sample</span>
-</code></pre></div></p>
+</code></pre></div>
 <h3 id="reading-specific-time-window">Reading specific time window<a class="headerlink" href="#reading-specific-time-window" title="Permanent link">&para;</a></h3>
-<p>You can also request a specific sample or time window directly:
+<p>You can also request a specific sample or time window directly:</p>
 <div class="highlight"><pre><span></span><code><span class="n">idxWindow</span> <span class="p">=</span> <span class="p">[</span><span class="n">idxFirst</span> <span class="n">idxLast</span><span class="p">];</span>
 <span class="p">[</span><span class="n">data_partial</span><span class="p">,</span> <span class="n">sampleIdx</span><span class="p">]</span> <span class="p">=</span> <span class="n">imec</span><span class="p">.</span><span class="n">readAP_idx</span><span class="p">(</span><span class="n">idxWindow</span><span class="p">);</span>
 
 <span class="n">timeWindow</span> <span class="p">=</span> <span class="p">[</span><span class="n">secStart</span><span class="p">,</span> <span class="n">secStop</span><span class="p">];</span> <span class="c">% in seconds</span>
 <span class="p">[</span><span class="n">data_partial</span><span class="p">,</span> <span class="n">sampleIdx</span><span class="p">]</span> <span class="p">=</span> <span class="n">imec</span><span class="p">.</span><span class="n">readAP_timeWindow</span><span class="p">(</span><span class="n">timeWindow</span><span class="p">);</span>
-</code></pre></div></p>
+</code></pre></div>
 <h3 id="plotting-specific-time-windows">Plotting specific time windows<a class="headerlink" href="#plotting-specific-time-windows" title="Permanent link">&para;</a></h3>
 <p>You can also quickly generate a stacked traces plot of a specific time window, optionally selecting which channels to plot. Take care to select a reasonable time window to avoid overwhelming your system. All channels are individually centered and then collectively normalized by the maximum value before plotting. You can change the global scaling factor by specifying <code>gain</code> &gt; 1.</p>
 <div class="highlight"><pre><span></span><code><span class="n">imec</span><span class="p">.</span><span class="n">inspectAP_idxWindow</span><span class="p">(</span><span class="n">idxWindow</span><span class="p">,</span> <span class="k">...</span><span class="c">)</span>
@@ -807,8 +807,8 @@
 <li><code>channels</code>: channel indices to plot, defaults to <code>imec.mappedChannels</code></li>
 <li><code>syncBits</code> : which sync bits to plot individually, defaults to <code>imec.syncBitsNamed</code></li>
 <li><code>gain</code>: global scaling factor, values larger then 1 will magnify the individual channels, defaults to 0.95</li>
-<li><code>car</code>: perform common average referencing before plotting, defaults to false
-<code></code>downsample` : take every nth sample to speed up plotting, defaults to 1</li>
+<li><code>car</code>: perform common average referencing before plotting, defaults to false</li>
+<li><code>downsample</code> : take every nth sample to speed up plotting, defaults to 1</li>
 </ul>
 <p>Good channels are plotted in black, non-connected channels in blue, and bad channels in red. Sync bits are also shown in red and are not affected by the normalization gain.</p>
 <p><img alt="imec_inspect" src="../images/imec_inspect.png" title="Raw Imec traces" /></p>
@@ -817,16 +817,16 @@
 <div class="highlight"><pre><span></span><code><span class="n">sync</span> <span class="p">=</span> <span class="n">imec</span><span class="p">.</span><span class="n">readSync</span><span class="p">();</span>
 <span class="n">trialStartBit</span> <span class="p">=</span> <span class="n">imec</span><span class="p">.</span><span class="n">readSyncBit</span><span class="p">(</span><span class="s">&quot;trialStart&quot;</span><span class="p">);</span>
 </code></pre></div>
-<p>Or a specific sample or time window using:
+<p>Or a specific sample or time window using:</p>
 <div class="highlight"><pre><span></span><code><span class="p">[</span><span class="n">sync_partial</span><span class="p">,</span> <span class="n">sampleIdx</span><span class="p">]</span> <span class="p">=</span> <span class="n">imec</span><span class="p">.</span><span class="n">readSync_idx</span><span class="p">(</span><span class="n">idxWindow</span><span class="p">);</span>
 <span class="p">[</span><span class="n">sync_partial</span><span class="p">,</span> <span class="n">sampleIdx</span><span class="p">]</span> <span class="p">=</span> <span class="n">imec</span><span class="p">.</span><span class="n">readSync_timeWindow</span><span class="p">(</span><span class="n">timeWindow</span><span class="p">);</span>
-</code></pre></div></p>
-<p>You can also access the logical values of specific bits either by bit index or name using:
+</code></pre></div>
+<p>You can also access the logical values of specific bits either by bit index or name using:</p>
 <div class="highlight"><pre><span></span><code><span class="n">partial</span> <span class="p">=</span> <span class="n">imec</span><span class="p">.</span><span class="n">readSyncBits_idx</span><span class="p">(</span><span class="n">bits_or_names</span><span class="p">,</span> <span class="n">idxWindow</span><span class="p">);</span> <span class="c">%  nTime x nBits</span>
 <span class="n">trialStart_partial</span> <span class="p">=</span> <span class="n">imec</span><span class="p">.</span><span class="n">readSyncBits_idx</span><span class="p">(</span><span class="s">&quot;trialStart&quot;</span><span class="p">,</span> <span class="n">idxWindow</span><span class="p">);</span> <span class="c">% nTime x 1</span>
-</code></pre></div></p>
+</code></pre></div>
 <h2 id="building-a-preprocessing-pipeline">Building a preprocessing pipeline<a class="headerlink" href="#building-a-preprocessing-pipeline" title="Permanent link">&para;</a></h2>
-<p>If the raw <code>.imec.ap.bin</code> file must be propcessed in some way before running Kilosort, e.g. to remove artifacts, you can implement this efficiently by writing a transformation function that will act on chunks of the data. One example is found in <code>Neuropixel.DataProcessFn.commonAverageReference</code>:</p>
+<p>If the raw <code>.imec.ap.bin</code> file must be processed in some way before running Kilosort, e.g. to remove artifacts, you can implement this efficiently by writing a transformation function that will act on chunks of the data. One example is found in <code>Neuropixel.DataProcessFn.commonAverageReference</code>:</p>
 <div class="highlight"><pre><span></span><code><span class="k">function</span><span class="w"> </span>[data, extra] <span class="p">=</span><span class="w"> </span><span class="nf">commonAverageReference</span><span class="p">(</span>imec, data, chIds, sampleIdx<span class="p">)</span><span class="w"> </span><span class="c">%#ok&lt;INUSD&gt;</span>
     <span class="c">% chIds are the channel ids and imec.goodChannels is a list of channel ids</span>
     <span class="c">% so this will lookup the channel indices of those channels both in chIdx that</span>
@@ -843,7 +843,7 @@
 </code></pre></div>
 <p>Essentially, your transform function can perform any modifications to the data matrix and return the resulting data matrix. Here, <code>imec</code> will be the ImecDataset being transformed, <code>data</code> will be the <code>nChannels x nTime</code> chunk of data being processed. <code>chIds</code> will be the channel ids (not necessarily their indices into data but the ids assigned by the channel map), and will typically be the full list of channel ids present in the data file. <code>sampleIdx</code> is the sample indices in the current chunk. <code>extra</code> is an optional output argument that allows you to store any additional metadata. After the transformation function has been run on every chunk of the dataset, these individual <code>extra</code> outputs will be accumulated in a cell array by chunk.</p>
 <h3 id="modifying-a-dataset-during-copy-to-new-location">Modifying a dataset during copy to new location<a class="headerlink" href="#modifying-a-dataset-during-copy-to-new-location" title="Permanent link">&para;</a></h3>
-<p>Once you&rsquo;ve written your tranform function (or functions), you can run them on the dataset using:</p>
+<p>Once you&rsquo;ve written your transform function (or functions), you can run them on the dataset using:</p>
 <div class="highlight"><pre><span></span><code><span class="p">[</span><span class="n">imecOut</span><span class="p">]</span> <span class="p">=</span> <span class="n">imec</span><span class="p">.</span><span class="n">saveTransformedDataset</span><span class="p">(</span><span class="n">outPath</span><span class="p">,</span> <span class="s">&#39;transformAP&#39;</span><span class="p">,</span> <span class="p">{</span><span class="n">cell</span> <span class="n">of</span> <span class="k">function</span> <span class="n">handles</span><span class="p">},</span> <span class="k">...</span>
                              <span class="s">&#39;transformLF&#39;</span><span class="p">,</span> <span class="p">{</span><span class="n">cell</span> <span class="n">of</span> <span class="k">function</span> <span class="n">handles</span><span class="p">});</span>
 </code></pre></div>
@@ -882,7 +882,7 @@
         <span class="s">&#39;transformLF&#39;</span><span class="p">,</span> <span class="p">{</span><span class="n">cell</span> <span class="n">of</span> <span class="k">function</span> <span class="n">handles</span><span class="p">},</span> <span class="k">...</span><span class="c">);</span>
 </code></pre></div>
 <h2 id="making-copies-and-symbolic-links">Making copies and symbolic links<a class="headerlink" href="#making-copies-and-symbolic-links" title="Permanent link">&para;</a></h2>
-<p>You can generate a copy of a dataset using</p>
+<p>You can generate a copy of a dataset using:</p>
 <div class="highlight"><pre><span></span><code><span class="p">[</span><span class="n">imecOut</span><span class="p">]</span> <span class="p">=</span> <span class="n">imec</span><span class="p">.</span><span class="n">saveTransformedDataset</span><span class="p">(</span><span class="n">outPath</span><span class="p">,</span> <span class="s">&#39;writeAP&#39;</span><span class="p">,</span> <span class="nb">true</span><span class="p">,</span> <span class="s">&#39;writeLF&#39;</span><span class="p">,</span> <span class="nb">true</span><span class="p">);</span>
 </code></pre></div>
 <p>Alternatively, you can create symbolic links to the AP bin and meta files in a new location using:</p>
@@ -896,7 +896,7 @@
 <p>If you have known trial boundaries in your file (see <a href="../kilosort/#segmenting-a-kilosort-dataset-into-trials">Segmenting a Kilosort dataset into trials</a> for more information), you can also excise the regions of time far from trial boundaries using the <code>TrialSegmentationInfo</code> instance. I&rsquo;ve found this to be useful to exclude time windows where the subject was asleep from further analysis.</p>
 <div class="highlight"><pre><span></span><code><span class="n">timeShifts</span> <span class="p">=</span> <span class="n">tsi</span><span class="p">.</span><span class="n">computeShiftsExciseRegionsOutsideTrials</span><span class="p">(</span><span class="s">&#39;maxPauseSec&#39;</span><span class="p">,</span> <span class="mi">20</span><span class="p">);</span>
 </code></pre></div>
-<p>You can then pass along this <code>Neuropixel.TimeShiftSpec</code> to any of the data transform functions. Depending on whether the <code>timeShifts</code> object was created in indices of <code>AP</code> band sample rate or <code>LF</code> band sample rate, you should pass it along as <code>timeShiftsAP</code> or <code>timeShiftsLF</code>. The conversion to the other sampling rate will be handled automtically so that the excision is performed on both datasets appropriately.</p>
+<p>You can then pass along this <code>Neuropixel.TimeShiftSpec</code> to any of the data transform functions. Depending on whether the <code>timeShifts</code> object was created in indices of <code>AP</code> band sample rate or <code>LF</code> band sample rate, you should pass it along as <code>timeShiftsAP</code> or <code>timeShiftsLF</code>. The conversion to the other sampling rate will be handled automatically so that the excision is performed on both datasets appropriately.</p>
 <div class="highlight"><pre><span></span><code><span class="n">imecOut</span> <span class="p">=</span> <span class="n">imec</span><span class="p">.</span><span class="n">saveTransformedDataset</span><span class="p">(</span><span class="n">outPath</span><span class="p">,</span> <span class="s">&#39;timeShiftsAP&#39;</span><span class="p">,</span> <span class="n">timeShifts</span><span class="p">,</span> <span class="k">...</span><span class="c"> );</span>
 </code></pre></div>
 <p>A cell array of <code>Neuropixel.TimeShiftSpec</code> instances can be provided when concatenating multiple files:</p>
@@ -904,7 +904,7 @@
         <span class="s">&#39;timeShiftsAP&#39;</span><span class="p">,</span> <span class="p">{</span><span class="n">timeShift1</span><span class="p">,</span> <span class="n">timeShift2</span><span class="p">,</span> <span class="k">...</span><span class="c"> }, ...);</span>
 </code></pre></div>
 <h3 id="referring-to-source-datasets">Referring to Source Datasets<a class="headerlink" href="#referring-to-source-datasets" title="Permanent link">&para;</a></h3>
-<p>If helpful, when loading a derived <code>ImecDataset</code>, you can specify the <code>sourceDatasets</code> parameter to provide an array of <code>ImecDataset</code> instances corresponding to the original, pre-processed source datasets. Here, this would be the set of raw datasets provided as the <code>imecList</code> argument above. For certain methods, you can then pass parameter <code>fromSourceDatasets</code>, true and the corresponding window of time from the source datasets will be plotted instead of the processed data. This will automaticaly handle any time shifts and excisions performed; consequently it is helpful for debugging processing pipelines to see the before and after data.</p>
+<p>If helpful, when loading a derived <code>ImecDataset</code>, you can specify the <code>sourceDatasets</code> parameter to provide an array of <code>ImecDataset</code> instances corresponding to the original, pre-processed source datasets. Here, this would be the set of raw datasets provided as the <code>imecList</code> argument above. For certain methods, you can then pass parameter <code>fromSourceDatasets</code>, true and the corresponding window of time from the source datasets will be plotted instead of the processed data. This will automatically handle any time shifts and excisions performed; consequently it is helpful for debugging processing pipelines to see the before and after data.</p>
 <div class="highlight"><pre><span></span><code><span class="n">imecProcessed</span> <span class="p">=</span> <span class="n">Neuropixel</span><span class="p">.</span><span class="n">ImecDataset</span><span class="p">.</span><span class="n">writeConcatenatedFileMatchGains</span><span class="p">(</span><span class="n">outPath</span><span class="p">,</span> <span class="n">imecList</span><span class="p">,</span> <span class="k">...</span><span class="c"> );</span>
 
 <span class="n">imecProcessed</span> <span class="p">=</span> <span class="n">Neuropixel</span><span class="p">.</span><span class="n">ImecDataset</span><span class="p">(</span><span class="n">outPath</span><span class="p">,</span> <span class="s">&#39;sourceDatasets&#39;</span><span class="p">,</span> <span class="p">{</span><span class="n">imecRaw1</span><span class="p">,</span> <span class="n">imecRaw2</span><span class="p">});</span>

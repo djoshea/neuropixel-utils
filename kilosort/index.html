@@ -410,14 +410,14 @@
                 
                 
                 <h1 id="running-kilosort-12-and-loading-the-results">Running Kilosort 1/2 and loading the results<a class="headerlink" href="#running-kilosort-12-and-loading-the-results" title="Permanent link">&para;</a></h1>
-<p><code>KilosortDatset</code> is a wrapper around the output of Kilosort or Kilosort2, which will load the output files back into Matlab for further analysis. Most of these fields are explained in detail in the <a href="https://phy-contrib.readthedocs.io/en/latest/template-gui/">Phy documentation</a> but we document them here for convenience.</p>
+<p><code>KilosortDataset</code> is a wrapper around the output of Kilosort or Kilosort2, which will load the output files back into Matlab for further analysis. Most of these fields are explained in detail in the <a href="https://phy-contrib.readthedocs.io/en/latest/template-gui/">Phy documentation</a> but we document them here for convenience.</p>
 <h2 id="running-kilosort">Running Kilosort<a class="headerlink" href="#running-kilosort" title="Permanent link">&para;</a></h2>
 <p>To run Kilosort or Kilosort2 on an ImecDataset:</p>
 <div class="highlight"><pre><span></span><code><span class="n">Neuropixel</span><span class="p">.</span><span class="n">runKilosort1</span><span class="p">(</span><span class="n">imec</span><span class="p">,</span> <span class="k">...</span><span class="c">);</span>
 </code></pre></div>
-<p>Or for Kilosort 2:
+<p>Or for Kilosort 2:</p>
 <div class="highlight"><pre><span></span><code><span class="n">Neuropixel</span><span class="p">.</span><span class="n">runKilosort2</span><span class="p">(</span><span class="n">imec</span><span class="p">,</span> <span class="k">...</span><span class="c">);</span>
-</code></pre></div></p>
+</code></pre></div>
 <p>By default, the standard configuration settings will be used. For Kilosort1, these are hardcoded based on <code>configFiles/StandardConfig_MOVEME.m</code>. For Kilosort2, the script <code>configFiles/configFile384.m</code> will be run to produce the <code>ops</code> struct, unless a different configuration file is set in the environment variable <code>KILOSORT_CONFIG_FILE</code>, which must be on the path. Default configuration settings can be overridden by passing in extra parameters, e.g.</p>
 <div class="highlight"><pre><span></span><code><span class="n">Neuropixel</span><span class="p">.</span><span class="n">runKilosort1</span><span class="p">(</span><span class="n">imec</span><span class="p">,</span> <span class="s">&#39;Th&#39;</span><span class="p">,</span> <span class="p">[</span><span class="mi">4</span> <span class="mi">10</span><span class="p">],</span> <span class="s">&#39;GPU&#39;</span><span class="p">,</span> <span class="nb">false</span><span class="p">);</span>
 <span class="n">Neuropixel</span><span class="p">.</span><span class="n">runKilosort2</span><span class="p">(</span><span class="n">imec</span><span class="p">,</span> <span class="s">&#39;minfr_goodchannels&#39;</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">);</span>
@@ -427,8 +427,8 @@
 <div class="highlight"><pre><span></span><code><span class="n">ks</span> <span class="p">=</span> <span class="n">Neuropixel</span><span class="p">.</span><span class="n">KilosortDataset</span><span class="p">(</span><span class="n">pathToKilosortOutput</span><span class="p">();</span>
 <span class="n">ks</span><span class="p">.</span><span class="n">load</span><span class="p">();</span>
 </code></pre></div>
-<p>The constructor will optionally take an &lsquo;imecDataset&rsquo; parameter providing the <code>Neuropixel.ImecDataset' instance if there is no</code>.imec.ap.bin<code>file in the Kilosort directory, and a 'channelMap' parameter in case the default is not correct. The results can then be loaded using</code>ks.load()`.</p>
-<p>The descriptions of each property can be found in the <code>+Neuropixel/KilosortDataset.m</code> code, copied here for convenience, originally described in the (Phy documentation)[https://phy-contrib.readthedocs.io/en/latest/template-gui/]:</p>
+<p>The constructor will optionally take an &lsquo;imecDataset&rsquo; parameter providing the <code>Neuropixel.ImecDataset</code> instance if there is no <code>.imec.ap.bin</code> file in the Kilosort directory, and a &lsquo;channelMap&rsquo; parameter in case the default is not correct. The results can then be loaded using <code>ks.load()</code>.</p>
+<p>The descriptions of each property can be found in the <code>+Neuropixel/KilosortDataset.m</code> code, copied here for convenience, originally described in the <a href="https://phy-contrib.readthedocs.io/en/latest/template-gui/">Phy documentation</a>:</p>
 <div class="highlight"><pre><span></span><code><span class="o">&gt;&gt;</span> <span class="n">ks</span>
 
 <span class="n">KilosortDataset</span> <span class="s">with</span> <span class="s">properties:</span>
@@ -522,7 +522,7 @@ similar_templates(:, :) single</p>
 <p><code>spike_times</code> - <code>[nSpikes]</code> uint64 vector giving the spike time of each spike in samples. To convert to seconds, divide by sample_rate from params.py.</p>
 </li>
 <li>
-<p><code>template_features</code> - <code>[nSpikes, nTempFeatures]</code> single matrix giving the magnitude of the projection of each spike onto nTempFeatures other features. Which other features is specified in template_feature_ind</p>
+<p><code>template_features</code> - <code>[nSpikes, nTempFeatures]</code> single matrix giving the magnitude of the projection of each spike onto nTempFeatures other features. Which other features is specified in template_feature_ind.</p>
 </li>
 <li>
 <p><code>template_feature_ind</code> - <code>[nTemplates, nTempFeatures]</code> uint32 matrix specifying which templateFeatures are included in the template_features matrix.</p>

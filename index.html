@@ -370,12 +370,12 @@
 </ul>
 <p>Neuropixel Utils was authored by <a href="http://djoshea.com">Daniel J O&rsquo;Shea</a> (<a href="https://twitter.com/djoshea">@djoshea</a>) to facilitate precision artifact removal and careful inspection of raw data traces before running Kilosort, as well as post-hoc verification that the artifacts were removed successfully.</p>
 <h2 id="download-and-install">Download and install<a class="headerlink" href="#download-and-install" title="Permanent link">&para;</a></h2>
-<p>To get started, clone the repo:
+<p>To get started, clone the repo:</p>
 <div class="highlight"><pre><span></span><code>git clone https://github.com/djoshea/neuropixel-utils.git
-</code></pre></div></p>
-<p>And add it to your path in Matlab:
+</code></pre></div>
+<p>And add it to your path in Matlab:</p>
 <div class="highlight"><pre><span></span><code><span class="o">&gt;&gt;</span> <span class="n">addpath</span><span class="p">(</span><span class="s">&#39;/path/to/neuropixel-utils&#39;</span><span class="p">)</span>
-</code></pre></div></p>
+</code></pre></div>
 <h2 id="example-walkthrough">Example walkthrough<a class="headerlink" href="#example-walkthrough" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><span class="c">% Create an ImecDataset pointing at a specific</span>
 <span class="o">&gt;&gt;</span> <span class="n">channelMapFile</span> <span class="p">=</span> <span class="s">&#39;neuropixPhase3A_kilosortChanMap.mat&#39;</span><span class="p">;</span>
@@ -448,7 +448,7 @@
 </code></pre></div>
 <p>Zoomed in view of data inspection figure. Black are good channels, blue are reference channels. Channels marked bad would be shown in red.</p>
 <p><img alt="imec_inspect" src="images/imec_inspect.png" title="Raw Imec traces" /></p>
-<p><div class="highlight"><pre><span></span><code><span class="c">% Run Kilosort2</span>
+<div class="highlight"><pre><span></span><code><span class="c">% Run Kilosort2</span>
 <span class="o">&gt;&gt;</span> <span class="n">Neuropixel</span><span class="p">.</span><span class="n">runKilosort2</span><span class="p">(</span><span class="n">imec</span><span class="p">);</span>
 
 <span class="c">% Load the Kilosort2 results</span>
@@ -593,9 +593,9 @@
 <span class="c">% Plot a drift map, annotated with trial start markers</span>
 <span class="o">&gt;&gt;</span> <span class="n">metrics</span><span class="p">.</span><span class="n">plotDriftmap</span><span class="p">(</span><span class="s">&#39;tsi&#39;</span><span class="p">,</span> <span class="n">tsi</span><span class="p">);</span>
 </code></pre></div>
-<img alt="driftmap" src="images/driftmap.png" title="Cluster driftmap" /></p>
+<p><img alt="driftmap" src="images/driftmap.png" title="Cluster driftmap" /></p>
 <p>Note that the cluster structure looks distinct during a few time windows near the beginning and end of the recording, corresponding to regions when no trials were being performed (blue ticks near the bottom).</p>
-<p><div class="highlight"><pre><span></span><code><span class="c">% Extract raw waveforms for a specific cluster id at the 24 largest amplitude channels</span>
+<div class="highlight"><pre><span></span><code><span class="c">% Extract raw waveforms for a specific cluster id at the 24 largest amplitude channels</span>
 <span class="c">% Clean these waveforms by subtracting the contribution of other clusters spiking within the same time window</span>
 <span class="o">&gt;&gt;</span> <span class="n">ss</span> <span class="p">=</span> <span class="n">ks</span><span class="p">.</span><span class="n">getWaveformsFromRawData</span><span class="p">(</span><span class="s">&#39;cluster_id&#39;</span><span class="p">,</span> <span class="mi">255</span><span class="p">,</span> <span class="s">&#39;num_waveforms&#39;</span><span class="p">,</span> <span class="mi">100</span><span class="p">,</span> <span class="s">&#39;best_n_channels&#39;</span><span class="p">,</span> <span class="mi">24</span><span class="p">,</span>  <span class="s">&#39;subtractOtherClusters&#39;</span><span class="p">,</span> <span class="nb">true</span><span class="p">)</span>
 
@@ -622,7 +622,7 @@
 <span class="c">% Plot these waveforms at their physical coordinates on the neuropixel</span>
 <span class="o">&gt;&gt;</span> <span class="n">ss</span><span class="p">.</span><span class="n">plotAtProbeLocations</span><span class="p">()</span>
 </code></pre></div>
-<img alt="driftmap" src="images/waveforms_on_probe.png" title="Waveforms on probe" /></p>
+<p><img alt="driftmap" src="images/waveforms_on_probe.png" title="Waveforms on probe" /></p>
                 
               
               

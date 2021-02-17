@@ -410,7 +410,7 @@
 <span class="n">snippetSet</span><span class="p">.</span><span class="n">plotAtProbeLocations</span><span class="p">(</span><span class="s">&#39;alpha&#39;</span><span class="p">,</span> <span class="mf">0.8</span><span class="p">);</span>
 </code></pre></div>
 <p><img alt="cluster_snippets" src="../images/cluster_snippets.png" title="Cluster waveforms" /></p>
-<p>As you can see, there are other waveforms in the background corrupting these extracted waveforms. We can use the other Kilkosort detected spike times and their respective templates to automatically clean these waveforms by subtracting the appropriate template at the appropriate times.</p>
+<p>As you can see, there are other waveforms in the background corrupting these extracted waveforms. We can use the other Kilosort detected spike times and their respective templates to automatically clean these waveforms by subtracting the appropriate template at the appropriate times.</p>
 <div class="highlight"><pre><span></span><code><span class="n">snippetSet</span> <span class="p">=</span> <span class="n">ks</span><span class="p">.</span><span class="n">getWaveformsFromRawData</span><span class="p">(</span><span class="s">&#39;cluster_ids&#39;</span><span class="p">,</span> <span class="n">cluster_id</span><span class="p">,</span> <span class="k">...</span>
     <span class="s">&#39;num_waveforms&#39;</span><span class="p">,</span> <span class="mi">50</span><span class="p">,</span> <span class="s">&#39;best_n_channels&#39;</span><span class="p">,</span> <span class="mi">20</span><span class="p">,</span> <span class="s">&#39;car&#39;</span><span class="p">,</span> <span class="nb">true</span><span class="p">,</span> <span class="k">...</span>
     <span class="s">&#39;subtractOtherClusters&#39;</span><span class="p">,</span> <span class="nb">true</span><span class="p">);</span>
@@ -419,7 +419,7 @@
 <p><img alt="cluster_snippets_clean" src="../images/cluster_snippets_clean.png" title="Cluster waveforms" /></p>
 <h2 id="extracting-waveforms-via-kilosorttrialsegmenteddataset">Extracting waveforms via KilosortTrialSegmentedDataset<a class="headerlink" href="#extracting-waveforms-via-kilosorttrialsegmenteddataset" title="Permanent link">&para;</a></h2>
 <p>If you have already <a href="../kilosort/#segmenting-a-kilosort-dataset-into-trials">segmented the data into trials</a>, you might wish to extract these waveforms for specific trials or even specific time windows within a trial, e.g. to check for  behaviorally-triggered probe movement.</p>
-<p>For example, this will extract all spikes that occurred in the first 50 ms of each trial.</p>
+<p>For example, this will extract all spikes that occurred in the first 50 ms of each trial:</p>
 <div class="highlight"><pre><span></span><code><span class="n">cluster_ind</span> <span class="p">=</span> <span class="n">seg</span><span class="p">.</span><span class="n">lookup_clusterIds</span><span class="p">(</span><span class="n">cluster_id</span><span class="p">);</span>
 
 <span class="n">mask_by_trial</span> <span class="p">=</span> <span class="n">cell</span><span class="p">(</span><span class="n">seg</span><span class="p">.</span><span class="n">nTrials</span><span class="p">,</span> <span class="mi">1</span><span class="p">);</span>

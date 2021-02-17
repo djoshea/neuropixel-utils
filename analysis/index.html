@@ -450,9 +450,9 @@
       <span class="n">nSpikesAboveThresh</span><span class="p">:</span> <span class="mi">6974070</span>
 </code></pre></div>
 <h2 id="kilosortmetrics">KilosortMetrics<a class="headerlink" href="#kilosortmetrics" title="Permanent link">&para;</a></h2>
-<p>More computed statistics can be computed on demand by calling
+<p>More computed statistics can be computed on demand by calling:</p>
 <div class="highlight"><pre><span></span><code><span class="n">metrics</span> <span class="p">=</span> <span class="n">ks</span><span class="p">.</span><span class="n">computeMetrics</span><span class="p">();</span>
-</code></pre></div></p>
+</code></pre></div>
 <p>which returns a <code>Neuropixel.KilosortMetrics</code> instance. This is a catch-all class for storing all the statistics we want to compute about the results of a Kilosort run. At the moment, most of these properties are related to localizing spikes / templates / clusters in spatial coordinates on the probe. The details of these computations borrow heavily from code written by Nick Steinmetz described on the <a href="https://github.com/cortex-lab/neuropixels/wiki/Other_analysis_methods">Neuropixels wiki</a>.</p>
 <p>Many properties are computed for each cluster, for each template (as multiple templates may comprise each cluster), and for each individual spike.</p>
 <ul>
@@ -463,63 +463,59 @@
 <li><code>is_localized</code> properties indicate whether the electrical image is sufficiently well localized in space</li>
 </ul>
 <p>KilosortMetrics with properties:</p>
-<div class="codehilite"><pre><span></span><code>                       <span class="n">ks</span><span class="p">:</span> <span class="p">[</span><span class="mi">1</span><span class="err">×</span><span class="mi">1</span> <span class="n">Neuropixel</span><span class="p">.</span><span class="n">KilosortDataset</span><span class="p">]</span>
-                  <span class="n">nSpikes</span><span class="p">:</span> <span class="mi">8181228</span>
-          <span class="n">nChannelsSorted</span><span class="p">:</span> <span class="mi">371</span>
-               <span class="n">nTemplates</span><span class="p">:</span> <span class="mi">653</span>
-      <span class="n">nTemplateTimepoints</span><span class="p">:</span> <span class="mi">82</span>
-                <span class="n">nClusters</span><span class="p">:</span> <span class="mi">592</span>
-       <span class="n">nConcatenatedFiles</span><span class="p">:</span> <span class="mi">1</span>
-   <span class="n">maxTemplatesPerCluster</span><span class="p">:</span> <span class="mi">11</span>
-                       <span class="n">fs</span><span class="p">:</span> <span class="mi">30000</span>
-               <span class="n">channelMap</span><span class="p">:</span> <span class="p">[</span><span class="mi">1</span><span class="err">×</span><span class="mi">1</span> <span class="n">Neuropixel</span><span class="p">.</span><span class="n">ChannelMap</span><span class="p">]</span>
-              <span class="n">channel_ids</span><span class="p">:</span> <span class="p">[</span><span class="n">nChannelsSorted</span> <span class="err">×</span> <span class="mi">1</span> <span class="n">uint32</span><span class="p">]</span>
-      <span class="n">concatenatedSamples</span><span class="p">:</span> <span class="mi">112412208</span>
-       <span class="n">concatenatedStarts</span><span class="p">:</span> <span class="mi">1</span>
-        <span class="n">concatenatedNames</span><span class="p">:</span> <span class="ss">&quot;neuropixel_01&quot;</span>
+<div class="highlight"><pre><span></span><code>                           ks: [1×1 Neuropixel.KilosortDataset]
+                      nSpikes: 8181228
+              nChannelsSorted: 371
+                   nTemplates: 653
+          nTemplateTimepoints: 82
+                    nClusters: 592
+           nConcatenatedFiles: 1
+       maxTemplatesPerCluster: 11
+                           fs: 30000
+                   channelMap: [1×1 Neuropixel.ChannelMap]
+                  channel_ids: [nChannelsSorted × 1 uint32]
+          concatenatedSamples: 112412208
+           concatenatedStarts: 1
+            concatenatedNames: &quot;neuropixel_01&quot;
 
-             <span class="n">template_unw</span><span class="p">:</span> <span class="p">[</span><span class="n">nTemplates</span> <span class="err">×</span> <span class="n">nTemplateTimepoints</span> <span class="err">×</span> <span class="n">nChannelsSorted</span> <span class="n">single</span><span class="p">]</span> <span class="o">%</span> <span class="n">unwhitened</span> <span class="n">templates</span> <span class="k">in</span> <span class="n">original</span> <span class="k">data</span> <span class="k">scale</span>
-          <span class="n">template_scaled</span><span class="p">:</span> <span class="p">[</span><span class="n">nTemplates</span> <span class="err">×</span> <span class="n">nTemplateTimepoints</span> <span class="err">×</span> <span class="n">nChannelsSorted</span> <span class="n">single</span><span class="p">]</span> <span class="o">%</span> <span class="n">unwhitened</span><span class="p">,</span> <span class="n">scaled</span> <span class="n">templates</span> <span class="k">in</span> <span class="n">uV</span>
+                 template_unw: [nTemplates × nTemplateTimepoints × nChannelsSorted single] % unwhitened templates in original data scale
+              template_scaled: [nTemplates × nTemplateTimepoints × nChannelsSorted single] % unwhitened, scaled templates in uV
 
-    <span class="n">template_centerOfMass</span><span class="p">:</span> <span class="p">[</span><span class="n">nTemplates</span> <span class="err">×</span> <span class="mi">2</span> <span class="n">single</span><span class="p">]</span>
-    <span class="n">template_is_localized</span><span class="p">:</span> <span class="p">[</span><span class="n">nTemplates</span> <span class="err">×</span> <span class="mi">1</span> <span class="n">logical</span><span class="p">]</span>
-        <span class="n">template_waveform</span><span class="p">:</span> <span class="p">[</span><span class="n">nTemplates</span> <span class="err">×</span> <span class="n">nTemplateTimepoints</span> <span class="n">single</span><span class="p">]</span>
-     <span class="n">template_waveform_ch</span><span class="p">:</span> <span class="p">[</span><span class="n">nTemplates</span> <span class="err">×</span> <span class="mi">1</span> <span class="n">uint32</span><span class="p">]</span>
-       <span class="n">template_amplitude</span><span class="p">:</span> <span class="p">[</span><span class="n">nTemplates</span> <span class="err">×</span> <span class="mi">1</span> <span class="n">single</span><span class="p">]</span>
-             <span class="n">template_ttp</span><span class="p">:</span> <span class="p">[</span><span class="n">nTemplates</span> <span class="err">×</span> <span class="mi">1</span> <span class="n">single</span><span class="p">]</span>
-   <span class="n">template_best_channels</span><span class="p">:</span> <span class="p">[</span><span class="n">nTemplates</span> <span class="err">×</span> <span class="n">nChannelsSorted</span> <span class="n">uint32</span><span class="p">]</span>
+        template_centerOfMass: [nTemplates × 2 single]
+        template_is_localized: [nTemplates × 1 logical]
+            template_waveform: [nTemplates × nTemplateTimepoints single]
+         template_waveform_ch: [nTemplates × 1 uint32]
+           template_amplitude: [nTemplates × 1 single]
+                 template_ttp: [nTemplates × 1 single]
+       template_best_channels: [nTemplates × nChannelsSorted uint32]
 
-              <span class="n">spike_times</span><span class="p">:</span> <span class="p">[</span><span class="n">nSpikes</span> <span class="err">×</span> <span class="mi">1</span> <span class="n">uint64</span><span class="p">]</span>
-          <span class="n">spike_amplitude</span><span class="p">:</span> <span class="p">[</span><span class="n">nSpikes</span> <span class="err">×</span> <span class="mi">1</span> <span class="n">single</span><span class="p">]</span>
-       <span class="n">spike_centerOfMass</span><span class="p">:</span> <span class="p">[</span><span class="n">nSpikes</span> <span class="err">×</span> <span class="mi">2</span> <span class="n">single</span><span class="p">]</span> <span class="o">%</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span>
-          <span class="n">spike_templates</span><span class="p">:</span> <span class="p">[</span><span class="n">nSpikes</span> <span class="err">×</span> <span class="mi">1</span> <span class="n">uint32</span><span class="p">]</span>
-           <span class="n">spike_clusters</span><span class="p">:</span> <span class="p">[</span><span class="n">nSpikes</span> <span class="err">×</span> <span class="mi">1</span> <span class="n">uint32</span><span class="p">]</span>
-           <span class="n">spike_depth</span><span class="p">:</span> <span class="p">[</span><span class="n">nSpikes</span> <span class="err">×</span> <span class="mi">1</span> <span class="n">single</span><span class="p">]</span>
-    <span class="n">spike_is_localized</span><span class="p">:</span> <span class="p">[</span><span class="n">nSpikes</span> <span class="err">×</span> <span class="mi">1</span> <span class="n">logical</span><span class="p">]</span>
+                  spike_times: [nSpikes × 1 uint64]
+              spike_amplitude: [nSpikes × 1 single]
+           spike_centerOfMass: [nSpikes × 2 single] % x, y
+              spike_templates: [nSpikes × 1 uint32]
+               spike_clusters: [nSpikes × 1 uint32]
+               spike_depth: [nSpikes × 1 single]
+        spike_is_localized: [nSpikes × 1 logical]
 
-              <span class="n">cluster_ids</span><span class="p">:</span> <span class="p">[</span><span class="n">nClusters</span> <span class="err">×</span> <span class="mi">1</span> <span class="n">uint32</span><span class="p">]</span>
-<span class="n">cluster_template_mostUsed</span><span class="p">:</span> <span class="p">[</span><span class="n">nClusters</span> <span class="err">×</span> <span class="mi">1</span> <span class="n">uint32</span><span class="p">]</span>
-    <span class="n">cluster_template_list</span><span class="p">:</span> <span class="err">{</span><span class="n">nClusters</span> <span class="err">×</span> <span class="mi">1</span> <span class="n">cell</span><span class="err">}</span>
-<span class="n">cluster_template_useCount</span><span class="p">:</span> <span class="p">[</span><span class="n">nClusters</span> <span class="err">×</span> <span class="n">nTemplates</span> <span class="n">uint64</span><span class="p">]</span>
-    <span class="n">cluster_num_templates</span><span class="p">:</span> <span class="p">[</span><span class="n">nClusters</span> <span class="err">×</span> <span class="mi">1</span> <span class="n">uint32</span><span class="p">]</span>
-    <span class="n">cluster_best_channels</span><span class="p">:</span> <span class="p">[</span><span class="n">nClusters</span> <span class="err">×</span> <span class="n">nChannelsSorted</span> <span class="n">uint32</span><span class="p">]</span>
-     <span class="n">cluster_centerOfMass</span><span class="p">:</span> <span class="p">[</span><span class="n">nClusters</span> <span class="err">×</span> <span class="mi">2</span> <span class="n">single</span><span class="p">]</span> <span class="o">%</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span>
-     <span class="n">cluster_is_localized</span><span class="p">:</span> <span class="p">[</span><span class="n">nClusters</span> <span class="err">×</span> <span class="mi">1</span> <span class="n">logical</span><span class="p">]</span>
-         <span class="n">cluster_waveform</span><span class="p">:</span> <span class="p">[</span><span class="n">nClusters</span> <span class="err">×</span> <span class="n">nTemplateTimepoints</span> <span class="err">×</span> <span class="n">maxTemplatesPerCluster</span> <span class="n">single</span><span class="p">]</span>
-      <span class="n">cluster_waveform_ch</span><span class="p">:</span> <span class="p">[</span><span class="n">nClusters</span> <span class="err">×</span> <span class="n">nClusters</span> <span class="n">uint32</span><span class="p">]</span>
-        <span class="n">cluster_amplitude</span><span class="p">:</span> <span class="p">[</span><span class="n">nClusters</span> <span class="err">×</span> <span class="mi">1</span> <span class="n">single</span><span class="p">]</span>
-              <span class="n">cluster_ttp</span><span class="p">:</span> <span class="p">[</span><span class="n">nClusters</span> <span class="err">×</span> <span class="mi">1</span> <span class="n">single</span><span class="p">]</span>
-            <span class="n">cluster_depth</span><span class="p">:</span> <span class="p">[</span><span class="n">nClusters</span> <span class="err">×</span> <span class="mi">1</span> <span class="n">single</span><span class="p">]</span>
+                  cluster_ids: [nClusters × 1 uint32]
+    cluster_template_mostUsed: [nClusters × 1 uint32]
+        cluster_template_list: {nClusters × 1 cell}
+    cluster_template_useCount: [nClusters × nTemplates uint64]
+        cluster_num_templates: [nClusters × 1 uint32]
+        cluster_best_channels: [nClusters × nChannelsSorted uint32]
+         cluster_centerOfMass: [nClusters × 2 single] % x, y
+         cluster_is_localized: [nClusters × 1 logical]
+             cluster_waveform: [nClusters × nTemplateTimepoints × maxTemplatesPerCluster single]
+          cluster_waveform_ch: [nClusters × nClusters uint32]
+            cluster_amplitude: [nClusters × 1 single]
+                  cluster_ttp: [nClusters × 1 single]
+                cluster_depth: [nClusters × 1 single]
 </code></pre></div>
-
-<p>```
-</p>
 <h3 id="plotting-drift-maps">Plotting drift maps<a class="headerlink" href="#plotting-drift-maps" title="Permanent link">&para;</a></h3>
-<p>A drift map plots the spatial depth of all spikes over time as individual dots, where the dot color darkness increases for large amplitude spikes, allowing the eye to follow bands of spikes over time. The code for generating this plot was largely copied from the <a href="https://github.com/cortex-lab/spikes">Cortex lab spikes repo</a> and modified to use the KilosortMetrics structure and add some additional metadata.
-
-You can plot a standard driftmap using:
-<code>matlab
-metrics.plotDriftmap();</code></p>
+<p>A drift map plots the spatial depth of all spikes over time as individual dots, where the dot color darkness increases for large amplitude spikes, allowing the eye to follow bands of spikes over time. The code for generating this plot was largely copied from the <a href="https://github.com/cortex-lab/spikes">Cortex lab spikes repo</a> and modified to use the KilosortMetrics structure and add some additional metadata.</p>
+<p>You can plot a standard driftmap using:</p>
+<div class="highlight"><pre><span></span><code><span class="n">metrics</span><span class="p">.</span><span class="n">plotDriftmap</span><span class="p">();</span>
+</code></pre></div>
 <p><img alt="driftmap" src="../images/driftmap_standard.png" title="Cluster driftmap" /></p>
 <p>Significant drift events are marked in red in the raster and shown as red ticks above. You can set the driftThreshold in µm for drift events as a parameter, as well as lower the threshold for spike amplitude quantile to include smaller spikes in the calculation:</p>
 <div class="highlight"><pre><span></span><code><span class="n">metrics</span><span class="p">.</span><span class="n">plotDriftmap</span><span class="p">(</span><span class="s">&#39;driftThreshold&#39;</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="s">&#39;spikeAmpQuantile&#39;</span><span class="p">,</span> <span class="mf">0.8</span><span class="p">);</span>
@@ -529,7 +525,7 @@ metrics.plotDriftmap();</code></p>
 <div class="highlight"><pre><span></span><code><span class="n">metrics</span><span class="p">.</span><span class="n">plotDriftmap</span><span class="p">(</span><span class="s">&#39;tsi&#39;</span><span class="p">,</span> <span class="n">tsi</span><span class="p">);</span>
 </code></pre></div>
 <p><img alt="driftmap_tsi" src="../images/driftmap_tsi.png" title="Driftmap" /></p>
-<p>As you can see, the vertical bands where spiking activity looks very different from other timepoints occur when no trials were present. Indeed, these were time periods where the task was paused and the subject was asleep. We can mask out these regions to better assess drift over the time periods we&rsquo;re most concerned with:</p>
+<p>As you can see, the vertical bands where spiking activity look very different from other timepoints occur when no trials were present. Indeed, these were time periods where the task was paused and the subject was asleep. We can mask out these regions to better assess drift over the time periods we&rsquo;re most concerned with:</p>
 <div class="highlight"><pre><span></span><code><span class="n">metrics</span><span class="p">.</span><span class="n">plotDriftmap</span><span class="p">(</span><span class="s">&#39;tsi&#39;</span><span class="p">,</span> <span class="n">tsi</span><span class="p">,</span> <span class="s">&#39;maskRegionsOutsideTrials&#39;</span><span class="p">,</span> <span class="nb">true</span><span class="p">);</span>
 </code></pre></div>
 <p><img alt="driftmap_tsi_mask" src="../images/driftmap_tsi_mask.png" title="Driftmap" /></p>
@@ -558,7 +554,7 @@ metrics.plotDriftmap();</code></p>
 <p><img alt="clustermap_smooth" src="../images/clustermap_smooth.png" title="Cluster driftmap" /></p>
 <h3 id="plotting-cluster-centers-of-mass">Plotting cluster centers of mass<a class="headerlink" href="#plotting-cluster-centers-of-mass" title="Permanent link">&para;</a></h3>
 <p>To see the distribution of cluster waveforms over the probe:</p>
-<div class="highlight"><pre><span></span><code><span class="n">metrics</span><span class="p">.</span><span class="n">plotClusterWaveformAtCenterOfMass</span><span class="p">()</span>
+<div class="highlight"><pre><span></span><code><span class="n">metrics</span><span class="p">.</span><span class="n">plotClusterWaveformAtCentroid</span><span class="p">()</span>
 </code></pre></div>
 <p><img alt="clustermap_com" src="../images/cluster_com.png" title="Cluster center of mass" /></p>
 <div class="admonition tip">
@@ -574,9 +570,9 @@ metrics.plotDriftmap();</code></p>
 <span class="n">metrics</span><span class="p">.</span><span class="n">plotClusterImage</span><span class="p">(</span><span class="n">cluster_id</span><span class="p">,</span> <span class="s">&#39;ymag&#39;</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="s">&#39;xmag&#39;</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
 </code></pre></div>
 <p><img alt="cluster_image" src="../images/cluster_image.png" title="Cluster image" /></p>
-<p>Rather than plotting every channel, you can select the best N contiguous channels:
+<p>Rather than plotting every channel, you can select the best N contiguous channels:</p>
 <div class="highlight"><pre><span></span><code><span class="n">metrics</span><span class="p">.</span><span class="n">plotClusterImage</span><span class="p">(</span><span class="n">cluster_id</span><span class="p">,</span> <span class="s">&#39;best_n_channels&#39;</span><span class="p">,</span> <span class="mi">20</span><span class="p">);</span>
-</code></pre></div></p>
+</code></pre></div>
 <p><img alt="cluster_image" src="../images/cluster_image_zoom.png" title="Cluster image" /></p>
                 
               
