@@ -101,6 +101,7 @@ classdef ImecDataset < handle
         lfScaleToUv
 
         % from channel map (although syncChannelIndex will be 1 if sync not in AP or LF file)
+        syncChannelId
         syncChannelIndex % if sync in AP file, at one index
         
         % sync will come from either AP, LF, or separate file depending on these flags
@@ -982,6 +983,32 @@ classdef ImecDataset < handle
                 mmSet{iF} = imec.sourceDatasets(iF).memmapLF_full(varargin{:});
             end
         end
+        
+        function [mmSet, fsSync] = memmap_sourceSync_full(imec, varargin)
+            assert(~isempty(imec.sourceDatasets));
+            nSources = numel(imec.sourceDatasets);
+            mmSet = cell(nSources, 1);
+            fsSync = nan(nSources, 1);
+            for iF = 1:nSources
+                imecSrc = imec.sourceDatasets(iF);
+                if imecSrc.syncInAPFile
+                    % still has nChannels
+                    mmSet{iF} = memmapfile(imecSrc.pathSync, 'Format', {'int16', [imec.nChannels imec.nSamplesAP], 'x'});
+                    fsSync(iF) = imec.fsAP;
+                elseif imecSrc.syncInLFFile
+                    % still has nChannels
+                    mmSet{iF} = memmapfile(imec.pathSync, 'Format', {'int16', [imec.nChannels imec.nSamplesLF], 'x'});
+                    fsSync(iF) = imec.fsLF;
+                else
+                    % only sync channel
+                    mmSet{iF} = memmapfile(imec.pathSync, 'Format', {'int16', [1 imec.nSamplesAP], 'x'});
+                    fsSync(iF) = imec.fsAP;
+                end
+            end
+            
+            assert(numel(unique(fsSync)) == 1);
+            fsSync = fsSync(1);
+        end
     end
     
     methods(Static)
@@ -1047,6 +1074,7 @@ classdef ImecDataset < handle
             p = inputParser();
             p.addParameter('band', 'ap', @Neuropixel.Utils.isstringlike);
             p.addParameter('fromSourceDatasets', false, @islogical);
+            p.addParameter('syncFromSourceDatasets', [], @(x) isempty(x) || islogical(x));
             
             % specify one of THESE (same channels every snippet or nChannels x numel(times))
             p.addParameter('channel_ids', [], @(x) isempty(x) || isvector(x));
@@ -1115,9 +1143,17 @@ classdef ImecDataset < handle
             end
             
             channel_inds_by_snippet = imec.lookup_channelIds(channel_ids_by_snippet);
+            syncChannelIndex = imec.syncChannelIndex;
+            syncInChannelInds = any(ismember(channel_inds_by_snippet, syncChannelIndex), 'all');
 
             band = string(p.Results.band);
             fromSourceDatasets = p.Results.fromSourceDatasets;
+            syncFromSource = p.Results.syncFromSourceDatasets;
+            if isempty(syncFromSource)
+                syncFromSource = fromSourceDatasets;
+            end
+            
+            
             switch band
                 case 'ap'
                     nSamples = imec.nSamplesAP;
@@ -1129,6 +1165,18 @@ classdef ImecDataset < handle
                         concatInfo = imec.concatenationInfoAP;
                         scaleToUv_this = imec.apScaleToUv;
                         scaleToUv_by_source = cat(1, imec.sourceDatasets.apScaleToUv);
+                    end     
+                    
+                    % do we need to specially handle the sync channel?
+                    if syncFromSource ~= fromSourceDatasets && syncInChannelInds
+                        handleSyncSeparately = true;
+                        if ~syncFromSource
+                            mmSync = imec.memmapAP_full();
+                        else
+                            mmSetSync = imec.memmap_sourceAP_full();
+                        end
+                    else
+                        handleSyncSeparately = false;
                     end
                 case 'lf'
                     nSamples = imec.nSamplesLF;
@@ -1140,7 +1188,20 @@ classdef ImecDataset < handle
                         concatInfo = imec.concatenationInfoLF;
                         scaleToUv_this = imec.lfScaleToUv;
                         scaleToUv_by_source = cat(1, imec.sourceDatasets.lfScaleToUv);
-                    end 
+                    end
+                    
+                    % do we need to specially handle the sync channel?
+                    if syncFromSource ~= fromSourceDatasets  && syncInChannelInds
+                        handleSyncSeparately = true;
+                        if ~syncFromSource
+                            mmSync = imec.memmapLF_full();
+                        else
+                            mmSetSync = imec.memmap_sourceLF_full();
+                        end
+                     else
+                         handleSyncSeparately = true;
+                     end
+                    
                 otherwise
                     error('Unknown source');
             end
@@ -1254,6 +1315,18 @@ classdef ImecDataset < handle
                         sourceToDestScaling_by_snippet(idxInsert) = sourceToDestScaling(sourceFileInds(1, :)');
                     end
                 end
+                
+                if handleSyncSeparately
+                    % sync is requested and coming from not the same source as the rest of the channels
+                    if ~syncFromSource
+                        extract_sync_ch = reshape(mmSync.Data.x(syncChannelIndex, idx_request_this(:)), [1 nT, nS_this]);
+                    else
+                        [sourceFileInds, sourceSampleInds] = concatInfo.lookup_sampleIndexInSourceFiles(idx_request_this);
+                        extract_sync_ch = reshape(Neuropixel.ImecDataset.multi_mmap_extract_sample_idx(mmSetSync, ...
+                            sourceFileInds(:), sourceSampleInds(:), syncChannelIndex), [1 nT nS_this]);
+                    end
+                end
+                
                 if p.Results.car
                     ar = median(extract_all_ch(good_ch_inds, :, :), 1);
                 else
@@ -1261,20 +1334,31 @@ classdef ImecDataset < handle
                 end
 
                 for iiS = 1:nS_this
-                    this_extract =  extract_all_ch(channel_inds_by_snippet(:, idxS(iiS)), :, iiS) - ar(1, :, iiS);
+                    this_extract =  extract_all_ch(channel_inds_by_snippet(:, idxS(iiS)), :, iiS);
+                    
+                    % optionally insert sync from separate dataset, and track it so we don't apply numerical computations to sync line
+                    mask_sync = channel_inds_by_snippet(:, idxS(iiS)) == syncChannelIndex;
+                    if handleSyncSeparately
+                        this_extract(mask_sync, :) = extract_sync_ch(:, :, iiS);
+                    end
+                    mask_scale = ~mask_sync;
+                    this_extract(mask_scale, :) = this_extract(mask_scale, :) - ar(1, :, iiS);
+                    
                     if applyScaling
-                        this_extract = cast(this_extract, outClass) * scaleToUv_by_snippet(idxInsert(iiS));
+                        % apply scaling to all but sync channels
+                        this_extract = cast(this_extract, outClass);
+                        this_extract(mask_scale, :) = this_extract(mask_scale, :) * scaleToUv_by_snippet(idxInsert(iiS));
                     end
                     if scaleSourceDataToMatch
                         % this would scale the source data to match the cleaned data while keeping everything int16
-                        this_extract = this_extract * scaleSourceDataToMatch(idxInsert(iiS));
+                        this_extract(mask_scale, :) = this_extract(mask_scale, :) * sourceToDestScaling_by_snippet(idxInsert(iiS));
                     end
                     if p.Results.center
-                        this_extract = this_extract - median(this_extract, 2);
+                        this_extract(mask_scale, :) = this_extract(mask_scale, :) - median(this_extract(mask_scale, :), 2);
                     end
                     % scale before accumulating
                     if ~isempty(average_weight)
-                        this_extract = this_extract * average_weight(idxS(iiS));
+                        this_extract(mask_scale, :) = this_extract(mask_scale, :) * average_weight(idxS(iiS));
                     end
                     if mask_request_okay_this(iiS)
                         out(:, :, idxInsert(iiS)) = out(:, :, idxInsert(iiS)) + cast(this_extract, outClass); % which channels for this spike
@@ -1411,6 +1495,15 @@ classdef ImecDataset < handle
         
         function tf = get.syncInLFFile(imec)
             tf = imec.channelMap.syncInLFFile && imec.hasLF;
+        end
+        
+        function id = get.syncChannelId(imec)
+            if imec.syncInAPFile || imec.syncInLFFile
+                id = imec.channelMap.syncChannelId;
+            else
+                % if sync is in its own file, assume it's the first and only channel
+                id = NaN;
+            end
         end
         
         function ind = get.syncChannelIndex(imec)
