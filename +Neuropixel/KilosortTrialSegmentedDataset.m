@@ -40,6 +40,9 @@ classdef KilosortTrialSegmentedDataset < handle & matlab.mixin.Copyable
 
         % nTrials x 1
         trial_duration_ms
+        
+        spike_counts (:, :) % nTrials x nClusters
+        trial_has_nonzero_spikes
 
         fsAP % sampling rate pass thru
     end
@@ -420,6 +423,14 @@ classdef KilosortTrialSegmentedDataset < handle & matlab.mixin.Copyable
              end
             [tf, channelInds] = ismember(channelIds, ds.channel_ids);
             assert(all(tf), 'Some channel ids not found');
+        end
+        
+        function counts = get.spike_counts(ds) % nTrials x nClusters
+            counts = cellfun(@numel, ds.spike_times);
+        end
+        
+        function tf = get.trial_has_nonzero_spikes(ds)
+            tf = sum(ds.spike_counts, 2) > 0;
         end
     end
 
