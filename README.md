@@ -9,14 +9,14 @@ See full documentation at <https://djoshea.github.io/neuropixel-utils>.
 
 Neuropixel Utils facilitates the following data processing steps:
 
-- [Load](imec_dataset.md#constructing-a-neuropixelimecdataset) and [visualize](imec_dataset.md#plotting-specific-time-windows) raw neuropixel data from `imec.ap.bin` and `imec.lf.bin` files in Matlab
-- [Write custom pre-processing functions](imec_dataset.md#building-a-preprocessing-pipeline) to apply to raw data either by writing a copy of the raw file or modifying it in place, optionally removing specific problematic time windows in the file
-- [Concatenate multiple Imec data files](imec_dataset.md#concatenating-multiple-files-together) together while matching the amplifier gains
-- [Run Kilosort/Kilosort2](kilosort.md#running-kilosort), and [load the results](kilosort.md#loading-kilosort-results) back into Matlab after manual inspection in Phy
-- [Plot drift maps](analysis.md#plotting-drift-maps) using code adapted from the [spikes repository](https://github.com/cortex-lab/spikes)
-- [Extract waveforms](waveforms.md#extracting-waveforms-via-kilosortdataset) for each cluster from the raw data, optionally cleaning the snippets by subtracting templates for other clusters spiking during the same time window
-- [Visualize cluster electrical spiking images](analysis.md#plotting-electrical-images) in space and [cluster locations on the probe](analysis.md#plotting-cluster-centers-of-mass)
-- [Determine trial boundaries](kilosort.md#segmenting-a-kilosort-dataset-into-trials) in the file, and efficiently [segment Kilosort results into individual trials](kilosort.md#kilosorttrialsegmenteddataset)
+- [Load](https://djoshea.github.io/neuropixel-utils/imec_dataset.md#constructing-a-neuropixelimecdataset) and [visualize](https://djoshea.github.io/neuropixel-utils/imec_dataset.md#plotting-specific-time-windows) raw neuropixel data from `imec.ap.bin` and `imec.lf.bin` files in Matlab
+- [Write custom pre-processing functions](https://djoshea.github.io/neuropixel-utils/imec_dataset.md#building-a-preprocessing-pipeline) to apply to raw data either by writing a copy of the raw file or modifying it in place, optionally removing specific problematic time windows in the file
+- [Concatenate multiple Imec data files](https://djoshea.github.io/neuropixel-utils/imec_dataset.md#concatenating-multiple-files-together) together while matching the amplifier gains
+- [Run Kilosort/Kilosort2](https://djoshea.github.io/neuropixel-utils/kilosort.md#running-kilosort), and [load the results](https://djoshea.github.io/neuropixel-utils/kilosort.md#loading-kilosort-results) back into Matlab after manual inspection in Phy
+- [Plot drift maps](https://djoshea.github.io/neuropixel-utils/analysis.md#plotting-drift-maps) using code adapted from the [spikes repository](https://github.com/cortex-lab/spikes)
+- [Extract waveforms](https://djoshea.github.io/neuropixel-utils/waveforms.md#extracting-waveforms-via-kilosortdataset) for each cluster from the raw data, optionally cleaning the snippets by subtracting templates for other clusters spiking during the same time window
+- [Visualize cluster electrical spiking images](https://djoshea.github.io/neuropixel-utils/analysis.md#plotting-electrical-images) in space and [cluster locations on the probe](https://djoshea.github.io/neuropixel-utils/analysis.md#plotting-cluster-centers-of-mass)
+- [Determine trial boundaries](https://djoshea.github.io/neuropixel-utils/kilosort.md#segmenting-a-kilosort-dataset-into-trials) in the file, and efficiently [segment Kilosort results into individual trials](https://djoshea.github.io/neuropixel-utils/kilosort.md#kilosorttrialsegmenteddataset)
 
 Neuropixel Utils was authored by [Daniel J O'Shea](http://djoshea.com) ([@djoshea](https://twitter.com/djoshea)) to facilitate precision artifact removal and careful inspection of raw data traces before running Kilosort, as well as post-hoc verification that the artifacts were removed successfully.
 
