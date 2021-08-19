@@ -1,0 +1,814 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Documentation for neuropixel-utils">
+      
+      
+      
+        <meta name="author" content="Daniel J. O'Shea">
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.1.2, mkdocs-material-7.1.1">
+    
+    
+      
+        <title>Tutorial (Markdown) - Neuropixel Utilities</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.9299cb39.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ef6f36e2.min.css">
+        
+          
+          
+          <meta name="theme-color" content="#2094f3">
+        
+      
+    
+    
+    
+      
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,400i,700%7CRoboto+Mono&display=fallback">
+        <style>:root{--md-text-font-family:"Roboto";--md-code-font-family:"Roboto Mono"}</style>
+      
+    
+    
+    
+    
+      
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="" data-md-color-primary="blue" data-md-color-accent="blue">
+  
+    
+    <script>function __prefix(e){return new URL("../..",location).pathname+"."+e}function __get(e,t=localStorage){return JSON.parse(t.getItem(__prefix(e)))}</script>
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#startup" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Neuropixel Utilities" class="md-header__button md-logo" aria-label="Neuropixel Utilities" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><path d="M208 0c-29.9 0-54.7 20.5-61.8 48.2-.8 0-1.4-.2-2.2-.2-35.3 0-64 28.7-64 64 0 4.8.6 9.5 1.7 14C52.5 138 32 166.6 32 200c0 12.6 3.2 24.3 8.3 34.9C16.3 248.7 0 274.3 0 304c0 33.3 20.4 61.9 49.4 73.9-.9 4.6-1.4 9.3-1.4 14.1 0 39.8 32.2 72 72 72 4.1 0 8.1-.5 12-1.2 9.6 28.5 36.2 49.2 68 49.2 39.8 0 72-32.2 72-72V64c0-35.3-28.7-64-64-64zm368 304c0-29.7-16.3-55.3-40.3-69.1 5.2-10.6 8.3-22.3 8.3-34.9 0-33.4-20.5-62-49.7-74 1-4.5 1.7-9.2 1.7-14 0-35.3-28.7-64-64-64-.8 0-1.5.2-2.2.2C422.7 20.5 397.9 0 368 0c-35.3 0-64 28.6-64 64v376c0 39.8 32.2 72 72 72 31.8 0 58.4-20.7 68-49.2 3.9.7 7.9 1.2 12 1.2 39.8 0 72-32.2 72-72 0-4.8-.5-9.5-1.4-14.1 29-12 49.4-40.6 49.4-73.9z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Neuropixel Utilities
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Tutorial (Markdown)
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+    
+      <label class="md-header__button md-icon" for="__search">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5z"/></svg>
+      </label>
+      
+<div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" data-md-state="active" required>
+      <label class="md-search__icon md-icon" for="__search">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5z"/></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12z"/></svg>
+      </label>
+      <button type="reset" class="md-search__icon md-icon" aria-label="Clear" tabindex="-1">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg>
+      </button>
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+    
+      <div class="md-header__source">
+        
+<a href="https://github.com/djoshea/neuropixel-utils/" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    djoshea/neuropixel-utils
+  </div>
+</a>
+      </div>
+    
+  </nav>
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Neuropixel Utilities" class="md-nav__button md-logo" aria-label="Neuropixel Utilities" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><path d="M208 0c-29.9 0-54.7 20.5-61.8 48.2-.8 0-1.4-.2-2.2-.2-35.3 0-64 28.7-64 64 0 4.8.6 9.5 1.7 14C52.5 138 32 166.6 32 200c0 12.6 3.2 24.3 8.3 34.9C16.3 248.7 0 274.3 0 304c0 33.3 20.4 61.9 49.4 73.9-.9 4.6-1.4 9.3-1.4 14.1 0 39.8 32.2 72 72 72 4.1 0 8.1-.5 12-1.2 9.6 28.5 36.2 49.2 68 49.2 39.8 0 72-32.2 72-72V64c0-35.3-28.7-64-64-64zm368 304c0-29.7-16.3-55.3-40.3-69.1 5.2-10.6 8.3-22.3 8.3-34.9 0-33.4-20.5-62-49.7-74 1-4.5 1.7-9.2 1.7-14 0-35.3-28.7-64-64-64-.8 0-1.5.2-2.2.2C422.7 20.5 397.9 0 368 0c-35.3 0-64 28.6-64 64v376c0 39.8 32.2 72 72 72 31.8 0 58.4-20.7 68-49.2 3.9.7 7.9 1.2 12 1.2 39.8 0 72-32.2 72-72 0-4.8-.5-9.5-1.4-14.1 29-12 49.4-40.6 49.4-73.9z"/></svg>
+
+    </a>
+    Neuropixel Utilities
+  </label>
+  
+    <div class="md-nav__source">
+      
+<a href="https://github.com/djoshea/neuropixel-utils/" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    djoshea/neuropixel-utils
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../index.html" class="md-nav__link">
+        Overview
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../imec_dataset.html" class="md-nav__link">
+        Neuropixel.ImecDataset
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../kilosort.html" class="md-nav__link">
+        Running Kilosort
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../analysis.html" class="md-nav__link">
+        Analysis of Kilosort Results
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../waveforms.html" class="md-nav__link">
+        Extracting Waveforms
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../acknowledgements.html" class="md-nav__link">
+        Acknowledgements and Support
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_7" type="checkbox" id="__nav_7" >
+      
+      <label class="md-nav__link" for="__nav_7">
+        Examples (HTML)
+        <span class="md-nav__icon md-icon"></span>
+      </label>
+      <nav class="md-nav" aria-label="Examples (HTML)" data-md-level="1">
+        <label class="md-nav__title" for="__nav_7">
+          <span class="md-nav__icon md-icon"></span>
+          Examples (HTML)
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../html/tutorial.html" class="md-nav__link">
+        Tutorial (HTML)
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../html/ex01_walkthrough.html" class="md-nav__link">
+        Ex 01: Walkthrough (HTML)
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../html/ex02_imecdataset.html" class="md-nav__link">
+        Ex 02: ImecDatasets (HTML)
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../html/ex03_running_kilosort.html" class="md-nav__link">
+        Ex 03: Running Kilosort (HTML)
+      </a>
+    </li>
+  
+
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+    
+  
+  
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+      
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_8" type="checkbox" id="__nav_8" checked>
+      
+      <label class="md-nav__link" for="__nav_8">
+        Examples (Markdown)
+        <span class="md-nav__icon md-icon"></span>
+      </label>
+      <nav class="md-nav" aria-label="Examples (Markdown)" data-md-level="1">
+        <label class="md-nav__title" for="__nav_8">
+          <span class="md-nav__icon md-icon"></span>
+          Examples (Markdown)
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+  
+  
+    
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" data-md-toggle="toc" type="checkbox" id="__toc">
+      
+        
+      
+      
+      <a href="tutorial.html" class="md-nav__link md-nav__link--active">
+        Tutorial (Markdown)
+      </a>
+      
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="ex01_walkthrough.html" class="md-nav__link">
+        Ex 01: Walkthrough (Markdown)
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="ex02_imecdataset.html" class="md-nav__link">
+        Ex 02: ImecDatasets (Markdown)
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../html/ex03_running_kilosort.md" class="md-nav__link">
+        Ex 03: Running Kilosort (Markdown)
+      </a>
+    </li>
+  
+
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+    
+  
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          <div class="md-content" data-md-component="content">
+            <article class="md-content__inner md-typeset">
+              
+                
+                  <a href="https://github.com/djoshea/neuropixel-utils/edit/master/docs/publish/md/tutorial.md" title="Edit this page" class="md-content__button md-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25z"/></svg>
+                  </a>
+                
+                
+                <h1 id="startup">Startup<a class="headerlink" href="#startup" title="Permanent link">&para;</a></h1>
+<p>Edit this to point at the path to where you installed the <code>neuropixel-utils</code> distribution or repo.</p>
+<div class="highlight"><pre><span></span><code><span class="c">% Load the Neuropixel Utils library</span><span class="w"></span>
+<span class="n">homeDir</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nb">string</span><span class="p">(</span><span class="n">java</span><span class="p">.</span><span class="n">lang</span><span class="p">.</span><span class="n">System</span><span class="p">.</span><span class="n">getProperty</span><span class="p">(</span><span class="s">&#39;user.home&#39;</span><span class="p">));</span><span class="w"></span>
+<span class="n">npixUtilsDistRoot</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nb">fullfile</span><span class="p">(</span><span class="n">homeDir</span><span class="p">,</span><span class="w"> </span><span class="s">&#39;local&#39;</span><span class="p">,</span><span class="w"> </span><span class="s">&#39;repos&#39;</span><span class="p">,</span><span class="w"> </span><span class="s">&#39;npxutils-apj-wip-01&#39;</span><span class="p">);</span><span class="w"></span>
+<span class="nb">addpath</span><span class="p">(</span><span class="nb">fullfile</span><span class="p">(</span><span class="n">npixUtilsDistRoot</span><span class="p">,</span><span class="w"> </span><span class="s">&#39;Mcode&#39;</span><span class="p">));</span><span class="w"></span>
+<span class="nb">fprintf</span><span class="p">(</span><span class="s">&#39;Loaded Neuropixel Utils %s\n&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">npxutils</span><span class="p">.</span><span class="n">globals</span><span class="p">.</span><span class="n">version</span><span class="p">)</span><span class="w"></span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>Loaded Neuropixel Utils 0.5.0-SNAPSHOT
+</code></pre></div>
+<p>Set the default channel map file you want to use with your data. Some standard channel maps are included in the <code>map_files</code> directory in the <code>neuropixel-utils</code> distribution.</p>
+<div class="highlight"><pre><span></span><code><span class="nb">setenv</span><span class="p">(</span><span class="s">&#39;NEUROPIXEL_MAP_FILE&#39;</span><span class="p">,</span><span class="w"> </span><span class="nb">fullfile</span><span class="p">(</span><span class="n">npxutils</span><span class="p">.</span><span class="n">globals</span><span class="p">.</span><span class="n">distroot</span><span class="p">,</span><span class="w"> </span><span class="s">&#39;map_files&#39;</span><span class="p">,</span><span class="w"> </span><span class="s">&#39;neuropixPhase3A_kilosortChanMap.mat&#39;</span><span class="p">))</span><span class="w"></span>
+</code></pre></div>
+<p>Optional: Configure Neuropixel Utils to generate paths beneath your data root directory, based on its naming conventions.</p>
+<p>This is entirely optional; you can arrange your data however you&rsquo;d like.</p>
+<div class="highlight"><pre><span></span><code><span class="n">myExampleDataDir</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nb">fullfile</span><span class="p">(</span><span class="n">homeDir</span><span class="p">,</span><span class="w"> </span><span class="s">&#39;work&#39;</span><span class="p">,</span><span class="w"> </span><span class="s">&#39;npxutils&#39;</span><span class="p">,</span><span class="w"> </span><span class="s">&#39;example-data&#39;</span><span class="p">);</span><span class="w"></span>
+<span class="nb">setenv</span><span class="p">(</span><span class="s">&#39;NEUROPIXEL_DATAROOT&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">myExampleDataDir</span><span class="p">)</span><span class="w"></span>
+</code></pre></div>
+<h1 id="load-raw-imec-dataset">Load Raw Imec dataset<a class="headerlink" href="#load-raw-imec-dataset" title="Permanent link">&para;</a></h1>
+<p>Here we construct the path to the original, raw dataset as it was recorded by SpikeGLX. You don&rsquo;t need to use this folder nesting structure.</p>
+<div class="highlight"><pre><span></span><code><span class="n">subject</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">&#39;Vinnie&#39;</span><span class="p">;</span><span class="w"></span>
+<span class="n">dateStr</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">&#39;2018-08-17&#39;</span><span class="p">;</span><span class="w"></span>
+<span class="n">rawBinFile</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">&#39;Vinnie_20180817_All.imec.ap.bin&#39;</span><span class="p">;</span><span class="w"></span>
+<span class="n">imecFile</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="n">npxutils</span><span class="p">.</span><span class="n">generatePath</span><span class="p">(</span><span class="n">subject</span><span class="p">,</span><span class="w"> </span><span class="s">&#39;raw_datasets&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">dateStr</span><span class="p">,</span><span class="w"> </span><span class="n">rawBinFile</span><span class="p">)</span><span class="w"></span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>imecFile = &#39;/home/janke/work/npxutils/example-data/Vinnie/raw_datasets/2018-08-17/Vinnie_20180817_All.imec.ap.bin&#39;
+</code></pre></div>
+<p>We then use this path to construct an ImecDataset object which will facilitate access to the raw data and load the metadata from disk. You can pass the path of the Imec dataset in several ways:</p>
+<ul>
+<li>Path to raw <code>.imec.ap.bin</code> file or <code>imec.lf.bin</code> file. </li>
+<li>Path to the containing directory, if there is only one set of <code>.bin</code> files within. </li>
+</ul>
+<p>To construct the ImecDataset object, pass the identifying path directly to the constructor.</p>
+<div class="highlight"><pre><span></span><code><span class="n">imec</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="n">npxutils</span><span class="p">.</span><span class="n">ImecDataset</span><span class="p">(</span><span class="n">imecFile</span><span class="p">)</span><span class="w"></span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>imec = 
+  ImecDataset with properties:
+
+          bytesPerSample: 2
+                pathRoot: &#39;/home/janke/work/npxutils/example-data/Vinnie/raw_datasets/2018-08-17&#39;
+                fileStem: &#39;Vinnie_20180817_All&#39;
+          fileImecNumber: NaN
+            creationTime: 7.3729e+05
+               nChannels: 385
+              fileTypeAP: &#39;ap&#39;
+              fileTypeLF: &#39;lf&#39;
+              nSamplesAP: 36177457
+              nSamplesLF: 0
+                    fsAP: 30000
+                    fsLF: NaN
+                  fsSync: NaN
+        highPassFilterHz: 300
+                  apGain: 500
+                 apRange: [-0.6000 0.6000]
+                  lfGain: 250
+                 lfRange: []
+                 adcBits: 10
+             snsShankMap: &quot;(1,2,480)(0:0:0:1)(0:1:0:1)(0:0:1:1)(0:1:1:1)(0:0:2:1)(0:1:2:1)(0:0:3:1)(0:1:3:1)(0:0:4:1)(0:1:4:1)(0:0:5:1)(0:1:5:1)(0:0:6:1)(0:1:6:1)(0:0:7:1)(0:1:7:1)(0:0:8:1)(0:1:8:1)(0:0:9:1)(0:1:9:1)(0:0:10:1)(0:1:10:1)(0:0:11:1)(0:1:11:1)(0:0:12:1)(0:1:12:1)(0:0:13:1)(0:1:13:1)(0:0:14:1)(0:1:14:1)(0:0:15:1)(0:1:15:1)(0:0:16:1)(0:1:16:1)(0:0:17:1)(0:1:17:1)(0:0:18:0)(0:1:18:1)(0:0:19:1)(0:1:19:1)(0:0:20:1)(0:1:20:1)(0:0:21:1)(0:1:21:1)(0:0:22:1)(0:1:22:1)(0:0:23:1)(0:1:23:1)(0:0:24:1)(0:1:24:1)(0:0:25:1)(0:1:25:1)(0:0:26:1)(0:1:26:1)(0:0:27:1)(0:1:27:1)(0:0:28:1)(0:1:28:1)(0:0:29:1)(0:1:29:1)(0:0:30:1)(0:1:30:1)(0:0:31:1)(0:1:31:1)(0:0:32:1)(0:1:32:1)(0:0:33:1)(0:1:33:1)(0:0:34:1)(0:1:34:1)(0:0:35:1)(0:1:35:1)(0:0:36:1)(0:1:36:1)(0:0:37:1)(0:1:37:0)(0:0:38:1)(0:1:38:1)(0:0:39:1)(0:1:39:1)(0:0:40:1)(0:1:40:1)(0:0:41:1)(0:1:41:1)(0:0:42:1)(0:1:42:1)(0:0:43:1)(0:1:43:1)(0:0:44:1)(0:1:44:1)(0:0:45:1)(0:1:45:1)(0:0:46:1)(0:1:46:1)(0:0:47:1)(0:1:47:1)(0:0:48:1)(0:1:48:1)(0:0:49:1)(0:1:49:1)(0:0:50:1)(0:1:50:1)(0:0:51:1)(0:1:51:1)(0:0:52:1)(0:1:52:1)(0:0:53:1)(0:1:53:1)(0:0:54:1)(0:1:54:1)(0:0:55:1)(0:1:55:1)(0:0:56:0)(0:1:56:1)(0:0:57:1)(0:1:57:1)(0:0:58:1)(0:1:58:1)(0:0:59:1)(0:1:59:1)(0:0:60:1)(0:1:60:1)(0:0:61:1)(0:1:61:1)(0:0:62:1)(0:1:62:1)(0:0:63:1)(0:1:63:1)(0:0:64:1)(0:1:64:1)(0:0:65:1)(0:1:65:1)(0:0:66:1)(0:1:66:1)(0:0:67:1)(0:1:67:1)(0:0:68:1)(0:1:68:1)(0:0:69:1)(0:1:69:1)(0:0:70:1)(0:1:70:1)(0:0:71:1)(0:1:71:1)(0:0:72:1)(0:1:72:1)(0:0:73:1)(0:1:73:1)(0:0:74:1)(0:1:74:1)(0:0:75:1)(0:1:75:0)(0:0:76:1)(0:1:76:1)(0:0:77:1)(0:1:77:1)(0:0:78:1)(0:1:78:1)(0:0:79:1)(0:1:79:1)(0:0:80:1)(0:1:80:1)(0:0:81:1)(0:1:81:1)(0:0:82:1)(0:1:82:1)(0:0:83:1)(0:1:83:1)(0:0:84:1)(0:1:84:1)(0:0:85:1)(0:1:85:1)(0:0:86:1)(0:1:86:1)(0:0:87:1)(0:1:87:1)(0:0:88:1)(0:1:88:1)(0:0:89:1)(0:1:89:1)(0:0:90:1)(0:1:90:1)(0:0:91:1)(0:1:91:1)(0:0:92:1)(0:1:92:1)(0:0:93:1)(0:1:93:1)(0:0:94:0)(0:1:94:1)(0:0:95:1)(0:1:95:1)(0:0:96:1)(0:1:96:1)(0:0:97:1)(0:1:97:1)(0:0:98:1)(0:1:98:1)(0:0:99:1)(0:1:99:1)(0:0:100:1)(0:1:100:1)(0:0:101:1)(0:1:101:1)(0:0:102:1)(0:1:102:1)(0:0:103:1)(0:1:103:1)(0:0:104:1)(0:1:104:1)(0:0:105:1)(0:1:105:1)(0:0:106:1)(0:1:106:1)(0:0:107:1)(0:1:107:1)(0:0:108:1)(0:1:108:1)(0:0:109:1)(0:1:109:1)(0:0:110:1)(0:1:110:1)(0:0:111:1)(0:1:111:1)(0:0:112:1)(0:1:112:1)(0:0:113:1)(0:1:113:0)(0:0:114:1)(0:1:114:1)(0:0:115:1)(0:1:115:1)(0:0:116:1)(0:1:116:1)(0:0:117:1)(0:1:117:1)(0:0:118:1)(0:1:118:1)(0:0:119:1)(0:1:119:1)(0:0:120:1)(0:1:120:1)(0:0:121:1)(0:1:121:1)(0:0:122:1)(0:1:122:1)(0:0:123:1)(0:1:123:1)(0:0:124:1)(0:1:124:1)(0:0:125:1)(0:1:125:1)(0:0:126:1)(0:1:126:1)(0:0:127:1)(0:1:127:1)(0:0:128:1)(0:1:128:1)(0:0:129:1)(0:1:129:1)(0:0:130:1)(0:1:130:1)(0:0:131:1)(0:1:131:1)(0:0:132:0)(0:1:132:1)(0:0:133:1)(0:1:133:1)(0:0:134:1)(0:1:134:1)(0:0:135:1)(0:1:135:1)(0:0:136:1)(0:1:136:1)(0:0:137:1)(0:1:137:1)(0:0:138:1)(0:1:138:1)(0:0:139:1)(0:1:139:1)(0:0:140:1)(0:1:140:1)(0:0:141:1)(0:1:141:1)(0:0:142:1)(0:1:142:1)(0:0:143:1)(0:1:143:1)(0:0:144:1)(0:1:144:1)(0:0:145:1)(0:1:145:1)(0:0:146:1)(0:1:146:1)(0:0:147:1)(0:1:147:1)(0:0:148:1)(0:1:148:1)(0:0:149:1)(0:1:149:1)(0:0:150:1)(0:1:150:1)(0:0:151:1)(0:1:151:0)(0:0:152:1)(0:1:152:1)(0:0:153:1)(0:1:153:1)(0:0:154:1)(0:1:154:1)(0:0:155:1)(0:1:155:1)(0:0:156:1)(0:1:156:1)(0:0:157:1)(0:1:157:1)(0:0:158:1)(0:1:158:1)(0:0:159:1)(0:1:159:1)(0:0:160:1)(0:1:160:1)(0:0:161:1)(0:1:161:1)(0:0:162:1)(0:1:162:1)(0:0:163:1)(0:1:163:1)(0:0:164:1)(0:1:164:1)(0:0:165:1)(0:1:165:1)(0:0:166:1)(0:1:166:1)(0:0:167:1)(0:1:167:1)(0:0:168:1)(0:1:168:1)(0:0:169:1)(0:1:169:1)(0:0:170:0)(0:1:170:1)(0:0:171:1)(0:1:171:1)(0:0:172:1)(0:1:172:1)(0:0:173:1)(0:1:173:1)(0:0:174:1)(0:1:174:1)(0:0:175:1)(0:1:175:1)(0:0:176:1)(0:1:176:1)(0:0:177:1)(0:1:177:1)(0:0:178:1)(0:1:178:1)(0:0:179:1)(0:1:179:1)(0:0:180:1)(0:1:180:1)(0:0:181:1)(0:1:181:1)(0:0:182:1)(0:1:182:1)(0:0:183:1)(0:1:183:1)(0:0:184:1)(0:1:184:1)(0:0:185:1)(0:1:185:1)(0:0:186:1)(0:1:186:1)(0:0:187:1)(0:1:187:1)(0:0:188:1)(0:1:188:1)(0:0:189:1)(0:1:189:0)(0:0:190:1)(0:1:190:1)(0:0:191:1)(0:1:191:1)&quot;
+              channelMap: [1x1 npxutils.ChannelMap]
+             badChannels: [0x1 uint32]
+            syncBitNames: [16x1 string]
+     concatenationInfoAP: [1x1 npxutils.ConcatenationInfo]
+     concatenationInfoLF: []
+          sourceDatasets: []
+                 syncRaw: []
+                   hasAP: 1
+                   hasLF: 0
+       hasSourceDatasets: 0
+             hasSourceAP: 0
+             hasSourceLF: 0
+           hasSourceSync: 0
+          channelMapFile: &quot;/home/janke/local/repos/npxutils-apj-wip-01/map_files/neuropixPhase3A_kilosortChanMap.mat&quot;
+          mappedChannels: [384x1 uint32]
+       mappedChannelInds: [384x1 double]
+         nChannelsMapped: 384
+       connectedChannels: [374x1 uint32]
+    connectedChannelInds: [374x1 double]
+      nChannelsConnected: 374
+            goodChannels: [374x1 uint32]
+         goodChannelInds: [374x1 double]
+           nGoodChannels: 374
+              channelIds: [385x1 uint32]
+            channelNames: [385x1 string]
+      channelNamesPadded: [385x1 string]
+               nSyncBits: 16
+           syncBitsNamed: [11x1 double]
+                  fileAP: &#39;Vinnie_20180817_All.imec.ap.bin&#39;
+                  pathAP: &#39;/home/janke/work/npxutils/example-data/Vinnie/raw_datasets/2018-08-17/Vinnie_20180817_All.imec.ap.bin&#39;
+              fileAPMeta: &#39;Vinnie_20180817_All.imec.ap.meta&#39;
+              pathAPMeta: &#39;/home/janke/work/npxutils/example-data/Vinnie/raw_datasets/2018-08-17/Vinnie_20180817_All.imec.ap.meta&#39;
+                  fileLF: &#39;Vinnie_20180817_All.imec.lf.bin&#39;
+                  pathLF: &#39;/home/janke/work/npxutils/example-data/Vinnie/raw_datasets/2018-08-17/Vinnie_20180817_All.imec.lf.bin&#39;
+              fileLFMeta: &#39;Vinnie_20180817_All.imec.lf.meta&#39;
+              pathLFMeta: &#39;/home/janke/work/npxutils/example-data/Vinnie/raw_datasets/2018-08-17/Vinnie_20180817_All.imec.lf.meta&#39;
+                fileSync: &#39;Vinnie_20180817_All.imec.ap.bin&#39;
+                pathSync: &#39;/home/janke/work/npxutils/example-data/Vinnie/raw_datasets/2018-08-17/Vinnie_20180817_All.imec.ap.bin&#39;
+          fileSyncCached: &#39;Vinnie_20180817_All.sync.mat&#39;
+          pathSyncCached: &#39;/home/janke/work/npxutils/example-data/Vinnie/raw_datasets/2018-08-17/Vinnie_20180817_All.sync.mat&#39;
+         creationTimeStr: &#39;17-Aug-2018 13:50:34&#39;
+             apScaleToUv: 2.3438
+             lfScaleToUv: NaN
+           syncChannelId: 385
+        syncChannelIndex: 385
+            syncInAPFile: 1
+            syncInLFFile: 0
+</code></pre></div>
+<h2 id="specifying-the-channel-map-manually">Specifying the channel map manually<a class="headerlink" href="#specifying-the-channel-map-manually" title="Permanent link">&para;</a></h2>
+<p>By default, the channel map will be loaded from whatever the environment variable NEUROPIXEL_MAP_FILE is set to, which we set above. If you want to manaully specify a channel map, pass it in to the ImecDataset constructor using the <code>channelMap</code> option:</p>
+<p>imec = npxutils.ImecDataset(imecFile, &lsquo;channelMap&rsquo;, &lsquo;/path/to/channelMap.mat&rsquo;);</p>
+<h2 id="explore-the-loaded-metadata">Explore the loaded metadata<a class="headerlink" href="#explore-the-loaded-metadata" title="Permanent link">&para;</a></h2>
+<p>Here we see that this option 3A probe has 384 total channels (saved in the <code>.imec.ap.bin</code> file), and that 374 of these channels are connected, namely those listed in <code>connectedChannels</code>.</p>
+<div class="highlight"><pre><span></span><code><span class="n">imec</span><span class="p">.</span><span class="n">channelMap</span><span class="w"></span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>ans = 
+  ChannelMap with properties:
+
+                 file: &quot;/home/janke/local/repos/npxutils-apj-wip-01/map_files/neuropixPhase3A_kilosortChanMap.mat&quot;
+                 name: &quot;neuropixPhase3A_kilosortChanMap&quot;
+     channelIdsMapped: [384x1 uint32]
+            connected: [384x1 logical]
+             shankInd: [384x1 double]
+         nSpatialDims: 2
+              xcoords: [384x1 double]
+              ycoords: [384x1 double]
+              zcoords: [384x1 double]
+     syncChannelIndex: 385
+        syncChannelId: 385
+               coords: [384x2 double]
+         syncInAPFile: 1
+         syncInLFFile: 1
+           channelIds: [385x1 uint32]
+            nChannels: 385
+      nChannelsMapped: 384
+    connectedChannels: [374x1 uint32]
+    referenceChannels: [10x1 uint32]
+      invertChannelsY: 1
+             yspacing: 20
+             xspacing: 16
+             zspacing: [0x1 double]
+                 xlim: [-9 79]
+                 ylim: [0 3860]
+</code></pre></div>
+<p>We can determine the duration of the recording using the number of samples and the frequency in the Imec data:</p>
+<div class="highlight"><pre><span></span><code><span class="n">durationMinutes</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="n">imec</span><span class="p">.</span><span class="n">nSamplesAP</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">imec</span><span class="p">.</span><span class="n">fsAP</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="mi">60</span><span class="p">;</span><span class="w"></span>
+<span class="nb">fprintf</span><span class="p">(</span><span class="s">&#39;Duration of recording %s is %.1f minutes.\n&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">imec</span><span class="p">.</span><span class="n">fileStem</span><span class="p">,</span><span class="w"> </span><span class="n">durationMinutes</span><span class="p">)</span><span class="w"></span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>Duration of recording Vinnie_20180817_All is 20.1 minutes.
+</code></pre></div>
+<h1 id="accessing-the-raw-ap-data">Accessing the raw AP data<a class="headerlink" href="#accessing-the-raw-ap-data" title="Permanent link">&para;</a></h1>
+<p>You can access the raw AP data in several ways. (See the full list of methods with <code>methods(imec)</code> or <code>doc npxutils.ImecDataset</code>). The most straightforward is to memory-map the full binary data:</p>
+<p><em>This bit is broken because it references code that doesn&rsquo;t exist in this library. Probably left over from an older version of the library and never updated? Or maybe it has an external dependency?</em></p>
+<div class="highlight"><pre><span></span><code><span class="c">% This is broken because NeuropixelExpt doesn&#39;t exist?</span><span class="w"></span>
+
+<span class="c">% NeuropixelExpt.DataLoad.setImecSyncBitNames(imec);</span><span class="w"></span>
+
+<span class="c">% What does &quot;p&quot; refer to here?</span><span class="w"></span>
+
+<span class="c">% if ~isempty(p.Results.badChannels)</span><span class="w"></span>
+<span class="c">%    imec.markBadChannels(p.Results.badChannels);</span><span class="w"></span>
+<span class="c">% end</span><span class="w"></span>
+</code></pre></div>
+<p><em>This stuff works:</em></p>
+<div class="highlight"><pre><span></span><code><span class="n">rmsBadChannels</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="n">imec</span><span class="p">.</span><span class="n">markBadChannelsByRMS</span><span class="p">(</span><span class="s">&#39;rmsRange&#39;</span><span class="p">,</span><span class="w"> </span><span class="p">[</span><span class="mi">3</span><span class="w"> </span><span class="mi">100</span><span class="p">]);</span><span class="w"></span>
+<span class="nb">fprintf</span><span class="p">(</span><span class="s">&#39;Marked %d channels bad based on RMS\n&#39;</span><span class="p">,</span><span class="w"> </span><span class="nb">numel</span><span class="p">(</span><span class="n">rmsBadChannels</span><span class="p">));</span><span class="w"></span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>Marked 0 channels bad based on RMS
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><span class="c">% Save the bad channels and sync bit names back to the meta file</span><span class="w"></span>
+<span class="n">imec</span><span class="p">.</span><span class="n">writeModifiedAPMeta</span><span class="p">();</span><span class="w"></span>
+
+<span class="c">% CAR the file and flush the unused sync bits to the cleaned_datasets folder</span><span class="w"></span>
+<span class="n">cleanedBinFile</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">&#39;Vinnie_20180817_All_cleaned.imec.ap.bin&#39;</span><span class="w"></span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>cleanedBinFile = &#39;Vinnie_20180817_All_cleaned.imec.ap.bin&#39;
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><span class="n">cleanedPath</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="n">npxutils</span><span class="p">.</span><span class="n">generatePath</span><span class="p">(</span><span class="n">subject</span><span class="p">,</span><span class="w"> </span><span class="s">&#39;cleaned_datasets&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">dateStr</span><span class="p">,</span><span class="w"> </span><span class="n">cleanedBinFile</span><span class="p">);</span><span class="w"></span>
+
+<span class="nb">fprintf</span><span class="p">(</span><span class="s">&#39;Writing CAR version at %s\n&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">cleanedPath</span><span class="p">);</span><span class="w"></span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>Writing CAR version at /home/janke/work/npxutils/example-data/Vinnie/cleaned_datasets/2018-08-17/Vinnie_20180817_All_cleaned.imec.ap.bin
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><span class="n">extraMeta</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nb">struct</span><span class="p">;</span><span class="w"></span>
+<span class="n">extraMeta</span><span class="p">.</span><span class="n">run_clearUnusedSyncBits</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nb">true</span><span class="p">;</span><span class="w"></span>
+<span class="n">extraMeta</span><span class="p">.</span><span class="n">run_detectAndMarkStimArtifactWindows</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nb">true</span><span class="p">;</span><span class="w"></span>
+<span class="n">fnList</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="c">% This is broken because NeuropixelExpt doesn&#39;t exist?</span><span class="w"></span>
+<span class="w">    </span><span class="c">% @NeuropixelExpt.DataClean.clearUnusedSyncBits</span><span class="w"></span>
+<span class="w">    </span><span class="p">@</span><span class="n">npxutils</span><span class="p">.</span><span class="n">dataprocess</span><span class="p">.</span><span class="n">commonAverageReference</span><span class="w"></span>
+<span class="w">    </span><span class="p">}</span><span class="s">&#39;;</span>
+<span class="s">cleanedDataDir = fullfile(myExampleDataDir, &#39;</span><span class="n">Vinnie</span><span class="o">&#39;</span><span class="p">,</span><span class="w"> </span><span class="s">&#39;cleaned_datasets&#39;</span><span class="p">);</span><span class="w"></span>
+<span class="n">npxutils</span><span class="p">.</span><span class="n">io</span><span class="p">.</span><span class="n">rmrf</span><span class="p">(</span><span class="n">cleanedDataDir</span><span class="p">);</span><span class="w"></span>
+<span class="n">imec</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="n">imec</span><span class="p">.</span><span class="n">saveTransformedDataset</span><span class="p">(</span><span class="n">cleanedPath</span><span class="p">,</span><span class="w"> </span><span class="k">...</span><span class="w"></span>
+<span class="w">    </span><span class="s">&#39;goodChannelsOnly&#39;</span><span class="p">,</span><span class="w"> </span><span class="nb">false</span><span class="p">,</span><span class="w"> </span><span class="s">&#39;writeSyncSeparate&#39;</span><span class="p">,</span><span class="w"> </span><span class="nb">false</span><span class="p">,</span><span class="w"> </span><span class="k">...</span><span class="w"></span>
+<span class="w">    </span><span class="s">&#39;transformAP&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">fnList</span><span class="p">,</span><span class="w"> </span><span class="s">&#39;extraMeta&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">extraMeta</span><span class="p">);</span><span class="w"></span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>Writing AP meta file Vinnie_20180817_All_cleaned.imec.ap.meta
+Writing AP bin file /home/janke/work/npxutils/example-data/Vinnie/cleaned_datasets/2018-08-17/Vinnie_20180817_All_cleaned.imec.ap.bin
+Writing contents of Vinnie_20180817_All
+Copying ap file 1 / 1: Vinnie_20180817_All :    100% [_______________]   
+Warning: AP bin file size is not an integral number of samples, file data may not be fully copied, truncating nSamplesAP
+Error using npxutils.ConcatenationInfo (line 56)
+Mismatch between time shifts and total number of samples
+Error in npxutils.ImecDataset/readInfo (line 313)
+                this.concatenationInfoAP = npxutils.ConcatenationInfo(this, &#39;ap&#39;, metaAP);
+Error in npxutils.ImecDataset (line 193)
+                    this.readInfo();
+Error in npxutils.ImecDataset.writeConcatenatedFileMatchGains (line 2763)
+            imecOut = npxutils.ImecDataset(outFile, &#39;channelMap&#39;, imecList{1}.channelMapFile, &#39;sourceDatasets&#39;, cat(1, imecList{:}));
+Error in npxutils.ImecDataset/saveTransformedDataset (line 1943)
+            imecOut = npxutils.ImecDataset.writeConcatenatedFileMatchGains({this}, outPath, p.Results);
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><span class="c">% Symlink into ks directory for Kilosort&#39;s use</span><span class="w"></span>
+<span class="n">ksPath</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="n">npxutils</span><span class="p">.</span><span class="n">generatePath</span><span class="p">(</span><span class="n">subject</span><span class="p">,</span><span class="w"> </span><span class="s">&#39;ks&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">dateStr</span><span class="p">,</span><span class="w"> </span><span class="n">cleanedBinFile</span><span class="p">);</span><span class="w"></span>
+<span class="nb">fprintf</span><span class="p">(</span><span class="s">&#39;Symlinking to %s\n&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">ksPath</span><span class="p">);</span><span class="w"></span>
+<span class="c">% And run Kilosort on the symlinked data set</span><span class="w"></span>
+<span class="n">imec</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="n">imec</span><span class="p">.</span><span class="n">symLinkAPIntoDirectory</span><span class="p">(</span><span class="n">ksPath</span><span class="p">);</span><span class="w"></span>
+<span class="nb">fprintf</span><span class="p">(</span><span class="s">&#39;Running Kilosort2\n&#39;</span><span class="p">);</span><span class="w"></span>
+<span class="n">npxutils</span><span class="p">.</span><span class="n">runKilosort2</span><span class="p">(</span><span class="n">imec</span><span class="p">);</span><span class="w"></span>
+
+<span class="c">% Here&#39;s a little summary output</span><span class="w"></span>
+<span class="n">info</span><span class="p">.</span><span class="n">rawPath</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="n">imecFile</span><span class="p">;</span><span class="w"></span>
+<span class="n">info</span><span class="p">.</span><span class="n">cleanedPath</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="n">cleanedPath</span><span class="p">;</span><span class="w"></span>
+<span class="n">info</span><span class="p">.</span><span class="n">ksPath</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="n">ksPath</span><span class="p">;</span><span class="w"></span>
+<span class="n">info</span><span class="w"></span>
+</code></pre></div>
+                
+              
+              
+                
+
+
+              
+            </article>
+          </div>
+        </div>
+        
+      </main>
+      
+        
+<footer class="md-footer">
+  
+    <nav class="md-footer__inner md-grid" aria-label="Footer">
+      
+        <a href="../html/ex03_running_kilosort.html" class="md-footer__link md-footer__link--prev" rel="prev">
+          <div class="md-footer__button md-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12z"/></svg>
+          </div>
+          <div class="md-footer__title">
+            <div class="md-ellipsis">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              Ex 03: Running Kilosort (HTML)
+            </div>
+          </div>
+        </a>
+      
+      
+        <a href="ex01_walkthrough.html" class="md-footer__link md-footer__link--next" rel="next">
+          <div class="md-footer__title">
+            <div class="md-ellipsis">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              Ex 01: Walkthrough (Markdown)
+            </div>
+          </div>
+          <div class="md-footer__button md-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11H4z"/></svg>
+          </div>
+        </a>
+      
+    </nav>
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-footer-copyright">
+        
+          <div class="md-footer-copyright__highlight">
+            Copyright &copy; 2021 &mdash; <a href="http://djoshea.com">Daniel J. O&#39;Shea</a>
+          </div>
+        
+        Made with
+        <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+          Material for MkDocs
+        </a>
+        
+      </div>
+      
+  <div class="md-footer-social">
+    
+      
+      
+        
+        
+      
+      <a href="https://github.com/djoshea" target="_blank" rel="noopener" title="github.com" class="md-footer-social__link">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg>
+      </a>
+    
+      
+      
+        
+        
+      
+      <a href="https://twitter.com/djoshea" target="_blank" rel="noopener" title="twitter.com" class="md-footer-social__link">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><path d="M459.37 151.716c.325 4.548.325 9.097.325 13.645 0 138.72-105.583 298.558-298.558 298.558-59.452 0-114.68-17.219-161.137-47.106 8.447.974 16.568 1.299 25.34 1.299 49.055 0 94.213-16.568 130.274-44.832-46.132-.975-84.792-31.188-98.112-72.772 6.498.974 12.995 1.624 19.818 1.624 9.421 0 18.843-1.3 27.614-3.573-48.081-9.747-84.143-51.98-84.143-102.985v-1.299c13.969 7.797 30.214 12.67 47.431 13.319-28.264-18.843-46.781-51.005-46.781-87.391 0-19.492 5.197-37.36 14.294-52.954 51.655 63.675 129.3 105.258 216.365 109.807-1.624-7.797-2.599-15.918-2.599-24.04 0-57.828 46.782-104.934 104.934-104.934 30.213 0 57.502 12.67 76.67 33.137 23.715-4.548 46.456-13.32 66.599-25.34-7.798 24.366-24.366 44.833-46.132 57.827 21.117-2.273 41.584-8.122 60.426-16.243-14.292 20.791-32.161 39.308-52.628 54.253z"/></svg>
+      </a>
+    
+  </div>
+
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    <script id="__config" type="application/json">{"base": "../..", "features": [], "translations": {"clipboard.copy": "Copy to clipboard", "clipboard.copied": "Copied to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.placeholder": "Search", "search.result.placeholder": "Type to start searching", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.term.missing": "Missing"}, "search": "../../assets/javascripts/workers/search.fe42c31b.min.js", "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.7353b375.min.js"></script>
+      
+    
+  </body>
+</html>

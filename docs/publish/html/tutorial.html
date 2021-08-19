@@ -1,0 +1,259 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8"><meta http-equiv="X-UA-Compatible" content="IE=edge,IE=9,chrome=1"><meta name="generator" content="MATLAB 2020b"><title>Untitled</title><style type="text/css">.rtcContent { padding: 30px; } .S0 { margin: 3px 10px 5px 4px; padding: 0px; line-height: 20px; min-height: 0px; white-space: pre-wrap; color: rgb(60, 60, 60); font-family: Helvetica, Arial, sans-serif; font-style: normal; font-size: 20px; font-weight: 700; text-align: left;  }
+.S1 { margin: 2px 10px 9px 4px; padding: 0px; line-height: 21px; min-height: 0px; white-space: pre-wrap; color: rgb(0, 0, 0); font-family: Helvetica, Arial, sans-serif; font-style: normal; font-size: 14px; font-weight: 400; text-align: left;  }
+.CodeBlock { background-color: #F7F7F7; margin: 10px 0 10px 0;}
+.S2 { border-left: 1px solid rgb(233, 233, 233); border-right: 1px solid rgb(233, 233, 233); border-top: 1px solid rgb(233, 233, 233); border-bottom: 0px none rgb(0, 0, 0); border-radius: 4px 4px 0px 0px; padding: 6px 45px 0px 13px; line-height: 17.234px; min-height: 18px; white-space: nowrap; color: rgb(0, 0, 0); font-family: Menlo, Monaco, Consolas, "Courier New", monospace; font-size: 14px;  }
+.S3 { border-left: 1px solid rgb(233, 233, 233); border-right: 1px solid rgb(233, 233, 233); border-top: 0px none rgb(0, 0, 0); border-bottom: 0px none rgb(0, 0, 0); border-radius: 0px; padding: 0px 45px 0px 13px; line-height: 17.234px; min-height: 18px; white-space: nowrap; color: rgb(0, 0, 0); font-family: Menlo, Monaco, Consolas, "Courier New", monospace; font-size: 14px;  }
+.S4 { border-left: 1px solid rgb(233, 233, 233); border-right: 1px solid rgb(233, 233, 233); border-top: 0px none rgb(0, 0, 0); border-bottom: 1px solid rgb(233, 233, 233); border-radius: 0px; padding: 0px 45px 4px 13px; line-height: 17.234px; min-height: 18px; white-space: nowrap; color: rgb(0, 0, 0); font-family: Menlo, Monaco, Consolas, "Courier New", monospace; font-size: 14px;  }
+.S5 { color: rgb(64, 64, 64); padding: 10px 0px 6px 17px; background: rgb(255, 255, 255) none repeat scroll 0% 0% / auto padding-box border-box; font-family: Menlo, Monaco, Consolas, "Courier New", monospace; font-size: 14px; overflow-x: hidden; line-height: 17.234px;  }
+.embeddedOutputsErrorElement {min-height: 18px; max-height: 250px; overflow: auto;}
+.embeddedOutputsErrorElement.inlineElement {}
+.embeddedOutputsErrorElement.rightPaneElement {}
+.embeddedOutputsWarningElement{min-height: 18px; max-height: 250px; overflow: auto;}
+.embeddedOutputsWarningElement.inlineElement {}
+.embeddedOutputsWarningElement.rightPaneElement {}
+.diagnosticMessage-wrapper {font-family: Menlo, Monaco, Consolas, "Courier New", monospace; font-size: 12px;}
+.diagnosticMessage-wrapper.diagnosticMessage-warningType {color: rgb(255,100,0);}
+.diagnosticMessage-wrapper.diagnosticMessage-warningType a {color: rgb(255,100,0); text-decoration: underline;}
+.diagnosticMessage-wrapper.diagnosticMessage-errorType {color: rgb(230,0,0);}
+.diagnosticMessage-wrapper.diagnosticMessage-errorType a {color: rgb(230,0,0); text-decoration: underline;}
+.diagnosticMessage-wrapper .diagnosticMessage-messagePart,.diagnosticMessage-wrapper .diagnosticMessage-causePart {white-space: pre-wrap;}
+.diagnosticMessage-wrapper .diagnosticMessage-stackPart {white-space: pre;}
+.embeddedOutputsTextElement,.embeddedOutputsVariableStringElement {white-space: pre; word-wrap: initial; min-height: 18px; max-height: 250px; overflow: auto;}
+.textElement,.rtcDataTipElement .textElement {padding-top: 3px;}
+.embeddedOutputsTextElement.inlineElement,.embeddedOutputsVariableStringElement.inlineElement {}
+.inlineElement .textElement {}
+.embeddedOutputsTextElement.rightPaneElement,.embeddedOutputsVariableStringElement.rightPaneElement {min-height: 16px;}
+.rightPaneElement .textElement {padding-top: 2px; padding-left: 9px;}
+.S6 { margin: 10px 10px 9px 4px; padding: 0px; line-height: 21px; min-height: 0px; white-space: pre-wrap; color: rgb(0, 0, 0); font-family: Helvetica, Arial, sans-serif; font-style: normal; font-size: 14px; font-weight: 400; text-align: left;  }
+.S7 { border-left: 1px solid rgb(233, 233, 233); border-right: 1px solid rgb(233, 233, 233); border-top: 1px solid rgb(233, 233, 233); border-bottom: 1px solid rgb(233, 233, 233); border-radius: 4px; padding: 6px 45px 4px 13px; line-height: 17.234px; min-height: 18px; white-space: nowrap; color: rgb(0, 0, 0); font-family: Menlo, Monaco, Consolas, "Courier New", monospace; font-size: 14px;  }
+.S8 { border-left: 1px solid rgb(233, 233, 233); border-right: 1px solid rgb(233, 233, 233); border-top: 0px none rgb(0, 0, 0); border-bottom: 1px solid rgb(233, 233, 233); border-radius: 0px 0px 4px 4px; padding: 0px 45px 4px 13px; line-height: 17.234px; min-height: 18px; white-space: nowrap; color: rgb(0, 0, 0); font-family: Menlo, Monaco, Consolas, "Courier New", monospace; font-size: 14px;  }
+.S9 { margin: 10px 0px 20px; padding-left: 0px; font-family: Helvetica, Arial, sans-serif; font-size: 14px;  }
+.S10 { margin-left: 56px; line-height: 21px; min-height: 0px; text-align: left; white-space: pre-wrap;  }
+.S11 { border-left: 1px solid rgb(233, 233, 233); border-right: 1px solid rgb(233, 233, 233); border-top: 1px solid rgb(233, 233, 233); border-bottom: 1px solid rgb(233, 233, 233); border-radius: 4px 4px 0px 0px; padding: 6px 45px 4px 13px; line-height: 17.234px; min-height: 18px; white-space: nowrap; color: rgb(0, 0, 0); font-family: Menlo, Monaco, Consolas, "Courier New", monospace; font-size: 14px;  }
+.S12 { margin: 15px 10px 5px 4px; padding: 0px; line-height: 18px; min-height: 0px; white-space: pre-wrap; color: rgb(60, 60, 60); font-family: Helvetica, Arial, sans-serif; font-style: normal; font-size: 17px; font-weight: 700; text-align: left;  }
+.S13 { margin: 3px 10px 5px 4px; padding: 0px; line-height: 18px; min-height: 0px; white-space: pre-wrap; color: rgb(60, 60, 60); font-family: Helvetica, Arial, sans-serif; font-style: normal; font-size: 17px; font-weight: 700; text-align: left;  }
+.S14 { margin: 20px 10px 5px 4px; padding: 0px; line-height: 20px; min-height: 0px; white-space: pre-wrap; color: rgb(60, 60, 60); font-family: Helvetica, Arial, sans-serif; font-style: normal; font-size: 20px; font-weight: 700; text-align: left;  }
+.S15 { border-left: 1px solid rgb(233, 233, 233); border-right: 1px solid rgb(233, 233, 233); border-top: 1px solid rgb(233, 233, 233); border-bottom: 0px none rgb(0, 0, 0); border-radius: 0px; padding: 6px 45px 0px 13px; line-height: 17.234px; min-height: 18px; white-space: nowrap; color: rgb(0, 0, 0); font-family: Menlo, Monaco, Consolas, "Courier New", monospace; font-size: 14px;  }</style></head><body><div class = rtcContent><h2  class = 'S0'><span>Startup</span></h2><div  class = 'S1'><span>Edit this to point at the path to where you installed the </span><span style=' font-family: monospace;'>neuropixel-utils</span><span> distribution or repo.</span></div><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S2'><span style="white-space: pre;"><span style="color: rgb(2, 128, 9);">% Load the Neuropixel Utils library</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span>homeDir = string(java.lang.System.getProperty(</span><span style="color: rgb(170, 4, 249);">'user.home'</span><span>));</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span>npixUtilsDistRoot = fullfile(homeDir, </span><span style="color: rgb(170, 4, 249);">'local'</span><span>, </span><span style="color: rgb(170, 4, 249);">'repos'</span><span>, </span><span style="color: rgb(170, 4, 249);">'npxutils-apj-wip-01'</span><span>);</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span>addpath(fullfile(npixUtilsDistRoot, </span><span style="color: rgb(170, 4, 249);">'Mcode'</span><span>));</span></span></div></div><div class="inlineWrapper outputs"><div  class = 'S4'><span style="white-space: pre;"><span>fprintf(</span><span style="color: rgb(170, 4, 249);">'Loaded Neuropixel Utils %s\n'</span><span>, npxutils.globals.version)</span></span></div><div  class = 'S5'><div class="inlineElement eoOutputWrapper embeddedOutputsTextElement" uid="6160CDFD" data-testid="output_0" data-width="1128" data-height="18" data-hashorizontaloverflow="false" style="width: 1158px; max-height: 261px;"><div class="textElement">Loaded Neuropixel Utils 0.5.0-SNAPSHOT</div></div></div></div></div><div  class = 'S6'><span>Set the default channel map file you want to use with your data. Some standard channel maps are included in the </span><span style=' font-family: monospace;'>map_files</span><span> directory in the </span><span style=' font-family: monospace;'>neuropixel-utils</span><span> distribution.</span></div><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S7'><span style="white-space: pre;"><span>setenv(</span><span style="color: rgb(170, 4, 249);">'NEUROPIXEL_MAP_FILE'</span><span>, fullfile(npxutils.globals.distroot, </span><span style="color: rgb(170, 4, 249);">'map_files'</span><span>, </span><span style="color: rgb(170, 4, 249);">'neuropixPhase3A_kilosortChanMap.mat'</span><span>))</span></span></div></div></div><div  class = 'S6'><span>Optional: Configure Neuropixel Utils to generate paths beneath your data root directory, based on its naming conventions.</span></div><div  class = 'S1'><span>This is entirely optional; you can arrange your data however you'd like.</span></div><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S2'><span style="white-space: pre;"><span>myExampleDataDir = fullfile(homeDir, </span><span style="color: rgb(170, 4, 249);">'work'</span><span>, </span><span style="color: rgb(170, 4, 249);">'npxutils'</span><span>, </span><span style="color: rgb(170, 4, 249);">'example-data'</span><span>);</span></span></div></div><div class="inlineWrapper"><div  class = 'S8'><span style="white-space: pre;"><span>setenv(</span><span style="color: rgb(170, 4, 249);">'NEUROPIXEL_DATAROOT'</span><span>, myExampleDataDir)</span></span></div></div></div><h2  class = 'S0'><span>Load Raw Imec dataset</span></h2><div  class = 'S1'><span>Here we construct the path to the original, raw dataset as it was recorded by SpikeGLX. You don't need to use this folder nesting structure.</span></div><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S2'><span style="white-space: pre;"><span>subject = </span><span style="color: rgb(170, 4, 249);">'Vinnie'</span><span>;</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span>dateStr = </span><span style="color: rgb(170, 4, 249);">'2018-08-17'</span><span>;</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span>rawBinFile = </span><span style="color: rgb(170, 4, 249);">'Vinnie_20180817_All.imec.ap.bin'</span><span>;</span></span></div></div><div class="inlineWrapper outputs"><div  class = 'S4'><span style="white-space: pre;"><span>imecFile = npxutils.generatePath(subject, </span><span style="color: rgb(170, 4, 249);">'raw_datasets'</span><span>, dateStr, rawBinFile)</span></span></div><div  class = 'S5'><div class="inlineElement eoOutputWrapper embeddedOutputsVariableStringElement" uid="F6451C7A" data-testid="output_1" data-width="1128" data-height="20" data-hashorizontaloverflow="false" style="width: 1158px; max-height: 261px;"><div class="textElement"><div><span class="variableNameElement">imecFile = </span>'/home/janke/work/npxutils/example-data/Vinnie/raw_datasets/2018-08-17/Vinnie_20180817_All.imec.ap.bin'</div></div></div></div></div></div><div  class = 'S6'><span>We then use this path to construct an ImecDataset object which will facilitate access to the raw data and load the metadata from disk. You can pass the path of the Imec dataset in several ways:</span></div><ul  class = 'S9'><li  class = 'S10'><span>Path to raw </span><span style=' font-family: monospace;'>.imec.ap.bin</span><span> file or </span><span style=' font-family: monospace;'>imec.lf.bin</span><span> file.</span></li><li  class = 'S10'><span>Path to the containing directory, if there is only one set of </span><span style=' font-family: monospace;'>.bin</span><span> files within.</span></li></ul><div  class = 'S1'><span>To construct the ImecDataset object, pass the identifying path directly to the constructor.</span></div><div class="CodeBlock"><div class="inlineWrapper outputs"><div  class = 'S11'><span style="white-space: pre;"><span>imec = npxutils.ImecDataset(imecFile)</span></span></div><div  class = 'S5'><div class="inlineElement eoOutputWrapper embeddedOutputsVariableStringElement scrollableOutput" uid="093052A6" data-testid="output_2" data-width="1128" data-height="986" data-hashorizontaloverflow="true" style="width: 1158px; max-height: 261px;"><div class="textElement"><div><span class="variableNameElement">imec = </span></div><div>  ImecDataset with properties:
+
+          bytesPerSample: 2
+                pathRoot: '/home/janke/work/npxutils/example-data/Vinnie/raw_datasets/2018-08-17'
+                fileStem: 'Vinnie_20180817_All'
+          fileImecNumber: NaN
+            creationTime: 7.3729e+05
+               nChannels: 385
+              fileTypeAP: 'ap'
+              fileTypeLF: 'lf'
+              nSamplesAP: 36177457
+              nSamplesLF: 0
+                    fsAP: 30000
+                    fsLF: NaN
+                  fsSync: NaN
+        highPassFilterHz: 300
+                  apGain: 500
+                 apRange: [-0.6000 0.6000]
+                  lfGain: 250
+                 lfRange: []
+                 adcBits: 10
+             snsShankMap: "(1,2,480)(0:0:0:1)(0:1:0:1)(0:0:1:1)(0:1:1:1)(0:0:2:1)(0:1:2:1)(0:0:3:1)(0:1:3:1)(0:0:4:1)(0:1:4:1)(0:0:5:1)(0:1:5:1)(0:0:6:1)(0:1:6:1)(0:0:7:1)(0:1:7:1)(0:0:8:1)(0:1:8:1)(0:0:9:1)(0:1:9:1)(0:0:10:1)(0:1:10:1)(0:0:11:1)(0:1:11:1)(0:0:12:1)(0:1:12:1)(0:0:13:1)(0:1:13:1)(0:0:14:1)(0:1:14:1)(0:0:15:1)(0:1:15:1)(0:0:16:1)(0:1:16:1)(0:0:17:1)(0:1:17:1)(0:0:18:0)(0:1:18:1)(0:0:19:1)(0:1:19:1)(0:0:20:1)(0:1:20:1)(0:0:21:1)(0:1:21:1)(0:0:22:1)(0:1:22:1)(0:0:23:1)(0:1:23:1)(0:0:24:1)(0:1:24:1)(0:0:25:1)(0:1:25:1)(0:0:26:1)(0:1:26:1)(0:0:27:1)(0:1:27:1)(0:0:28:1)(0:1:28:1)(0:0:29:1)(0:1:29:1)(0:0:30:1)(0:1:30:1)(0:0:31:1)(0:1:31:1)(0:0:32:1)(0:1:32:1)(0:0:33:1)(0:1:33:1)(0:0:34:1)(0:1:34:1)(0:0:35:1)(0:1:35:1)(0:0:36:1)(0:1:36:1)(0:0:37:1)(0:1:37:0)(0:0:38:1)(0:1:38:1)(0:0:39:1)(0:1:39:1)(0:0:40:1)(0:1:40:1)(0:0:41:1)(0:1:41:1)(0:0:42:1)(0:1:42:1)(0:0:43:1)(0:1:43:1)(0:0:44:1)(0:1:44:1)(0:0:45:1)(0:1:45:1)(0:0:46:1)(0:1:46:1)(0:0:47:1)(0:1:47:1)(0:0:48:1)(0:1:48:1)(0:0:49:1)(0:1:49:1)(0:0:50:1)(0:1:50:1)(0:0:51:1)(0:1:51:1)(0:0:52:1)(0:1:52:1)(0:0:53:1)(0:1:53:1)(0:0:54:1)(0:1:54:1)(0:0:55:1)(0:1:55:1)(0:0:56:0)(0:1:56:1)(0:0:57:1)(0:1:57:1)(0:0:58:1)(0:1:58:1)(0:0:59:1)(0:1:59:1)(0:0:60:1)(0:1:60:1)(0:0:61:1)(0:1:61:1)(0:0:62:1)(0:1:62:1)(0:0:63:1)(0:1:63:1)(0:0:64:1)(0:1:64:1)(0:0:65:1)(0:1:65:1)(0:0:66:1)(0:1:66:1)(0:0:67:1)(0:1:67:1)(0:0:68:1)(0:1:68:1)(0:0:69:1)(0:1:69:1)(0:0:70:1)(0:1:70:1)(0:0:71:1)(0:1:71:1)(0:0:72:1)(0:1:72:1)(0:0:73:1)(0:1:73:1)(0:0:74:1)(0:1:74:1)(0:0:75:1)(0:1:75:0)(0:0:76:1)(0:1:76:1)(0:0:77:1)(0:1:77:1)(0:0:78:1)(0:1:78:1)(0:0:79:1)(0:1:79:1)(0:0:80:1)(0:1:80:1)(0:0:81:1)(0:1:81:1)(0:0:82:1)(0:1:82:1)(0:0:83:1)(0:1:83:1)(0:0:84:1)(0:1:84:1)(0:0:85:1)(0:1:85:1)(0:0:86:1)(0:1:86:1)(0:0:87:1)(0:1:87:1)(0:0:88:1)(0:1:88:1)(0:0:89:1)(0:1:89:1)(0:0:90:1)(0:1:90:1)(0:0:91:1)(0:1:91:1)(0:0:92:1)(0:1:92:1)(0:0:93:1)(0:1:93:1)(0:0:94:0)(0:1:94:1)(0:0:95:1)(0:1:95:1)(0:0:96:1)(0:1:96:1)(0:0:97:1)(0:1:97:1)(0:0:98:1)(0:1:98:1)(0:0:99:1)(0:1:99:1)(0:0:100:1)(0:1:100:1)(0:0:101:1)(0:1:101:1)(0:0:102:1)(0:1:102:1)(0:0:103:1)(0:1:103:1)(0:0:104:1)(0:1:104:1)(0:0:105:1)(0:1:105:1)(0:0:106:1)(0:1:106:1)(0:0:107:1)(0:1:107:1)(0:0:108:1)(0:1:108:1)(0:0:109:1)(0:1:109:1)(0:0:110:1)(0:1:110:1)(0:0:111:1)(0:1:111:1)(0:0:112:1)(0:1:112:1)(0:0:113:1)(0:1:113:0)(0:0:114:1)(0:1:114:1)(0:0:115:1)(0:1:115:1)(0:0:116:1)(0:1:116:1)(0:0:117:1)(0:1:117:1)(0:0:118:1)(0:1:118:1)(0:0:119:1)(0:1:119:1)(0:0:120:1)(0:1:120:1)(0:0:121:1)(0:1:121:1)(0:0:122:1)(0:1:122:1)(0:0:123:1)(0:1:123:1)(0:0:124:1)(0:1:124:1)(0:0:125:1)(0:1:125:1)(0:0:126:1)(0:1:126:1)(0:0:127:1)(0:1:127:1)(0:0:128:1)(0:1:128:1)(0:0:129:1)(0:1:129:1)(0:0:130:1)(0:1:130:1)(0:0:131:1)(0:1:131:1)(0:0:132:0)(0:1:132:1)(0:0:133:1)(0:1:133:1)(0:0:134:1)(0:1:134:1)(0:0:135:1)(0:1:135:1)(0:0:136:1)(0:1:136:1)(0:0:137:1)(0:1:137:1)(0:0:138:1)(0:1:138:1)(0:0:139:1)(0:1:139:1)(0:0:140:1)(0:1:140:1)(0:0:141:1)(0:1:141:1)(0:0:142:1)(0:1:142:1)(0:0:143:1)(0:1:143:1)(0:0:144:1)(0:1:144:1)(0:0:145:1)(0:1:145:1)(0:0:146:1)(0:1:146:1)(0:0:147:1)(0:1:147:1)(0:0:148:1)(0:1:148:1)(0:0:149:1)(0:1:149:1)(0:0:150:1)(0:1:150:1)(0:0:151:1)(0:1:151:0)(0:0:152:1)(0:1:152:1)(0:0:153:1)(0:1:153:1)(0:0:154:1)(0:1:154:1)(0:0:155:1)(0:1:155:1)(0:0:156:1)(0:1:156:1)(0:0:157:1)(0:1:157:1)(0:0:158:1)(0:1:158:1)(0:0:159:1)(0:1:159:1)(0:0:160:1)(0:1:160:1)(0:0:161:1)(0:1:161:1)(0:0:162:1)(0:1:162:1)(0:0:163:1)(0:1:163:1)(0:0:164:1)(0:1:164:1)(0:0:165:1)(0:1:165:1)(0:0:166:1)(0:1:166:1)(0:0:167:1)(0:1:167:1)(0:0:168:1)(0:1:168:1)(0:0:169:1)(0:1:169:1)(0:0:170:0)(0:1:170:1)(0:0:171:1)(0:1:171:1)(0:0:172:1)(0:1:172:1)(0:0:173:1)(0:1:173:1)(0:0:174:1)(0:1:174:1)(0:0:175:1)(0:1:175:1)(0:0:176:1)(0:1:176:1)(0:0:177:1)(0:1:177:1)(0:0:178:1)(0:1:178:1)(0:0:179:1)(0:1:179:1)(0:0:180:1)(0:1:180:1)(0:0:181:1)(0:1:181:1)(0:0:182:1)(0:1:182:1)(0:0:183:1)(0:1:183:1)(0:0:184:1)(0:1:184:1)(0:0:185:1)(0:1:185:1)(0:0:186:1)(0:1:186:1)(0:0:187:1)(0:1:187:1)(0:0:188:1)(0:1:188:1)(0:0:189:1)(0:1:189:0)(0:0:190:1)(0:1:190:1)(0:0:191:1)(0:1:191:1)"
+              channelMap: [1×1 npxutils.ChannelMap]
+             badChannels: [0×1 uint32]
+            syncBitNames: [16×1 string]
+     concatenationInfoAP: [1×1 npxutils.ConcatenationInfo]
+     concatenationInfoLF: []
+          sourceDatasets: []
+                 syncRaw: []
+                   hasAP: 1
+                   hasLF: 0
+       hasSourceDatasets: 0
+             hasSourceAP: 0
+             hasSourceLF: 0
+           hasSourceSync: 0
+          channelMapFile: "/home/janke/local/repos/npxutils-apj-wip-01/map_files/neuropixPhase3A_kilosortChanMap.mat"
+          mappedChannels: [384×1 uint32]
+       mappedChannelInds: [384×1 double]
+         nChannelsMapped: 384
+       connectedChannels: [374×1 uint32]
+    connectedChannelInds: [374×1 double]
+      nChannelsConnected: 374
+            goodChannels: [374×1 uint32]
+         goodChannelInds: [374×1 double]
+           nGoodChannels: 374
+              channelIds: [385×1 uint32]
+            channelNames: [385×1 string]
+      channelNamesPadded: [385×1 string]
+               nSyncBits: 16
+           syncBitsNamed: [11×1 double]
+                  fileAP: 'Vinnie_20180817_All.imec.ap.bin'
+                  pathAP: '/home/janke/work/npxutils/example-data/Vinnie/raw_datasets/2018-08-17/Vinnie_20180817_All.imec.ap.bin'
+              fileAPMeta: 'Vinnie_20180817_All.imec.ap.meta'
+              pathAPMeta: '/home/janke/work/npxutils/example-data/Vinnie/raw_datasets/2018-08-17/Vinnie_20180817_All.imec.ap.meta'
+                  fileLF: 'Vinnie_20180817_All.imec.lf.bin'
+                  pathLF: '/home/janke/work/npxutils/example-data/Vinnie/raw_datasets/2018-08-17/Vinnie_20180817_All.imec.lf.bin'
+              fileLFMeta: 'Vinnie_20180817_All.imec.lf.meta'
+              pathLFMeta: '/home/janke/work/npxutils/example-data/Vinnie/raw_datasets/2018-08-17/Vinnie_20180817_All.imec.lf.meta'
+                fileSync: 'Vinnie_20180817_All.imec.ap.bin'
+                pathSync: '/home/janke/work/npxutils/example-data/Vinnie/raw_datasets/2018-08-17/Vinnie_20180817_All.imec.ap.bin'
+          fileSyncCached: 'Vinnie_20180817_All.sync.mat'
+          pathSyncCached: '/home/janke/work/npxutils/example-data/Vinnie/raw_datasets/2018-08-17/Vinnie_20180817_All.sync.mat'
+         creationTimeStr: '17-Aug-2018 13:50:34'
+             apScaleToUv: 2.3438
+             lfScaleToUv: NaN
+           syncChannelId: 385
+        syncChannelIndex: 385
+            syncInAPFile: 1
+            syncInLFFile: 0</div></div></div></div></div></div><h3  class = 'S12'><span>Specifying the channel map manually</span></h3><div  class = 'S1'><span>By default, the channel map will be loaded from whatever the environment variable NEUROPIXEL_MAP_FILE is set to, which we set above. If you want to manaully specify a channel map, pass it in to the ImecDataset constructor using the </span><span style=' font-family: monospace;'>channelMap</span><span> option:</span></div><div  class = 'S1'><span>imec = npxutils.ImecDataset(imecFile, 'channelMap', '/path/to/channelMap.mat');</span></div><h3  class = 'S13'><span>Explore the loaded metadata</span></h3><div  class = 'S1'><span>Here we see that this option 3A probe has 384 total channels (saved in the </span><span style=' font-family: monospace;'>.imec.ap.bin</span><span> file), and that 374 of these channels are connected, namely those listed in </span><span style=' font-family: monospace;'>connectedChannels</span><span>.</span></div><div class="CodeBlock"><div class="inlineWrapper outputs"><div  class = 'S11'><span style="white-space: pre;"><span>imec.channelMap</span></span></div><div  class = 'S5'><div class="inlineElement eoOutputWrapper embeddedOutputsVariableStringElement" uid="8D913E8A" data-testid="output_3" data-width="1128" data-height="398" data-hashorizontaloverflow="false" style="width: 1158px; max-height: 409px;"><div class="textElement"><div><span class="variableNameElement">ans = </span></div><div>  ChannelMap with properties:
+
+                 file: "/home/janke/local/repos/npxutils-apj-wip-01/map_files/neuropixPhase3A_kilosortChanMap.mat"
+                 name: "neuropixPhase3A_kilosortChanMap"
+     channelIdsMapped: [384×1 uint32]
+            connected: [384×1 logical]
+             shankInd: [384×1 double]
+         nSpatialDims: 2
+              xcoords: [384×1 double]
+              ycoords: [384×1 double]
+              zcoords: [384×1 double]
+     syncChannelIndex: 385
+        syncChannelId: 385
+               coords: [384×2 double]
+         syncInAPFile: 1
+         syncInLFFile: 1
+           channelIds: [385×1 uint32]
+            nChannels: 385
+      nChannelsMapped: 384
+    connectedChannels: [374×1 uint32]
+    referenceChannels: [10×1 uint32]
+      invertChannelsY: 1
+             yspacing: 20
+             xspacing: 16
+             zspacing: [0×1 double]
+                 xlim: [-9 79]
+                 ylim: [0 3860]</div></div></div></div></div></div><div  class = 'S6'><span>We can determine the duration of the recording using the number of samples and the frequency in the Imec data:</span></div><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S2'><span style="white-space: pre;"><span>durationMinutes = imec.nSamplesAP / imec.fsAP / 60;</span></span></div></div><div class="inlineWrapper outputs"><div  class = 'S4'><span style="white-space: pre;"><span>fprintf(</span><span style="color: rgb(170, 4, 249);">'Duration of recording %s is %.1f minutes.\n'</span><span>, imec.fileStem, durationMinutes)</span></span></div><div  class = 'S5'><div class="inlineElement eoOutputWrapper embeddedOutputsTextElement" uid="896A5720" data-testid="output_4" data-width="1128" data-height="18" data-hashorizontaloverflow="false" style="width: 1158px; max-height: 261px;"><div class="textElement">Duration of recording Vinnie_20180817_All is 20.1 minutes.</div></div></div></div></div><h2  class = 'S14'><span>Accessing the raw AP data</span></h2><div  class = 'S1'><span>You can access the raw AP data in several ways. (See the full list of methods with </span><span style=' font-family: monospace;'>methods(imec)</span><span> or </span><span style=' font-family: monospace;'>doc npxutils.ImecDataset</span><span>). The most straightforward is to memory-map the full binary data:</span></div><div  class = 'S1'><span style=' font-style: italic;'>This bit is broken because it references code that doesn't exist in this library. Probably left over from an older version of the library and never updated? Or maybe it has an external dependency?</span></div><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S2'><span style="white-space: pre;"><span style="color: rgb(2, 128, 9);">% This is broken because NeuropixelExpt doesn't exist?</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span style="color: rgb(2, 128, 9);">% NeuropixelExpt.DataLoad.setImecSyncBitNames(imec);</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span style="color: rgb(2, 128, 9);">% What does "p" refer to here?</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span style="color: rgb(2, 128, 9);">% if ~isempty(p.Results.badChannels)</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span style="color: rgb(2, 128, 9);">%    imec.markBadChannels(p.Results.badChannels);</span></span></div></div><div class="inlineWrapper"><div  class = 'S8'><span style="white-space: pre;"><span style="color: rgb(2, 128, 9);">% end</span></span></div></div></div><div  class = 'S6'><span style=' font-style: italic;'>This stuff works:</span></div><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S2'><span style="white-space: pre;"><span>rmsBadChannels = imec.markBadChannelsByRMS(</span><span style="color: rgb(170, 4, 249);">'rmsRange'</span><span>, [3 100]);</span></span></div></div><div class="inlineWrapper outputs"><div  class = 'S4'><span style="white-space: pre;"><span>fprintf(</span><span style="color: rgb(170, 4, 249);">'Marked %d channels bad based on RMS\n'</span><span>, numel(rmsBadChannels));</span></span></div><div  class = 'S5'><div class="inlineElement eoOutputWrapper embeddedOutputsTextElement" uid="A255EA2C" data-testid="output_5" data-width="1128" data-height="18" data-hashorizontaloverflow="false" style="width: 1158px; max-height: 261px;"><div class="textElement">Marked 0 channels bad based on RMS</div></div></div></div><div class="inlineWrapper"><div  class = 'S15'><span style="white-space: pre;"><span style="color: rgb(2, 128, 9);">% Save the bad channels and sync bit names back to the meta file</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span>imec.writeModifiedAPMeta();</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span style="color: rgb(2, 128, 9);">% CAR the file and flush the unused sync bits to the cleaned_datasets folder</span></span></div></div><div class="inlineWrapper outputs"><div  class = 'S4'><span style="white-space: pre;"><span>cleanedBinFile = </span><span style="color: rgb(170, 4, 249);">'Vinnie_20180817_All_cleaned.imec.ap.bin'</span></span></div><div  class = 'S5'><div class="inlineElement eoOutputWrapper embeddedOutputsVariableStringElement" uid="74996CF2" data-testid="output_6" data-width="1128" data-height="20" data-hashorizontaloverflow="false" style="width: 1158px; max-height: 261px;"><div class="textElement"><div><span class="variableNameElement">cleanedBinFile = </span>'Vinnie_20180817_All_cleaned.imec.ap.bin'</div></div></div></div></div><div class="inlineWrapper"><div  class = 'S15'><span style="white-space: pre;"><span>cleanedPath = npxutils.generatePath(subject, </span><span style="color: rgb(170, 4, 249);">'cleaned_datasets'</span><span>, dateStr, cleanedBinFile);</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'></div></div><div class="inlineWrapper outputs"><div  class = 'S4'><span style="white-space: pre;"><span>fprintf(</span><span style="color: rgb(170, 4, 249);">'Writing CAR version at %s\n'</span><span>, cleanedPath);</span></span></div><div  class = 'S5'><div class="inlineElement eoOutputWrapper embeddedOutputsTextElement" uid="7EDCC361" data-testid="output_7" data-width="1128" data-height="18" data-hashorizontaloverflow="false" style="width: 1158px; max-height: 261px;"><div class="textElement">Writing CAR version at /home/janke/work/npxutils/example-data/Vinnie/cleaned_datasets/2018-08-17/Vinnie_20180817_All_cleaned.imec.ap.bin</div></div></div></div><div class="inlineWrapper"><div  class = 'S15'><span style="white-space: pre;"><span>extraMeta = struct;</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span>extraMeta.run_clearUnusedSyncBits = true;</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span>extraMeta.run_detectAndMarkStimArtifactWindows = true;</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span>fnList = {</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span>    </span><span style="color: rgb(2, 128, 9);">% This is broken because NeuropixelExpt doesn't exist?</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span>    </span><span style="color: rgb(2, 128, 9);">% @NeuropixelExpt.DataClean.clearUnusedSyncBits</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span>    @npxutils.dataprocess.commonAverageReference</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span>    }';</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span>cleanedDataDir = fullfile(myExampleDataDir, </span><span style="color: rgb(170, 4, 249);">'Vinnie'</span><span>, </span><span style="color: rgb(170, 4, 249);">'cleaned_datasets'</span><span>);</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span>npxutils.io.rmrf(cleanedDataDir);</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span>imec = imec.saveTransformedDataset(cleanedPath, </span><span style="color: rgb(14, 0, 255);">...</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span>    </span><span style="color: rgb(170, 4, 249);">'goodChannelsOnly'</span><span>, false, </span><span style="color: rgb(170, 4, 249);">'writeSyncSeparate'</span><span>, false, </span><span style="color: rgb(14, 0, 255);">...</span></span></div></div><div class="inlineWrapper outputs"><div  class = 'S4'><span style="white-space: pre;"><span>    </span><span style="color: rgb(170, 4, 249);">'transformAP'</span><span>, fnList, </span><span style="color: rgb(170, 4, 249);">'extraMeta'</span><span>, extraMeta);</span></span></div><div  class = 'S5'><div class="inlineElement eoOutputWrapper embeddedOutputsTextElement" uid="FB9687A7" data-testid="output_8" data-width="1128" data-height="59" data-hashorizontaloverflow="false" style="width: 1158px; max-height: 261px;"><div class="textElement">Writing AP meta file Vinnie_20180817_All_cleaned.imec.ap.meta
+Writing AP bin file /home/janke/work/npxutils/example-data/Vinnie/cleaned_datasets/2018-08-17/Vinnie_20180817_All_cleaned.imec.ap.bin
+Writing contents of Vinnie_20180817_All
+Copying ap file 1 / 1: Vinnie_20180817_All :    100% [_______________]   </div></div><div class="inlineElement eoOutputWrapper embeddedOutputsWarningElement" uid="F71F2B4F" data-testid="output_9" data-width="1128" data-height="18" data-hashorizontaloverflow="false" style="width: 1158px; max-height: 261px;"><div class="diagnosticMessage-wrapper diagnosticMessage-warningType"><div class="diagnosticMessage-messagePart">Warning: AP bin file size is not an integral number of samples, file data may not be fully copied, truncating nSamplesAP</div><div class="diagnosticMessage-stackPart"></div></div></div><div class="inlineElement eoOutputWrapper embeddedOutputsErrorElement" uid="70678F7A" data-testid="output_10" data-width="1128" data-height="142" data-hashorizontaloverflow="false" style="width: 1158px; max-height: 261px;"><div class="diagnosticMessage-wrapper diagnosticMessage-errorType"><div class="diagnosticMessage-messagePart">Error using npxutils.ConcatenationInfo (line 56)<br>Mismatch between time shifts and total number of samples<br>Error in npxutils.ImecDataset/readInfo (line 313)<br>                this.concatenationInfoAP = npxutils.ConcatenationInfo(this, 'ap', metaAP);<br>Error in npxutils.ImecDataset (line 193)<br>                    this.readInfo();<br>Error in npxutils.ImecDataset.writeConcatenatedFileMatchGains (line 2763)<br>            imecOut = npxutils.ImecDataset(outFile, 'channelMap', imecList{1}.channelMapFile, 'sourceDatasets', cat(1, imecList{:}));<br>Error in npxutils.ImecDataset/saveTransformedDataset (line 1943)<br>            imecOut = npxutils.ImecDataset.writeConcatenatedFileMatchGains({this}, outPath, p.Results);</div><div class="diagnosticMessage-stackPart"></div></div></div></div></div><div class="inlineWrapper"><div  class = 'S15'><span style="white-space: pre;"><span style="color: rgb(2, 128, 9);">% Symlink into ks directory for Kilosort's use</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span>ksPath = npxutils.generatePath(subject, </span><span style="color: rgb(170, 4, 249);">'ks'</span><span>, dateStr, cleanedBinFile);</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span>fprintf(</span><span style="color: rgb(170, 4, 249);">'Symlinking to %s\n'</span><span>, ksPath);</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span style="color: rgb(2, 128, 9);">% And run Kilosort on the symlinked data set</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span>imec = imec.symLinkAPIntoDirectory(ksPath);</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span>fprintf(</span><span style="color: rgb(170, 4, 249);">'Running Kilosort2\n'</span><span>);</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span>npxutils.runKilosort2(imec);</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span style="color: rgb(2, 128, 9);">% Here's a little summary output</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span>info.rawPath = imecFile;</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span>info.cleanedPath = cleanedPath;</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span>info.ksPath = ksPath;</span></span></div></div><div class="inlineWrapper"><div  class = 'S8'><span style="white-space: pre;"><span>info</span></span></div></div></div></div>
+<br>
+<!-- 
+##### SOURCE BEGIN #####
+%% Startup
+% Edit this to point at the path to where you installed the |neuropixel-utils| 
+% distribution or repo.
+
+% Load the Neuropixel Utils library
+homeDir = string(java.lang.System.getProperty('user.home'));
+npixUtilsDistRoot = fullfile(homeDir, 'local', 'repos', 'npxutils-apj-wip-01');
+addpath(fullfile(npixUtilsDistRoot, 'Mcode'));
+fprintf('Loaded Neuropixel Utils %s\n', npxutils.globals.version)
+%% 
+% Set the default channel map file you want to use with your data. Some standard 
+% channel maps are included in the |map_files| directory in the |neuropixel-utils| 
+% distribution.
+
+setenv('NEUROPIXEL_MAP_FILE', fullfile(npxutils.globals.distroot, 'map_files', 'neuropixPhase3A_kilosortChanMap.mat'))
+%% 
+% Optional: Configure Neuropixel Utils to generate paths beneath your data root 
+% directory, based on its naming conventions.
+% 
+% This is entirely optional; you can arrange your data however you'd like.
+
+myExampleDataDir = fullfile(homeDir, 'work', 'npxutils', 'example-data');
+setenv('NEUROPIXEL_DATAROOT', myExampleDataDir)
+%% Load Raw Imec dataset
+% Here we construct the path to the original, raw dataset as it was recorded 
+% by SpikeGLX. You don't need to use this folder nesting structure.
+
+subject = 'Vinnie';
+dateStr = '2018-08-17';
+rawBinFile = 'Vinnie_20180817_All.imec.ap.bin';
+imecFile = npxutils.generatePath(subject, 'raw_datasets', dateStr, rawBinFile)
+%% 
+% We then use this path to construct an ImecDataset object which will facilitate 
+% access to the raw data and load the metadata from disk. You can pass the path 
+% of the Imec dataset in several ways:
+%% 
+% * Path to raw |.imec.ap.bin| file or |imec.lf.bin| file.
+% * Path to the containing directory, if there is only one set of |.bin| files 
+% within.
+%% 
+% To construct the ImecDataset object, pass the identifying path directly to 
+% the constructor.
+
+imec = npxutils.ImecDataset(imecFile)
+% Specifying the channel map manually
+% By default, the channel map will be loaded from whatever the environment variable 
+% NEUROPIXEL_MAP_FILE is set to, which we set above. If you want to manaully specify 
+% a channel map, pass it in to the ImecDataset constructor using the |channelMap| 
+% option:
+% 
+% imec = npxutils.ImecDataset(imecFile, 'channelMap', '/path/to/channelMap.mat');
+% Explore the loaded metadata
+% Here we see that this option 3A probe has 384 total channels (saved in the 
+% |.imec.ap.bin| file), and that 374 of these channels are connected, namely those 
+% listed in |connectedChannels|.
+
+imec.channelMap
+%% 
+% We can determine the duration of the recording using the number of samples 
+% and the frequency in the Imec data:
+
+durationMinutes = imec.nSamplesAP / imec.fsAP / 60;
+fprintf('Duration of recording %s is %.1f minutes.\n', imec.fileStem, durationMinutes)
+%% Accessing the raw AP data
+% You can access the raw AP data in several ways. (See the full list of methods 
+% with |methods(imec)| or |doc npxutils.ImecDataset|). The most straightforward 
+% is to memory-map the full binary data:
+% 
+% _This bit is broken because it references code that doesn't exist in this 
+% library. Probably left over from an older version of the library and never updated? 
+% Or maybe it has an external dependency?_
+
+% This is broken because NeuropixelExpt doesn't exist?
+
+% NeuropixelExpt.DataLoad.setImecSyncBitNames(imec);
+
+% What does "p" refer to here?
+
+% if ~isempty(p.Results.badChannels)
+%    imec.markBadChannels(p.Results.badChannels);
+% end
+%% 
+% _This stuff works:_
+
+rmsBadChannels = imec.markBadChannelsByRMS('rmsRange', [3 100]);
+fprintf('Marked %d channels bad based on RMS\n', numel(rmsBadChannels));
+% Save the bad channels and sync bit names back to the meta file
+imec.writeModifiedAPMeta();
+
+% CAR the file and flush the unused sync bits to the cleaned_datasets folder
+cleanedBinFile = 'Vinnie_20180817_All_cleaned.imec.ap.bin'
+cleanedPath = npxutils.generatePath(subject, 'cleaned_datasets', dateStr, cleanedBinFile);
+
+fprintf('Writing CAR version at %s\n', cleanedPath);
+extraMeta = struct;
+extraMeta.run_clearUnusedSyncBits = true;
+extraMeta.run_detectAndMarkStimArtifactWindows = true;
+fnList = {
+    % This is broken because NeuropixelExpt doesn't exist?
+    % @NeuropixelExpt.DataClean.clearUnusedSyncBits
+    @npxutils.dataprocess.commonAverageReference
+    }';
+cleanedDataDir = fullfile(myExampleDataDir, 'Vinnie', 'cleaned_datasets');
+npxutils.io.rmrf(cleanedDataDir);
+imec = imec.saveTransformedDataset(cleanedPath, ...
+    'goodChannelsOnly', false, 'writeSyncSeparate', false, ...
+    'transformAP', fnList, 'extraMeta', extraMeta);
+% Symlink into ks directory for Kilosort's use
+ksPath = npxutils.generatePath(subject, 'ks', dateStr, cleanedBinFile);
+fprintf('Symlinking to %s\n', ksPath);
+% And run Kilosort on the symlinked data set
+imec = imec.symLinkAPIntoDirectory(ksPath);
+fprintf('Running Kilosort2\n');
+npxutils.runKilosort2(imec);
+
+% Here's a little summary output
+info.rawPath = imecFile;
+info.cleanedPath = cleanedPath;
+info.ksPath = ksPath;
+info
+##### SOURCE END #####
+--></body></html>

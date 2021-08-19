@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+#
+# make_release <version>
+#
+# Make a release.
+
+version="$1"
+
+if [[ ! -f 'neuropixel-utils.prj.in' ]]; then
+  echo >&2 "Error: this script must be run from the root of the repo"
+  exit 1
+fi
+
+function must () {
+  if ! "$@"; then
+    echo >&2 "Error: Step failed. No release for you!"
+    exit 1
+  fi
+}
+function mark_version () {
+  echo "$1" > VERSION
+}
+
+echo "Creating release $version"
+
+echo "Checking prerequisites..."
+if [[ ! -z "$(git status --porcelain)" ]]; then
+  echo >&2 "Error: Your repo is not clean! There are local changes. No release for you!"
+  exit 1
+fi
+
+# TODO: Figure out how to check for pending remote changes on the tracked branch
+# in git. Diffing origin/main is incorrect, because we may be releasing a patch
+# release from a different branch.
+#must git remote update
+#if [[ ! -z "$(git diff origin/main)" ]]; then
+#  echo >&2 "Error: There are pending remote changes in git. No release for you!"
+#  exit 1
+#fi
+
+# First run the tests before we make any changes
+
+echo "Running tests..."
+must make test
+
+# Okay, let's do the release
+
+mark_version "$version"
+
+echo "Regenerating doco..."
+must make doc
+
+echo "Building dist..."
+must make dist
+echo "Building toolbox..."
+must make toolbox
+
+echo "Tagging release..."
+must git commit -a -m "Version $version"
+must git tag "v$version"
+mark_version "${version}+"
+must git commit -a -m "Open development for next release"
+must git push
+must git push --tags
+
+echo "Release is pushed! Now go to GitHub and draft the actual Release:"
+echo "   https://github.com/djoshea/neuropixel-utils/releases"
+uname=$(uname)
+if [[ $uname = "Darwin" ]]; then
+  open "https://github.com/djoshea/neuropixel-utils/releases"
+fi

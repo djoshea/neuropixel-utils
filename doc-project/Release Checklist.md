@@ -1,5 +1,13 @@
 # Neuropixel Utils Release Checklist
 
+## Prep
+
+* Make sure `CHANGES.md` is up to date!
+* Rebuild the doco
+  * `cd doc-src; ./make_doc`
+
+## Do it
+
 * Update and double-check the version number and date in `VERSION`
 * Commit all the files changed by the above steps.
   * Use form: `git commit -a -m "Cut release v<version>"`
@@ -8,7 +16,7 @@
   * `git push; git push --tags`
 * Create a new GitHub release from the tag.
   * Just use `<version>` as the name for the release.
-  * Upload the dist tarball as a file for the release.
+  * Upload the dist zip, tarball, and `.mltbx` files as files for the release.
 * Open development for next version
   * Update version number in `VERSION` to next patch or minor version, as appropriate, and put a `-SNAPSHOT` suffix at the end of it.
 

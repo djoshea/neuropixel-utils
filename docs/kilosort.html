@@ -1,0 +1,964 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Documentation for neuropixel-utils">
+      
+      
+      
+        <meta name="author" content="Daniel J. O'Shea">
+      
+      
+      <link rel="icon" href="assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.1.2, mkdocs-material-7.1.1">
+    
+    
+      
+        <title>Running Kilosort - Neuropixel Utilities</title>
+      
+    
+    
+      <link rel="stylesheet" href="assets/stylesheets/main.9299cb39.min.css">
+      
+        
+        <link rel="stylesheet" href="assets/stylesheets/palette.ef6f36e2.min.css">
+        
+          
+          
+          <meta name="theme-color" content="#2094f3">
+        
+      
+    
+    
+    
+      
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,400i,700%7CRoboto+Mono&display=fallback">
+        <style>:root{--md-text-font-family:"Roboto";--md-code-font-family:"Roboto Mono"}</style>
+      
+    
+    
+    
+    
+      
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="" data-md-color-primary="blue" data-md-color-accent="blue">
+  
+    
+    <script>function __prefix(e){return new URL(".",location).pathname+"."+e}function __get(e,t=localStorage){return JSON.parse(t.getItem(__prefix(e)))}</script>
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#running-kilosort-12-and-loading-the-results" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="." title="Neuropixel Utilities" class="md-header__button md-logo" aria-label="Neuropixel Utilities" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><path d="M208 0c-29.9 0-54.7 20.5-61.8 48.2-.8 0-1.4-.2-2.2-.2-35.3 0-64 28.7-64 64 0 4.8.6 9.5 1.7 14C52.5 138 32 166.6 32 200c0 12.6 3.2 24.3 8.3 34.9C16.3 248.7 0 274.3 0 304c0 33.3 20.4 61.9 49.4 73.9-.9 4.6-1.4 9.3-1.4 14.1 0 39.8 32.2 72 72 72 4.1 0 8.1-.5 12-1.2 9.6 28.5 36.2 49.2 68 49.2 39.8 0 72-32.2 72-72V64c0-35.3-28.7-64-64-64zm368 304c0-29.7-16.3-55.3-40.3-69.1 5.2-10.6 8.3-22.3 8.3-34.9 0-33.4-20.5-62-49.7-74 1-4.5 1.7-9.2 1.7-14 0-35.3-28.7-64-64-64-.8 0-1.5.2-2.2.2C422.7 20.5 397.9 0 368 0c-35.3 0-64 28.6-64 64v376c0 39.8 32.2 72 72 72 31.8 0 58.4-20.7 68-49.2 3.9.7 7.9 1.2 12 1.2 39.8 0 72-32.2 72-72 0-4.8-.5-9.5-1.4-14.1 29-12 49.4-40.6 49.4-73.9z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Neuropixel Utilities
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Running Kilosort
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+    
+      <label class="md-header__button md-icon" for="__search">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5z"/></svg>
+      </label>
+      
+<div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" data-md-state="active" required>
+      <label class="md-search__icon md-icon" for="__search">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5z"/></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12z"/></svg>
+      </label>
+      <button type="reset" class="md-search__icon md-icon" aria-label="Clear" tabindex="-1">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg>
+      </button>
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+    
+      <div class="md-header__source">
+        
+<a href="https://github.com/djoshea/neuropixel-utils/" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    djoshea/neuropixel-utils
+  </div>
+</a>
+      </div>
+    
+  </nav>
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="." title="Neuropixel Utilities" class="md-nav__button md-logo" aria-label="Neuropixel Utilities" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><path d="M208 0c-29.9 0-54.7 20.5-61.8 48.2-.8 0-1.4-.2-2.2-.2-35.3 0-64 28.7-64 64 0 4.8.6 9.5 1.7 14C52.5 138 32 166.6 32 200c0 12.6 3.2 24.3 8.3 34.9C16.3 248.7 0 274.3 0 304c0 33.3 20.4 61.9 49.4 73.9-.9 4.6-1.4 9.3-1.4 14.1 0 39.8 32.2 72 72 72 4.1 0 8.1-.5 12-1.2 9.6 28.5 36.2 49.2 68 49.2 39.8 0 72-32.2 72-72V64c0-35.3-28.7-64-64-64zm368 304c0-29.7-16.3-55.3-40.3-69.1 5.2-10.6 8.3-22.3 8.3-34.9 0-33.4-20.5-62-49.7-74 1-4.5 1.7-9.2 1.7-14 0-35.3-28.7-64-64-64-.8 0-1.5.2-2.2.2C422.7 20.5 397.9 0 368 0c-35.3 0-64 28.6-64 64v376c0 39.8 32.2 72 72 72 31.8 0 58.4-20.7 68-49.2 3.9.7 7.9 1.2 12 1.2 39.8 0 72-32.2 72-72 0-4.8-.5-9.5-1.4-14.1 29-12 49.4-40.6 49.4-73.9z"/></svg>
+
+    </a>
+    Neuropixel Utilities
+  </label>
+  
+    <div class="md-nav__source">
+      
+<a href="https://github.com/djoshea/neuropixel-utils/" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    djoshea/neuropixel-utils
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="index.html" class="md-nav__link">
+        Overview
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="imec_dataset.html" class="md-nav__link">
+        Neuropixel.ImecDataset
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+    
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" data-md-toggle="toc" type="checkbox" id="__toc">
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          Running Kilosort
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="kilosort.html" class="md-nav__link md-nav__link--active">
+        Running Kilosort
+      </a>
+      
+        
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#running-kilosort" class="md-nav__link">
+    Running Kilosort
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#loading-kilosort-results" class="md-nav__link">
+    Loading Kilosort results
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#segmenting-a-kilosort-dataset-into-trials" class="md-nav__link">
+    Segmenting a Kilosort dataset into trials
+  </a>
+  
+    <nav class="md-nav" aria-label="Segmenting a Kilosort dataset into trials">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#trialsegmentationinfo" class="md-nav__link">
+    TrialSegmentationInfo
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kilosorttrialsegmenteddataset" class="md-nav__link">
+    KilosortTrialSegmentedDataset
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="analysis.html" class="md-nav__link">
+        Analysis of Kilosort Results
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="waveforms.html" class="md-nav__link">
+        Extracting Waveforms
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="acknowledgements.html" class="md-nav__link">
+        Acknowledgements and Support
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_7" type="checkbox" id="__nav_7" >
+      
+      <label class="md-nav__link" for="__nav_7">
+        Examples (HTML)
+        <span class="md-nav__icon md-icon"></span>
+      </label>
+      <nav class="md-nav" aria-label="Examples (HTML)" data-md-level="1">
+        <label class="md-nav__title" for="__nav_7">
+          <span class="md-nav__icon md-icon"></span>
+          Examples (HTML)
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="publish/html/tutorial.html" class="md-nav__link">
+        Tutorial (HTML)
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="publish/html/ex01_walkthrough.html" class="md-nav__link">
+        Ex 01: Walkthrough (HTML)
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="publish/html/ex02_imecdataset.html" class="md-nav__link">
+        Ex 02: ImecDatasets (HTML)
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="publish/html/ex03_running_kilosort.html" class="md-nav__link">
+        Ex 03: Running Kilosort (HTML)
+      </a>
+    </li>
+  
+
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_8" type="checkbox" id="__nav_8" >
+      
+      <label class="md-nav__link" for="__nav_8">
+        Examples (Markdown)
+        <span class="md-nav__icon md-icon"></span>
+      </label>
+      <nav class="md-nav" aria-label="Examples (Markdown)" data-md-level="1">
+        <label class="md-nav__title" for="__nav_8">
+          <span class="md-nav__icon md-icon"></span>
+          Examples (Markdown)
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="publish/md/tutorial.html" class="md-nav__link">
+        Tutorial (Markdown)
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="publish/md/ex01_walkthrough.html" class="md-nav__link">
+        Ex 01: Walkthrough (Markdown)
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="publish/md/ex02_imecdataset.html" class="md-nav__link">
+        Ex 02: ImecDatasets (Markdown)
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="publish/html/ex03_running_kilosort.md" class="md-nav__link">
+        Ex 03: Running Kilosort (Markdown)
+      </a>
+    </li>
+  
+
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#running-kilosort" class="md-nav__link">
+    Running Kilosort
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#loading-kilosort-results" class="md-nav__link">
+    Loading Kilosort results
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#segmenting-a-kilosort-dataset-into-trials" class="md-nav__link">
+    Segmenting a Kilosort dataset into trials
+  </a>
+  
+    <nav class="md-nav" aria-label="Segmenting a Kilosort dataset into trials">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#trialsegmentationinfo" class="md-nav__link">
+    TrialSegmentationInfo
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kilosorttrialsegmenteddataset" class="md-nav__link">
+    KilosortTrialSegmentedDataset
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          <div class="md-content" data-md-component="content">
+            <article class="md-content__inner md-typeset">
+              
+                
+                  <a href="https://github.com/djoshea/neuropixel-utils/edit/master/docs/kilosort.md" title="Edit this page" class="md-content__button md-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25z"/></svg>
+                  </a>
+                
+                
+                <h1 id="running-kilosort-12-and-loading-the-results">Running Kilosort 1/2 and loading the results<a class="headerlink" href="#running-kilosort-12-and-loading-the-results" title="Permanent link">&para;</a></h1>
+<p><code>KilosortDataset</code> is a wrapper around the output of Kilosort or Kilosort2, which will load the output files back into Matlab for further analysis. Most of these fields are explained in detail in the <a href="https://phy-contrib.readthedocs.io/en/latest/template-gui/">Phy documentation</a> but we document them here for convenience.</p>
+<h2 id="running-kilosort">Running Kilosort<a class="headerlink" href="#running-kilosort" title="Permanent link">&para;</a></h2>
+<p>To run Kilosort or Kilosort2 on an ImecDataset:</p>
+<div class="highlight"><pre><span></span><code><span class="n">npxutils</span><span class="p">.</span><span class="n">runKilosort1</span><span class="p">(</span><span class="n">imec</span><span class="p">,</span><span class="w"> </span><span class="k">...</span><span class="c">);</span><span class="w"></span>
+</code></pre></div>
+<p>Or for Kilosort 2:</p>
+<div class="highlight"><pre><span></span><code><span class="n">npxutils</span><span class="p">.</span><span class="n">runKilosort2</span><span class="p">(</span><span class="n">imec</span><span class="p">,</span><span class="w"> </span><span class="k">...</span><span class="c">);</span><span class="w"></span>
+</code></pre></div>
+<p>By default, the standard configuration settings will be used. For Kilosort1, these are hardcoded based on <code>configFiles/StandardConfig_MOVEME.m</code>. For Kilosort2, the script <code>configFiles/configFile384.m</code> will be run to produce the <code>ops</code> struct, unless a different configuration file is set in the environment variable <code>KILOSORT_CONFIG_FILE</code>, which must be on the path. Default configuration settings can be overridden by passing in extra parameters, e.g.</p>
+<div class="highlight"><pre><span></span><code><span class="n">npxutils</span><span class="p">.</span><span class="n">runKilosort1</span><span class="p">(</span><span class="n">imec</span><span class="p">,</span><span class="w"> </span><span class="s">&#39;Th&#39;</span><span class="p">,</span><span class="w"> </span><span class="p">[</span><span class="mi">4</span><span class="w"> </span><span class="mi">10</span><span class="p">],</span><span class="w"> </span><span class="s">&#39;GPU&#39;</span><span class="p">,</span><span class="w"> </span><span class="nb">false</span><span class="p">);</span><span class="w"></span>
+<span class="n">npxutils</span><span class="p">.</span><span class="n">runKilosort2</span><span class="p">(</span><span class="n">imec</span><span class="p">,</span><span class="w"> </span><span class="s">&#39;minfr_goodchannels&#39;</span><span class="p">,</span><span class="w"> </span><span class="mf">0.1</span><span class="p">);</span><span class="w"></span>
+</code></pre></div>
+<h2 id="loading-kilosort-results">Loading Kilosort results<a class="headerlink" href="#loading-kilosort-results" title="Permanent link">&para;</a></h2>
+<p>You can create a KilosortDataset instance by pointing at the folder containing the Kilosort output:</p>
+<div class="highlight"><pre><span></span><code><span class="n">ks</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="n">npxutils</span><span class="p">.</span><span class="n">KilosortDataset</span><span class="p">(</span><span class="n">pathToKilosortOutput</span><span class="p">();</span><span class="w"></span>
+<span class="n">ks</span><span class="p">.</span><span class="n">load</span><span class="p">();</span><span class="w"></span>
+</code></pre></div>
+<p>The constructor will optionally take an &lsquo;imecDataset&rsquo; parameter providing the <code>npxutils.ImecDataset</code> instance if there is no <code>.imec.ap.bin</code> file in the Kilosort directory, and a &lsquo;channelMap&rsquo; parameter in case the default is not correct. The results can then be loaded using <code>ks.load()</code>.</p>
+<p>The descriptions of each property can be found in the <code>+Neuropixel/KilosortDataset.m</code> code, copied here for convenience, originally described in the <a href="https://phy-contrib.readthedocs.io/en/latest/template-gui/">Phy documentation</a>:</p>
+<div class="highlight"><pre><span></span><code><span class="o">&gt;&gt;</span><span class="w"> </span><span class="n">ks</span><span class="w"></span>
+
+<span class="n">KilosortDataset</span><span class="w"> </span><span class="s">with</span><span class="w"> </span><span class="s">properties:</span><span class="w"></span>
+
+<span class="w">                  </span><span class="nb">path</span><span class="p">:</span><span class="w"> </span><span class="s">&#39;/data/kilosort/neuropixel_01&#39;</span><span class="w"></span>
+<span class="w">           </span><span class="n">raw_dataset</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="mi">1</span>×<span class="mi">1</span><span class="w"> </span><span class="n">npxutils</span><span class="p">.</span><span class="n">ImecDataset</span><span class="p">]</span><span class="w"></span>
+<span class="w">            </span><span class="n">channelMap</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="mi">1</span>×<span class="mi">1</span><span class="w"> </span><span class="n">npxutils</span><span class="p">.</span><span class="n">ChannelMap</span><span class="p">]</span><span class="w"></span>
+<span class="w">                  </span><span class="n">fsAP</span><span class="p">:</span><span class="w"> </span><span class="mi">30000</span><span class="w"></span>
+<span class="w">           </span><span class="n">apScaleToUv</span><span class="p">:</span><span class="w"> </span><span class="mf">2.3438</span><span class="w"></span>
+<span class="w">                  </span><span class="n">meta</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="mi">1</span>×<span class="mi">1</span><span class="w"> </span><span class="nb">struct</span><span class="p">]</span><span class="w"></span>
+<span class="w">              </span><span class="n">pathLeaf</span><span class="p">:</span><span class="w"> </span><span class="s">&#39;neuropixel_01&#39;</span><span class="w"></span>
+<span class="w">              </span><span class="nb">isLoaded</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="w"></span>
+<span class="w">         </span><span class="n">hasRawDataset</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="w"></span>
+<span class="w">             </span><span class="n">nChannels</span><span class="p">:</span><span class="w"> </span><span class="mi">371</span><span class="w"></span>
+<span class="w">               </span><span class="n">nSpikes</span><span class="p">:</span><span class="w"> </span><span class="mi">8181228</span><span class="w"></span>
+<span class="w">             </span><span class="n">nClusters</span><span class="p">:</span><span class="w"> </span><span class="mi">592</span><span class="w"></span>
+<span class="w">            </span><span class="n">nTemplates</span><span class="p">:</span><span class="w"> </span><span class="mi">653</span><span class="w"></span>
+<span class="w">           </span><span class="n">nPCFeatures</span><span class="p">:</span><span class="w"> </span><span class="mi">32</span><span class="w"></span>
+<span class="w">   </span><span class="n">nFeaturesPerChannel</span><span class="p">:</span><span class="w"> </span><span class="mi">3</span><span class="w"></span>
+<span class="w">          </span><span class="n">syncBitNames</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="mi">16</span>×<span class="mi">1</span><span class="w"> </span><span class="nb">string</span><span class="p">]</span><span class="w"></span>
+<span class="w">              </span><span class="n">dat_path</span><span class="p">:</span><span class="w"> </span><span class="s">&#39;neuropixel_01.imec.ap.bin&#39;</span><span class="w"></span>
+<span class="w">        </span><span class="n">n_channels_dat</span><span class="p">:</span><span class="w"> </span><span class="mi">385</span><span class="w"></span>
+<span class="w">                 </span><span class="n">dtype</span><span class="p">:</span><span class="w"> </span><span class="s">&#39;int16&#39;</span><span class="w"></span>
+<span class="w">                </span><span class="n">offset</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="w"></span>
+<span class="w">           </span><span class="n">sample_rate</span><span class="p">:</span><span class="w"> </span><span class="mi">30000</span><span class="w"></span>
+<span class="w">           </span><span class="n">hp_filtered</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="w"></span>
+<span class="w">            </span><span class="n">amplitudes</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="n">nSpikes</span><span class="w"> </span>×<span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="nb">double</span><span class="p">]</span><span class="w"></span>
+<span class="w">           </span><span class="n">channel_ids</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="n">nChannels</span><span class="w"> </span>×<span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="nb">uint32</span><span class="p">]</span><span class="w"></span>
+<span class="w">     </span><span class="n">channel_positions</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="n">nChannels</span><span class="w"> </span>×<span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="nb">double</span><span class="p">]</span><span class="w"></span>
+<span class="w">           </span><span class="n">pc_features</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="n">nSpikes</span><span class="w"> </span>×<span class="w"> </span><span class="n">nFeaturesPerChannel</span><span class="w"> </span>×<span class="w"> </span><span class="n">nPCFeatures</span><span class="w"> </span><span class="nb">single</span><span class="p">]</span><span class="w"></span>
+<span class="w">        </span><span class="n">pc_feature_ind</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="n">nTemplates</span><span class="w"> </span>×<span class="w"> </span><span class="n">nPCFeatures</span><span class="w"> </span><span class="nb">uint32</span><span class="p">]</span><span class="w"></span>
+<span class="w">     </span><span class="n">similar_templates</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="n">nTemplates</span><span class="w"> </span>×<span class="w"> </span><span class="n">nTemplates</span><span class="w"> </span><span class="nb">single</span><span class="p">]</span><span class="w"></span>
+<span class="w">       </span><span class="n">spike_templates</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="n">nSpikes</span><span class="w"> </span>×<span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="nb">uint32</span><span class="p">]</span><span class="w"></span>
+<span class="w">           </span><span class="n">spike_times</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="n">nSpikes</span><span class="w"> </span>×<span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="nb">uint64</span><span class="p">]</span><span class="w"></span>
+<span class="w">     </span><span class="n">template_features</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="n">nSpikes</span><span class="w"> </span>×<span class="w"> </span><span class="n">nPCFeatures</span><span class="w"> </span><span class="nb">single</span><span class="p">]</span><span class="w"></span>
+<span class="w">  </span><span class="n">template_feature_ind</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="n">nTemplates</span><span class="w"> </span>×<span class="w"> </span><span class="n">nPCFeatures</span><span class="w"> </span><span class="nb">uint32</span><span class="p">]</span><span class="w"></span>
+<span class="w">             </span><span class="n">templates</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="n">nTemplates</span><span class="w"> </span>×<span class="w"> </span><span class="n">nTimePoints</span><span class="w"> </span>×<span class="w"> </span><span class="n">nChannels</span><span class="w"> </span><span class="nb">single</span><span class="p">]</span><span class="w"></span>
+<span class="w">         </span><span class="n">templates_ind</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="n">nTemplates</span><span class="w"> </span>×<span class="w"> </span><span class="n">nChannels</span><span class="w"> </span><span class="nb">double</span><span class="p">]</span><span class="w"></span>
+<span class="w">         </span><span class="n">whitening_mat</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="n">nChannels</span><span class="w"> </span>×<span class="w"> </span><span class="n">nChannels</span><span class="w"> </span><span class="nb">double</span><span class="p">]</span><span class="w"></span>
+<span class="w">     </span><span class="n">whitening_mat_inv</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="n">nChannels</span><span class="w"> </span>×<span class="w"> </span><span class="n">nChannels</span><span class="w"> </span><span class="nb">double</span><span class="p">]</span><span class="w"></span>
+<span class="w">        </span><span class="n">spike_clusters</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="n">nSpikes</span><span class="w"> </span>×<span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="nb">uint32</span><span class="p">]</span><span class="w"></span>
+<span class="w">        </span><span class="n">cluster_groups</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="n">nClusters</span><span class="w"> </span>×<span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="nb">categorical</span><span class="p">]</span><span class="w"></span>
+<span class="w">           </span><span class="n">cluster_ids</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="n">nClusters</span><span class="w"> </span>×<span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="nb">uint32</span><span class="p">]</span><span class="w"></span>
+<span class="w">         </span><span class="n">clusters_good</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="n">nClustersGood</span><span class="w"> </span>×<span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="nb">uint32</span><span class="p">]</span><span class="w"></span>
+<span class="w">          </span><span class="n">clusters_mua</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="n">nClustersMUA</span><span class="w"> </span>×<span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="nb">uint32</span><span class="p">]</span><span class="w"></span>
+<span class="w">        </span><span class="n">clusters_noise</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="n">nClustersNoise</span><span class="w"> </span>×<span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="nb">uint32</span><span class="p">]</span><span class="w"></span>
+<span class="w">     </span><span class="n">clusters_unsorted</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="n">nClustersUnsorted</span><span class="w"> </span>×<span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="nb">uint32</span><span class="p">]</span><span class="w"></span>
+</code></pre></div>
+<ul>
+<li>
+<p><code>nChannels</code> : number of channels used by Kilosort</p>
+</li>
+<li>
+<p><code>nSpikes</code> : number of spikes extracted</p>
+</li>
+<li>
+<p><code>nClusters</code> : number of unique clusters</p>
+</li>
+<li>
+<p><code>nTemplates</code> : number of spike templates</p>
+</li>
+<li>
+<p><code>nPCFeatures</code> number of spatiotemporal PC features used for templates</p>
+</li>
+<li>
+<p><code>nFeaturesPerChannel</code> : number of PC features used for each channel</p>
+</li>
+<li>
+<p><code>amplitudes</code> - <code>[nSpikes]</code> double vector with the amplitude scaling factor that was applied to the template when extracting that spike</p>
+</li>
+<li>
+<p><code>channel_ids</code> - <code>[nChannels]</code> uint32 vector with the channel ids used for sorting</p>
+</li>
+<li>
+<p><code>channel_positions</code> - <code>[nChannels, 2]</code> double matrix with each row giving the x and y coordinates of that channel. Together with the channel map, this determines how waveforms will be plotted in WaveformView (see below).</p>
+</li>
+<li>
+<p><code>pc_features</code> - <code>[nSpikes, nFeaturesPerChannel, nPCFeatures]</code> single matrix giving the PC values for each spike. The channels that those features came from are specified in pc_features_ind. E.g. the value at pc_features[123, 1, 5] is the projection of the 123rd spike onto the 1st PC on the channel given by pc_feature_ind[5].</p>
+</li>
+<li>
+<p><code>pc_feature_ind</code> - <code>[nTemplates, nPCFeatures]</code> uint32 matrix specifying which channels contribute to each entry in dim 3 of the pc_features matrix</p>
+</li>
+<li>
+<p><code>similar_templates</code> - <code>[nTemplates, nTemplates]</code> single matrix giving the similarity score (larger is more similar) between each pair of templates
+similar_templates(:, :) single</p>
+</li>
+<li>
+<p><code>spike_templates</code> - <code>[nSpikes]</code> uint32 vector specifying the identity of the template that was used to extract each spike</p>
+</li>
+<li>
+<p><code>spike_times</code> - <code>[nSpikes]</code> uint64 vector giving the spike time of each spike in samples. To convert to seconds, divide by sample_rate from params.py.</p>
+</li>
+<li>
+<p><code>template_features</code> - <code>[nSpikes, nTempFeatures]</code> single matrix giving the magnitude of the projection of each spike onto nTempFeatures other features. Which other features is specified in template_feature_ind.</p>
+</li>
+<li>
+<p><code>template_feature_ind</code> - <code>[nTemplates, nTempFeatures]</code> uint32 matrix specifying which templateFeatures are included in the template_features matrix.</p>
+</li>
+<li>
+<p><code>templates</code> - <code>[nTemplates, nTimePoints, nTemplateChannels]</code> single matrix giving the template shapes on the channels given in templates_ind</p>
+</li>
+<li>
+<p><code>templates_ind</code> - <code>[nTemplates, nTempChannels]</code> double matrix specifying the channels on which each template is defined. In the case of Kilosort templates_ind is just the integers from 0 to nChannels-1, since templates are defined on all channels.</p>
+</li>
+<li>
+<p><code>whitening_mat</code> - <code>[nChannels, nChannels]</code> double whitening matrix applied to the data during automatic spike sorting</p>
+</li>
+<li>
+<p><code>whitening_mat_inv</code> - <code>[nChannels, nChannels]</code>double, the inverse of the whitening matrix.</p>
+</li>
+<li>
+<p><code>spike_clusters</code> - <code>[nSpikes]</code> uint32 vector giving the cluster identity of each spike.</p>
+</li>
+<li>
+<p><code>cluster_groups</code> - <code>[nClusters]</code> categorical vector giving the &ldquo;cluster group&rdquo; of each cluster (noise, mua, good, unsorted)</p>
+</li>
+<li>
+<p><code>cluster_ids</code> - <code>[nClusters]</code> unique clusters in spike_clusters</p>
+</li>
+</ul>
+<h2 id="segmenting-a-kilosort-dataset-into-trials">Segmenting a Kilosort dataset into trials<a class="headerlink" href="#segmenting-a-kilosort-dataset-into-trials" title="Permanent link">&para;</a></h2>
+<p><code>ks.spike_times</code> contains the times for each spike in samples from the beginning of the file, but there is a more useful representation for data collected with a trial structure: split the spikes into separate groups based on which trial they occurred in, and convert the times to milliseconds since the start of the trial.</p>
+<h3 id="trialsegmentationinfo">TrialSegmentationInfo<a class="headerlink" href="#trialsegmentationinfo" title="Permanent link">&para;</a></h3>
+<p>In order to do this, you need to figure out where trials start and stop. You&rsquo;ll need to write this code, since this will differ for each experimental setup. Essentially, you need to create a <code>npxutils.TrialSegmentationInfo</code> instance and populate its fields with the correct values:</p>
+<div class="highlight"><pre><span></span><code><span class="n">tsi</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="n">npxutils</span><span class="p">.</span><span class="n">TrialSegmentationInfo</span><span class="p">(</span><span class="n">nTrials</span><span class="p">,</span><span class="w"> </span><span class="n">fsAP</span><span class="p">);</span><span class="w"></span>
+<span class="n">tsi</span><span class="p">.</span><span class="n">idxStart</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="p">[</span><span class="n">list</span><span class="w"> </span><span class="n">of</span><span class="w"> </span><span class="nb">start</span><span class="w"> </span><span class="n">sample</span><span class="w"> </span><span class="n">indices</span><span class="p">]</span><span class="w"></span>
+<span class="n">tsi</span><span class="p">.</span><span class="n">idxStop</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="p">[</span><span class="n">list</span><span class="w"> </span><span class="n">of</span><span class="w"> </span><span class="nb">stop</span><span class="w"> </span><span class="n">sample</span><span class="w"> </span><span class="n">indices</span><span class="p">];</span><span class="w"></span>
+<span class="n">tsi</span><span class="p">.</span><span class="n">trialId</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="p">[</span><span class="n">list</span><span class="w"> </span><span class="n">of</span><span class="w"> </span><span class="n">trial</span><span class="w"> </span><span class="n">ids</span><span class="p">];</span><span class="w"></span>
+</code></pre></div>
+<p>Here is an example script that uses the sync channel to determine where trials begin and end. It expects one bit (named <code>'trialStart'</code>) to contain TTL pulses each time a trial starts, and another bit (named <code>'trialInfo'</code>) to contain ASCII-serialized bits of text occurring at the start of each trial. For example, the string <code>id=1;c=2</code> would correspond to <code>trialId=1</code> and <code>conditionId=2</code>. It also assumes that a trial ends when the next trial begins (or at the end of the file). Long trials can be subsequently truncated using <code>tsi.truncateTrialsLongerThan(maxDurationSeconds)</code>.</p>
+<div class="highlight"><pre><span></span><code><span class="k">function</span><span class="w"> </span>tsi<span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nf">parseTrialInfoFromSync</span><span class="p">(</span>syncRaw, fs, syncBitNames<span class="p">)</span><span class="w"></span>
+<span class="w">    </span><span class="c">% fs is in samples per second</span><span class="w"></span>
+<span class="w">    </span><span class="c">% parses the sync line of an neuropixel .imec.ap.bin data file</span><span class="w"></span>
+<span class="w">    </span><span class="c">% and produces a scalar TrialSegmentationInfo</span><span class="w"></span>
+
+<span class="w">    </span><span class="c">% parse the sync</span><span class="w"></span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nb">isempty</span><span class="p">(</span><span class="n">syncBitNames</span><span class="p">)</span><span class="w"></span>
+<span class="w">        </span><span class="n">trialInfoBitNum</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"></span>
+<span class="w">        </span><span class="n">trialStartBitNum</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="mi">2</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="k">else</span><span class="w"></span>
+<span class="w">        </span><span class="p">[</span><span class="n">tf</span><span class="p">,</span><span class="w"> </span><span class="n">trialInfoBitNum</span><span class="p">]</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nb">ismember</span><span class="p">(</span><span class="s">&#39;trialInfo&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">syncBitNames</span><span class="p">);</span><span class="w"></span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="o">~</span><span class="n">tf</span><span class="p">,</span><span class="w"> </span><span class="n">trialInfoBitNum</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="k">end</span><span class="w"></span>
+<span class="w">        </span><span class="p">[</span><span class="n">tf</span><span class="p">,</span><span class="w"> </span><span class="n">trialStartBitNum</span><span class="p">]</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nb">ismember</span><span class="p">(</span><span class="s">&#39;trialStart&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">syncBitNames</span><span class="p">);</span><span class="w"></span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="o">~</span><span class="n">tf</span><span class="p">,</span><span class="w"> </span><span class="n">trialStartBitNum</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="k">end</span><span class="w"></span>
+<span class="w">    </span><span class="k">end</span><span class="w"></span>
+
+<span class="w">    </span><span class="n">serialBit</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nb">bitget</span><span class="p">(</span><span class="n">syncRaw</span><span class="p">,</span><span class="w"> </span><span class="n">trialInfoBitNum</span><span class="p">);</span><span class="w"></span>
+<span class="w">    </span><span class="n">trialStart</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nb">bitget</span><span class="p">(</span><span class="n">syncRaw</span><span class="p">,</span><span class="w"> </span><span class="n">trialStartBitNum</span><span class="p">);</span><span class="w"></span>
+
+<span class="w">    </span><span class="c">% trials start when going high</span><span class="w"></span>
+<span class="w">    </span><span class="n">idxStart</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nb">find</span><span class="p">(</span><span class="nb">diff</span><span class="p">(</span><span class="n">trialStart</span><span class="p">)</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="n">nTrials</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nb">numel</span><span class="p">(</span><span class="n">idxStart</span><span class="p">);</span><span class="w"></span>
+
+<span class="w">    </span><span class="n">tsi</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="n">npxutils</span><span class="p">.</span><span class="n">TrialSegmentationInfo</span><span class="p">(</span><span class="n">nTrials</span><span class="p">,</span><span class="w"> </span><span class="n">fs</span><span class="p">);</span><span class="w"></span>
+
+<span class="w">    </span><span class="n">samplesEachBit</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nb">round</span><span class="p">(</span><span class="n">fs</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="mi">1000</span><span class="p">);</span><span class="w"> </span><span class="c">% each bit delivered per ms</span><span class="w"></span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="n">iR</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="mi">1</span><span class="p">:</span><span class="n">nTrials</span><span class="w"></span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="n">iR</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">nTrials</span><span class="w"></span>
+<span class="w">            </span><span class="n">idxNext</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="n">idxStart</span><span class="p">(</span><span class="n">iR</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"></span>
+<span class="w">        </span><span class="k">else</span><span class="w"></span>
+<span class="w">            </span><span class="n">idxNext</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nb">numel</span><span class="p">(</span><span class="n">serialBit</span><span class="p">);</span><span class="w"></span>
+<span class="w">        </span><span class="k">end</span><span class="w"></span>
+<span class="w">        </span><span class="n">bitsByTrial</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nb">uint8</span><span class="p">(</span><span class="n">serialBit</span><span class="p">(</span><span class="nb">floor</span><span class="p">(</span><span class="n">samplesEachBit</span><span class="o">/</span><span class="mi">2</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">idxStart</span><span class="p">(</span><span class="n">iR</span><span class="p">)</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">samplesEachBit</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">idxNext</span><span class="p">));</span><span class="w"></span>
+
+<span class="w">        </span><span class="n">lastHigh</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nb">find</span><span class="p">(</span><span class="n">bitsByTrial</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="s">&#39;last&#39;</span><span class="p">);</span><span class="w"></span>
+<span class="w">        </span><span class="n">lastHigh</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nb">ceil</span><span class="p">(</span><span class="n">lastHigh</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="mi">8</span><span class="p">)</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">8</span><span class="p">;</span><span class="w"></span>
+<span class="w">        </span><span class="n">bitsByTrial</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="n">bitsByTrial</span><span class="p">(</span><span class="mi">1</span><span class="p">:</span><span class="n">lastHigh</span><span class="p">);</span><span class="w"></span>
+
+<span class="w">        </span><span class="n">infoThis</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="n">parseInfoString</span><span class="p">(</span><span class="n">bitsToString</span><span class="p">(</span><span class="n">bitsByTrial</span><span class="p">));</span><span class="w"></span>
+
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="nb">isfield</span><span class="p">(</span><span class="n">infoThis</span><span class="p">,</span><span class="w"> </span><span class="s">&#39;id&#39;</span><span class="p">)</span><span class="w"></span>
+<span class="w">            </span><span class="n">tsi</span><span class="p">.</span><span class="n">trialId</span><span class="p">(</span><span class="n">iR</span><span class="p">)</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nb">str2double</span><span class="p">(</span><span class="n">infoThis</span><span class="p">.</span><span class="n">id</span><span class="p">);</span><span class="w"> </span><span class="c">%#ok&lt;*AGROW&gt;</span><span class="w"></span>
+<span class="w">        </span><span class="k">else</span><span class="w"></span>
+<span class="w">            </span><span class="n">tsi</span><span class="p">.</span><span class="n">trialId</span><span class="p">(</span><span class="n">iR</span><span class="p">)</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nb">NaN</span><span class="p">;</span><span class="w"></span>
+<span class="w">        </span><span class="k">end</span><span class="w"></span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="nb">isfield</span><span class="p">(</span><span class="n">infoThis</span><span class="p">,</span><span class="w"> </span><span class="s">&#39;c&#39;</span><span class="p">)</span><span class="w"></span>
+<span class="w">            </span><span class="n">tsi</span><span class="p">.</span><span class="n">conditionId</span><span class="p">(</span><span class="n">iR</span><span class="p">)</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nb">str2double</span><span class="p">(</span><span class="n">infoThis</span><span class="p">.</span><span class="n">c</span><span class="p">);</span><span class="w"></span>
+<span class="w">        </span><span class="k">else</span><span class="w"></span>
+<span class="w">            </span><span class="n">tsi</span><span class="p">.</span><span class="n">conditionId</span><span class="p">(</span><span class="n">iR</span><span class="p">)</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nb">NaN</span><span class="p">;</span><span class="w"></span>
+<span class="w">        </span><span class="k">end</span><span class="w"></span>
+
+<span class="w">        </span><span class="n">tsi</span><span class="p">.</span><span class="n">idxStart</span><span class="p">(</span><span class="n">iR</span><span class="p">)</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="n">idxStart</span><span class="p">(</span><span class="n">iR</span><span class="p">);</span><span class="w"></span>
+<span class="w">        </span><span class="n">tsi</span><span class="p">.</span><span class="n">idxStop</span><span class="p">(</span><span class="n">iR</span><span class="p">)</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="n">idxNext</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="k">end</span><span class="w"></span>
+
+<span class="w">    </span><span class="k">function</span><span class="w"> </span>out<span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nf">bitsToString</span><span class="p">(</span>bits<span class="p">)</span><span class="w"></span>
+<span class="w">        </span><span class="n">nChar</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nb">numel</span><span class="p">(</span><span class="n">bits</span><span class="p">)</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="mi">8</span><span class="p">;</span><span class="w"></span>
+<span class="w">        </span><span class="nb">assert</span><span class="p">(</span><span class="n">nChar</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="nb">round</span><span class="p">(</span><span class="n">nChar</span><span class="p">),</span><span class="w"> </span><span class="s">&#39;Bit length must be multiple of 8&#39;</span><span class="p">);</span><span class="w"></span>
+<span class="w">        </span><span class="n">out</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nb">blanks</span><span class="p">(</span><span class="n">nChar</span><span class="p">);</span><span class="w"></span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="n">iC</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="mi">1</span><span class="p">:</span><span class="n">nChar</span><span class="w"></span>
+<span class="w">            </span><span class="n">idx</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="p">(</span><span class="mi">1</span><span class="p">:</span><span class="mi">8</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="p">(</span><span class="n">iC</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="o">*</span><span class="mi">8</span><span class="p">;</span><span class="w"></span>
+<span class="w">            </span><span class="n">out</span><span class="p">(</span><span class="n">iC</span><span class="p">)</span><span class="w">  </span><span class="p">=</span><span class="w"> </span><span class="nb">char</span><span class="p">(</span><span class="nb">bin2dec</span><span class="p">(</span><span class="nb">sprintf</span><span class="p">(</span><span class="s">&#39;%u&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">bits</span><span class="p">(</span><span class="n">idx</span><span class="p">))));</span><span class="w"></span>
+<span class="w">        </span><span class="k">end</span><span class="w"></span>
+<span class="w">    </span><span class="k">end</span><span class="w"></span>
+
+<span class="w">    </span><span class="k">function</span><span class="w"> </span>out<span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nf">parseInfoString</span><span class="p">(</span>str<span class="p">)</span><span class="w"></span>
+<span class="w">        </span><span class="n">keyval</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nb">regexp</span><span class="p">(</span><span class="n">str</span><span class="p">,</span><span class="w"> </span><span class="s">&#39;(?&lt;key&gt;\w+)=(?&lt;value&gt;[\d\.]+)&#39;</span><span class="p">,</span><span class="w"> </span><span class="s">&#39;names&#39;</span><span class="p">);</span><span class="w"></span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="nb">isempty</span><span class="p">(</span><span class="n">keyval</span><span class="p">)</span><span class="w"></span>
+<span class="w">            </span><span class="nb">warning</span><span class="p">(</span><span class="s">&#39;Could not parse info string &quot;%s&quot;&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">str</span><span class="p">);</span><span class="w"></span>
+<span class="w">            </span><span class="n">out</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nb">struct</span><span class="p">();</span><span class="w"></span>
+<span class="w">        </span><span class="k">else</span><span class="w"></span>
+<span class="w">            </span><span class="k">for</span><span class="w"> </span><span class="nb">i</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="mi">1</span><span class="p">:</span><span class="nb">numel</span><span class="p">(</span><span class="n">keyval</span><span class="p">)</span><span class="w"></span>
+<span class="w">                </span><span class="n">out</span><span class="p">.(</span><span class="n">keyval</span><span class="p">(</span><span class="nb">i</span><span class="p">).</span><span class="n">key</span><span class="p">)</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="n">keyval</span><span class="p">(</span><span class="nb">i</span><span class="p">).</span><span class="n">value</span><span class="p">;</span><span class="w"></span>
+<span class="w">            </span><span class="k">end</span><span class="w"></span>
+<span class="w">        </span><span class="k">end</span><span class="w"></span>
+<span class="w">    </span><span class="k">end</span><span class="w"></span>
+<span class="k">end</span><span class="w"></span>
+</code></pre></div>
+<h3 id="kilosorttrialsegmenteddataset">KilosortTrialSegmentedDataset<a class="headerlink" href="#kilosorttrialsegmenteddataset" title="Permanent link">&para;</a></h3>
+<p>Once you have the trial boundaries stored in your <code>TrialSegmentationInfo</code> instance, you can split the properties of the <code>KilosortDataset</code> into each trial, resulting in a <code>npxutils.KilosortTrialSegmentedDataset</code> instance. To facilitate merging this into another data structure later, you will need to specify the ultimate <code>trialId</code> order you want the <code>KilosortTrialSegmentedDataset</code> to have. For example, if you have a behavioral data structure, you can extract the list of trial ids from that so that your <code>KilosortTrialSegmentedDataset</code> will have a matching trial sequence.</p>
+<div class="highlight"><pre><span></span><code><span class="n">trialIds</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nb">cat</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">behaviorStruct</span><span class="p">.</span><span class="n">trialId</span><span class="p">);</span><span class="w"></span>
+</code></pre></div>
+<p>Any trials not found in the <code>TrialSegmentationInfo</code> will simply be empty in the <code>KilosortTrialSegmentedDataset</code>. If you simply want to preserve the trials in the order they are in <code>tsi</code>, you can simply use:</p>
+<div class="highlight"><pre><span></span><code><span class="n">trialIds</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="n">tsi</span><span class="p">.</span><span class="n">trialIds</span><span class="p">;</span><span class="w"></span>
+</code></pre></div>
+<p>You can then segment the KilosortDataset using:</p>
+<div class="highlight"><pre><span></span><code><span class="o">&gt;&gt;</span><span class="w"> </span><span class="n">seg</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="n">npxutils</span><span class="p">.</span><span class="n">KilosortTrialSegmentedDataset</span><span class="p">(</span><span class="n">ks</span><span class="p">,</span><span class="w"> </span><span class="n">tsi</span><span class="p">,</span><span class="w"> </span><span class="n">trial_ids</span><span class="p">)</span><span class="w"></span>
+
+<span class="n">KilosortTrialSegmentedDataset</span><span class="w"> </span><span class="s">with</span><span class="w"> </span><span class="s">properties:</span><span class="w"></span>
+
+<span class="w">                   </span><span class="n">dataset</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="mi">1</span>×<span class="mi">1</span><span class="w"> </span><span class="n">npxutils</span><span class="p">.</span><span class="n">KilosortDataset</span><span class="p">]</span><span class="w"> </span><span class="c">% unsegmented KilosortDataset</span><span class="w"></span>
+<span class="w">                 </span><span class="n">trial_ids</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="n">nTrials</span><span class="w"> </span>×<span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="nb">uint32</span><span class="p">]</span><span class="w"> </span><span class="c">% trial ids</span><span class="w"></span>
+<span class="w">            </span><span class="n">trial_has_data</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="n">nTrials</span><span class="w"> </span>×<span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="nb">logical</span><span class="p">]</span><span class="w"> </span><span class="c">% indicator if trial found in tsi</span><span class="w"></span>
+<span class="w">               </span><span class="n">trial_start</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="n">nTrials</span><span class="w"> </span>×<span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="nb">uint64</span><span class="p">]</span><span class="w"> </span><span class="c">% nTrials start sample idx copied from tsi</span><span class="w"></span>
+<span class="w">                </span><span class="n">trial_stop</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="n">nTrials</span><span class="w"> </span>×<span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="nb">uint64</span><span class="p">]</span><span class="w"> </span><span class="c">% nTrials start sample idx copied from tsi</span><span class="w"></span>
+<span class="w">                 </span><span class="n">spike_idx</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="n">nTrials</span><span class="w"> </span>×<span class="w"> </span><span class="n">nClusters</span><span class="w"> </span><span class="nb">cell</span><span class="p">}</span><span class="w"> </span><span class="c">% nTrials x nClusters lists of indices into ks.spike_times array for each spike</span><span class="w"></span>
+<span class="w">               </span><span class="n">cluster_ids</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="n">nClusters</span><span class="w"> </span>×<span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="nb">uint32</span><span class="p">]</span><span class="w"> </span><span class="c">% copied from ks</span><span class="w"></span>
+<span class="w">            </span><span class="n">cluster_groups</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="n">nClusters</span><span class="w"> </span>×<span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="nb">categorical</span><span class="p">]</span><span class="w"> </span><span class="c">% copied from ks</span><span class="w"></span>
+<span class="w">                      </span><span class="n">sync</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="mi">1</span>×<span class="mi">1</span><span class="w"> </span><span class="nb">cell</span><span class="p">}</span><span class="w"> </span><span class="c">%  segmented contents of sync channel</span><span class="w"></span>
+<span class="w">              </span><span class="n">syncBitNames</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="mi">16</span>×<span class="mi">1</span><span class="w"> </span><span class="nb">string</span><span class="p">]</span><span class="w"> </span><span class="c">% copied from ImecDataset</span><span class="w"></span>
+<span class="w">               </span><span class="n">raw_dataset</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="mi">1</span>×<span class="mi">1</span><span class="w"> </span><span class="n">npxutils</span><span class="p">.</span><span class="n">ImecDataset</span><span class="p">]</span><span class="w"> </span><span class="c">% original ImecDataset copied from ks</span><span class="w"></span>
+<span class="w">                   </span><span class="n">nTrials</span><span class="p">:</span><span class="w"> </span><span class="mi">1092</span><span class="w"> </span><span class="c">% number of trials as numel(trialIds)</span><span class="w"></span>
+<span class="w">           </span><span class="n">nTrialsHaveData</span><span class="p">:</span><span class="w"> </span><span class="mi">1092</span><span class="w"> </span><span class="c">% number of trials with matching trialIds in tsi</span><span class="w"></span>
+<span class="w">                 </span><span class="n">nClusters</span><span class="p">:</span><span class="w"> </span><span class="mi">592</span><span class="w"> </span><span class="c">% number of clusters (sorted units)</span><span class="w"></span>
+<span class="w">           </span><span class="n">nChannelsSorted</span><span class="p">:</span><span class="w"> </span><span class="mi">385</span><span class="w"> </span><span class="c">% number of channels</span><span class="w"></span>
+<span class="w">               </span><span class="n">channel_ids</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="n">nChannelsSorted</span><span class="w"> </span>×<span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="n">unit32</span><span class="p">]</span><span class="w"> </span><span class="c">% list of channel ids used for sorting</span><span class="w"></span>
+<span class="w">         </span><span class="n">trial_duration_ms</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="n">nTrials</span><span class="w"> </span>×<span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="nb">double</span><span class="p">]</span><span class="w"></span>
+<span class="w">                      </span><span class="n">fsAP</span><span class="p">:</span><span class="w"> </span><span class="mi">30000</span><span class="w"></span>
+<span class="w">                </span><span class="n">amplitudes</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="n">nTrials</span><span class="w"> </span>×<span class="w"> </span><span class="n">nClusters</span><span class="w"> </span><span class="nb">cell</span><span class="p">}</span><span class="w"> </span><span class="c">% each of these will contain a vector with one entry for each spike from that cluster on that trial</span><span class="w"></span>
+<span class="w">               </span><span class="n">pc_features</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="n">nTrials</span><span class="w"> </span>×<span class="w"> </span><span class="n">nClusters</span><span class="w"> </span><span class="nb">cell</span><span class="p">}</span><span class="w"></span>
+<span class="w">               </span><span class="n">spike_times</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="n">nTrials</span><span class="w"> </span>×<span class="w"> </span><span class="n">nClusters</span><span class="w"> </span><span class="nb">cell</span><span class="p">}</span><span class="w"> </span><span class="c">% raw sample times from ks</span><span class="w"></span>
+<span class="w">  </span><span class="n">spike_times_ms_rel_start</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="n">nTrials</span><span class="w"> </span>×<span class="w"> </span><span class="n">nClusters</span><span class="w"> </span><span class="nb">cell</span><span class="p">}</span><span class="w"> </span><span class="c">% times from trial start in milliseconds</span><span class="w"></span>
+<span class="w">         </span><span class="n">template_features</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="n">nTrials</span><span class="w"> </span>×<span class="w"> </span><span class="n">nClusters</span><span class="w"> </span><span class="nb">cell</span><span class="p">}</span><span class="w"></span>
+<span class="w">           </span><span class="n">spike_templates</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="n">nTrials</span><span class="w"> </span>×<span class="w"> </span><span class="n">nClusters</span><span class="w"> </span><span class="nb">cell</span><span class="p">}</span><span class="w"></span>
+</code></pre></div>
+                
+              
+              
+                
+
+
+              
+            </article>
+          </div>
+        </div>
+        
+      </main>
+      
+        
+<footer class="md-footer">
+  
+    <nav class="md-footer__inner md-grid" aria-label="Footer">
+      
+        <a href="imec_dataset.html" class="md-footer__link md-footer__link--prev" rel="prev">
+          <div class="md-footer__button md-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12z"/></svg>
+          </div>
+          <div class="md-footer__title">
+            <div class="md-ellipsis">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              Neuropixel.ImecDataset
+            </div>
+          </div>
+        </a>
+      
+      
+        <a href="analysis.html" class="md-footer__link md-footer__link--next" rel="next">
+          <div class="md-footer__title">
+            <div class="md-ellipsis">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              Analysis of Kilosort Results
+            </div>
+          </div>
+          <div class="md-footer__button md-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11H4z"/></svg>
+          </div>
+        </a>
+      
+    </nav>
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-footer-copyright">
+        
+          <div class="md-footer-copyright__highlight">
+            Copyright &copy; 2021 &mdash; <a href="http://djoshea.com">Daniel J. O&#39;Shea</a>
+          </div>
+        
+        Made with
+        <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+          Material for MkDocs
+        </a>
+        
+      </div>
+      
+  <div class="md-footer-social">
+    
+      
+      
+        
+        
+      
+      <a href="https://github.com/djoshea" target="_blank" rel="noopener" title="github.com" class="md-footer-social__link">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg>
+      </a>
+    
+      
+      
+        
+        
+      
+      <a href="https://twitter.com/djoshea" target="_blank" rel="noopener" title="twitter.com" class="md-footer-social__link">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><path d="M459.37 151.716c.325 4.548.325 9.097.325 13.645 0 138.72-105.583 298.558-298.558 298.558-59.452 0-114.68-17.219-161.137-47.106 8.447.974 16.568 1.299 25.34 1.299 49.055 0 94.213-16.568 130.274-44.832-46.132-.975-84.792-31.188-98.112-72.772 6.498.974 12.995 1.624 19.818 1.624 9.421 0 18.843-1.3 27.614-3.573-48.081-9.747-84.143-51.98-84.143-102.985v-1.299c13.969 7.797 30.214 12.67 47.431 13.319-28.264-18.843-46.781-51.005-46.781-87.391 0-19.492 5.197-37.36 14.294-52.954 51.655 63.675 129.3 105.258 216.365 109.807-1.624-7.797-2.599-15.918-2.599-24.04 0-57.828 46.782-104.934 104.934-104.934 30.213 0 57.502 12.67 76.67 33.137 23.715-4.548 46.456-13.32 66.599-25.34-7.798 24.366-24.366 44.833-46.132 57.827 21.117-2.273 41.584-8.122 60.426-16.243-14.292 20.791-32.161 39.308-52.628 54.253z"/></svg>
+      </a>
+    
+  </div>
+
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    <script id="__config" type="application/json">{"base": ".", "features": [], "translations": {"clipboard.copy": "Copy to clipboard", "clipboard.copied": "Copied to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.placeholder": "Search", "search.result.placeholder": "Type to start searching", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.term.missing": "Missing"}, "search": "assets/javascripts/workers/search.fe42c31b.min.js", "version": null}</script>
+    
+    
+      <script src="assets/javascripts/bundle.7353b375.min.js"></script>
+      
+    
+  </body>
+</html>

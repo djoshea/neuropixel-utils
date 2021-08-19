@@ -1,0 +1,64 @@
+site_name: Neuropixel Utilities
+site_description: Documentation for neuropixel-utils
+site_author: Daniel J. O'Shea
+
+repo_name: 'djoshea/neuropixel-utils'
+repo_url: 'https://github.com/djoshea/neuropixel-utils'
+
+theme:
+  icon:
+    logo: fontawesome/solid/brain
+  name: material
+  feature:
+    - navigation.tabs: false
+  palette:
+    primary: 'blue'
+    accent: 'blue'
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/djoshea
+    - icon: fontawesome/brands/twitter
+      link: 'https://twitter.com/djoshea'
+
+markdown_extensions:
+  - admonition
+  - codehilite
+  - markdown.extensions.def_list
+  - pymdownx.inlinehilite
+  - pymdownx.superfences
+  - smarty
+  - toc:
+      permalink: true
+
+nav:
+  - Overview: index.md
+  - Neuropixel.ImecDataset: imec_dataset.md
+  - Running Kilosort: kilosort.md
+  - Analysis of Kilosort Results: analysis.md
+  - Extracting Waveforms: waveforms.md
+  - Acknowledgements and Support: acknowledgements.md
+  - 'Examples (HTML)':
+    - 'Tutorial (HTML)': 'publish/html/tutorial.html'
+    - 'Ex 01: Walkthrough (HTML)': 'publish/html/ex01_walkthrough.html'
+    - 'Ex 02: ImecDatasets (HTML)': 'publish/html/ex02_imecdataset.html'
+    - 'Ex 03: Running Kilosort (HTML)': 'publish/html/ex03_running_kilosort.html'
+  - 'Examples (Markdown)':
+    - 'Tutorial (Markdown)': 'publish/md/tutorial.md'
+    - 'Ex 01: Walkthrough (Markdown)': 'publish/md/ex01_walkthrough.md'
+    - 'Ex 02: ImecDatasets (Markdown)': 'publish/md/ex02_imecdataset.md'
+    - 'Ex 03: Running Kilosort (Markdown)': 'publish/html/ex03_running_kilosort.md'
+
+copyright: 'Copyright &copy; 2021 &mdash; <a href="http://djoshea.com">Daniel J. O&#39;Shea</a>'
+
+# Build configuration
+#
+# We customize this to work nicely with the MatlabProjectTemplate repo layout, and
+# with GitHub Pages sourced from the "master" branch instead of "gh-pages"
+
+docs_dir: docs
+site_dir: _site
+# We avoid directory URLs, so you can view the docs site directly from a
+# local filesystem, in addition to through a web server.
+use_directory_urls: false
