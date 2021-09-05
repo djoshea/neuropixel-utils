@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+
+set -e
+
+locate_matlab () {
+  if which matlab &>/dev/null; then
+    matlab=matlab
+  else
+    os=$(uname)
+    if [[ $os -eq "Darwin" ]]; then
+        search_order="${PREFERRED_MATLAB_VERSIONS:-R2021a R2020b R2020a R2019b R2019a R2018b R2018a}"
+        for rel in $search_order; do
+          app_path="/Applications/MATLAB_${rel}.app"
+          echo "Checking $app_path..."
+          if [[ -e "$app_path" ]]; then
+            matlab="$app_path/bin/matlab"
+            break
+          fi
+        done
+    else
+      echo >&2 "Error: No matlab on path, and I don't know how to detect it on Linux."
+      echo >&2 "Error: Please ensure Matlab is installed, and get it on your \$PATH."
+      exit 1
+    fi
+  fi
+
+  if [[ -z "$matlab" ]]; then
+    echo >&2 "Error: matlab is not on the path and it could not be detected."
+    exit 1
+  fi
+}
+
+locate_matlab
+
+devkit_dir=$(dirname $0)
+reporoot=$(dirname "$devkit_dir")
+matlab -batch "addpath '$reporoot/Mcode'; addpath '${devkit_dir}'; $1"

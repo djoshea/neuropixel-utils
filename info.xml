@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<productinfo xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xsi:noNamespaceSchemaLocation="optional">
+    <?xml-stylesheet type="text/xsl"href="optional"?>
+    
+    <matlabrelease>2019b</matlabrelease>
+    <name>neuropixel-utils</name>
+    <type>toolbox</type>
+    <icon/>
+    <help_location>build/M-doc</help_location>
+    <help_contents_icon/>
+    
+</productinfo>

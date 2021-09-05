@@ -1,0 +1,103 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8"><meta http-equiv="X-UA-Compatible" content="IE=edge,IE=9,chrome=1"><meta name="generator" content="MATLAB 2020b"><title>Example 1: Walkthrough</title><style type="text/css">.rtcContent { padding: 30px; } .S0 { margin: 3px 10px 5px 4px; padding: 0px; line-height: 28.8px; min-height: 0px; white-space: pre-wrap; color: rgb(213, 80, 0); font-family: Helvetica, Arial, sans-serif; font-style: normal; font-size: 24px; font-weight: 400; text-align: left;  }
+.S1 { margin: 20px 10px 5px 4px; padding: 0px; line-height: 20px; min-height: 0px; white-space: pre-wrap; color: rgb(60, 60, 60); font-family: Helvetica, Arial, sans-serif; font-style: normal; font-size: 20px; font-weight: 700; text-align: left;  }
+.CodeBlock { background-color: #F7F7F7; margin: 10px 0 10px 0;}
+.S2 { border-left: 1px solid rgb(233, 233, 233); border-right: 1px solid rgb(233, 233, 233); border-top: 1px solid rgb(233, 233, 233); border-bottom: 0px none rgb(0, 0, 0); border-radius: 4px 4px 0px 0px; padding: 6px 45px 0px 13px; line-height: 17.234px; min-height: 18px; white-space: nowrap; color: rgb(0, 0, 0); font-family: Menlo, Monaco, Consolas, "Courier New", monospace; font-size: 14px;  }
+.S3 { border-left: 1px solid rgb(233, 233, 233); border-right: 1px solid rgb(233, 233, 233); border-top: 0px none rgb(0, 0, 0); border-bottom: 0px none rgb(0, 0, 0); border-radius: 0px; padding: 0px 45px 0px 13px; line-height: 17.234px; min-height: 18px; white-space: nowrap; color: rgb(0, 0, 0); font-family: Menlo, Monaco, Consolas, "Courier New", monospace; font-size: 14px;  }
+.S4 { border-left: 1px solid rgb(233, 233, 233); border-right: 1px solid rgb(233, 233, 233); border-top: 0px none rgb(0, 0, 0); border-bottom: 1px solid rgb(233, 233, 233); border-radius: 0px 0px 4px 4px; padding: 0px 45px 4px 13px; line-height: 17.234px; min-height: 18px; white-space: nowrap; color: rgb(0, 0, 0); font-family: Menlo, Monaco, Consolas, "Courier New", monospace; font-size: 14px;  }
+.S5 { margin: 2px 10px 9px 4px; padding: 0px; line-height: 21px; min-height: 0px; white-space: pre-wrap; color: rgb(0, 0, 0); font-family: Helvetica, Arial, sans-serif; font-style: normal; font-size: 14px; font-weight: 400; text-align: left;  }
+.S6 { margin: 10px 10px 9px 4px; padding: 0px; line-height: 21px; min-height: 0px; white-space: pre-wrap; color: rgb(0, 0, 0); font-family: Helvetica, Arial, sans-serif; font-style: normal; font-size: 14px; font-weight: 400; text-align: left;  }</style></head><body><div class = rtcContent><h1  class = 'S0'><span>Example 1: Walkthrough</span></h1><h2  class = 'S1'><span>Data setup</span></h2><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S2'><span style="white-space: pre;"><span>homeDir = string(java.lang.System.getProperty(</span><span style="color: rgb(170, 4, 249);">'user.home'</span><span>));</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span>exDataDir = homeDir + </span><span style="color: rgb(170, 4, 249);">'work/npxutils/example-data'</span><span>;</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre;"><span>ksDataDir = homeDir + </span><span style="color: rgb(170, 4, 249);">'work/npxutils/kilosort'</span><span>;</span></span></div></div></div><h2  class = 'S1'><span>Create ImecDataset</span></h2><div  class = 'S5'><span>Create an ImecDataset from a specified raw data file and probe name:</span></div><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S2'><span style="white-space: pre;"><span>channelMapFile = </span><span style="color: rgb(170, 4, 249);">'neuropixPhase3A_kilosortChanMap.mat'</span><span>;</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span>apBinFile = exDataDir + </span><span style="color: rgb(170, 4, 249);">'/Vinnie/raw_datasets/2018-08-17/Vinnie_20180817_All.imec.ap.bin'</span><span>;</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span>imec = Neuropixel.ImecDataset(apBinFile, </span><span style="color: rgb(170, 4, 249);">'channelMap'</span><span>, channelMapFile);</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre;"><span>disp(imec)</span></span></div></div></div><div  class = 'S6'><span>Preprocess it a bit:</span></div><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S2'><span style="white-space: pre;"><span style="color: rgb(2, 128, 9);">% Mark individual channels as bad based on RMS voltage</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span>rmsBadChannels = imec.markBadChannelsByRMS(</span><span style="color: rgb(170, 4, 249);">'rmsRange'</span><span>, [3 100]);</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span style="color: rgb(2, 128, 9);">% Specify names for the individual bits in the sync channel</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span>imec.setSyncBitNames([1 2 3], {</span><span style="color: rgb(170, 4, 249);">'trialInfo'</span><span>, </span><span style="color: rgb(170, 4, 249);">'trialStart'</span><span>, </span><span style="color: rgb(170, 4, 249);">'stim'</span><span>});</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span style="color: rgb(2, 128, 9);">% Save the bad channels and Sync bit names to the .imec.ap.meta file so they are loaded next time</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre;"><span>imec.writeModifiedAPMeta();</span></span></div></div></div><div  class = 'S6'><span>Common average referencing:</span></div><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S2'><span style="white-space: pre;"><span style="color: rgb(2, 128, 9);">% Perform common average referencing on the file and save the results</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span style="color: rgb(2, 128, 9);">% to a separate "cleaned" directory</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span>cleanedDir = exDataDir + </span><span style="color: rgb(170, 4, 249);">'/cleaned_datasets'</span><span>;</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span>cleanedApBinFile = cleanedDir + </span><span style="color: rgb(170, 4, 249);">'Vinnie_20180817_All_cleaned.imec.ap.bin'</span><span>;</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span>extraMeta = struct();</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span>extraMeta.commonAverageReferenced = true;</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span>fnList = {@npxutils.dataprocess.commonAverageReference};</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre;"><span>imec = imec.saveTransformedDataset(cleanedApBinFile, </span><span style="color: rgb(170, 4, 249);">'transformAP'</span><span>, fnList, </span><span style="color: rgb(170, 4, 249);">'extraMeta'</span><span>, extraMeta);</span></span></div></div></div><div  class = 'S6'><span>Get it ready for sending to Kilosort:</span></div><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S2'><span style="white-space: pre;"><span style="color: rgb(2, 128, 9);">% Symlink the cleaned dataset into a separate directory for Kilosort2</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span>ksPath = ksDataDir + </span><span style="color: rgb(170, 4, 249);">'/Vinnie_20180817_All_cleaned.imec.ap.bin'</span><span>;</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre;"><span>imec = imec.symLinkAPIntoDirectory(ksPath);</span></span></div></div></div><h2  class = 'S1'><span>Visual inspection</span></h2><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S2'><span style="white-space: pre;"><span style="color: rgb(2, 128, 9);">% Inspect the raw IMEC traces</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre;"><span>imec.inspectAP_timeWindow([200 201]); </span><span style="color: rgb(2, 128, 9);">% 200-201 seconds into the recording</span></span></div></div></div><h2  class = 'S1'><span>Kilosort time!</span></h2><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S2'><span style="white-space: pre;"><span style="color: rgb(2, 128, 9);">% Run Kilosort2</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span>npxutils.runKilosort2(imec);</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span style="color: rgb(2, 128, 9);">% Load the Kilosort2 results</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span>ks = npxutils.KilosortDataset();</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span>ks.load()</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span style="color: rgb(2, 128, 9);">% Define how the data are segmented into trials</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span style="color: rgb(2, 128, 9);">% (You must implement this function yourself)</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span style="color: rgb(2, 128, 9);">% tsi = computeTrialSegmentation(imec)</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span style="color: rgb(2, 128, 9);">% TODO: Figure out how to implement a trial segmentation function for these</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span style="color: rgb(2, 128, 9);">% examples so the Live Script can run through.</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span style="color: rgb(2, 128, 9);">% Segment the KilosortDataset into trials based on start and stop idx.</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span style="color: rgb(2, 128, 9);">% trial_ids are specified according to the data structure being merged into.</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span style="color: rgb(2, 128, 9);">% If a trial is included in trial_ids but not found in tsi,</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span style="color: rgb(2, 128, 9);">% its contents would be blank and trial_has_data(i) would be set false.</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span style="color: rgb(2, 128, 9);">%</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span style="color: rgb(2, 128, 9);">% Each of seg's properties are now nTrials x ... cells containing the data</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span style="color: rgb(2, 128, 9);">% corresponding to that trial</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span>trial_ids = min(tsi.trialId):max(tsi.trialId);</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span>seg = npxutils.KilosortTrialSegmentedDataset(ks, tsi, trial_ids);</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span>disp(seg)</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span style="color: rgb(2, 128, 9);">% Compute useful stats about each template and cluster</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span>metrics = ks.getMetrics()</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span style="color: rgb(2, 128, 9);">% Plot a drift map, annotated with trial start markers</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre;"><span>metrics.plotDriftmap(</span><span style="color: rgb(170, 4, 249);">'tsi'</span><span>, tsi);</span></span></div></div></div><div  class = 'S6'><span>Note that the cluster structure looks distinct during a few time windows near the beginning and end of the recording, corresponding to regions when no trials were being performed (blue ticks near the bottom).</span></div><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S2'><span style="white-space: pre;"><span style="color: rgb(2, 128, 9);">% Extract raw waveforms for a specific cluster id at the 24 largest amplitude channels</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span style="color: rgb(2, 128, 9);">% Clean these waveforms by subtracting the contribution of other clusters spiking within the same time window</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span>ss = ks.getWaveformsFromRawData(</span><span style="color: rgb(170, 4, 249);">'cluster_id'</span><span>, 255, </span><span style="color: rgb(170, 4, 249);">'num_waveforms'</span><span>, 100, </span><span style="color: rgb(14, 0, 255);">...</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span>  </span><span style="color: rgb(170, 4, 249);">'best_n_channels'</span><span>, 24,  </span><span style="color: rgb(170, 4, 249);">'subtractOtherClusters'</span><span>, true)</span></span></div></div><div class="inlineWrapper"><div  class = 'S3'></div></div><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre;"><span style="color: rgb(2, 128, 9);">% Plot these waveforms at their physical coordinates on the neuropixel</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre;"><span>ss.plotAtProbeLocations()</span></span></div></div></div></div>
+<br>
+<!-- 
+##### SOURCE BEGIN #####
+%% Example 1: Walkthrough
+%% Data setup
+
+homeDir = string(java.lang.System.getProperty('user.home'));
+exDataDir = homeDir + 'work/npxutils/example-data';
+ksDataDir = homeDir + 'work/npxutils/kilosort';
+%% Create ImecDataset
+% Create an ImecDataset from a specified raw data file and probe name:
+
+channelMapFile = 'neuropixPhase3A_kilosortChanMap.mat';
+apBinFile = exDataDir + '/Vinnie/raw_datasets/2018-08-17/Vinnie_20180817_All.imec.ap.bin';
+imec = Neuropixel.ImecDataset(apBinFile, 'channelMap', channelMapFile);
+disp(imec)
+%% 
+% Preprocess it a bit:
+
+% Mark individual channels as bad based on RMS voltage
+rmsBadChannels = imec.markBadChannelsByRMS('rmsRange', [3 100]);
+
+% Specify names for the individual bits in the sync channel
+imec.setSyncBitNames([1 2 3], {'trialInfo', 'trialStart', 'stim'});
+
+% Save the bad channels and Sync bit names to the .imec.ap.meta file so they are loaded next time
+imec.writeModifiedAPMeta();
+%% 
+% Common average referencing:
+
+% Perform common average referencing on the file and save the results
+% to a separate "cleaned" directory
+cleanedDir = exDataDir + '/cleaned_datasets';
+cleanedApBinFile = cleanedDir + 'Vinnie_20180817_All_cleaned.imec.ap.bin';
+extraMeta = struct();
+extraMeta.commonAverageReferenced = true;
+fnList = {@npxutils.dataprocess.commonAverageReference};
+imec = imec.saveTransformedDataset(cleanedApBinFile, 'transformAP', fnList, 'extraMeta', extraMeta);
+%% 
+% Get it ready for sending to Kilosort:
+
+% Symlink the cleaned dataset into a separate directory for Kilosort2
+ksPath = ksDataDir + '/Vinnie_20180817_All_cleaned.imec.ap.bin';
+imec = imec.symLinkAPIntoDirectory(ksPath);
+%% Visual inspection
+
+% Inspect the raw IMEC traces
+imec.inspectAP_timeWindow([200 201]); % 200-201 seconds into the recording
+%% Kilosort time!
+
+% Run Kilosort2
+npxutils.runKilosort2(imec);
+
+% Load the Kilosort2 results
+ks = npxutils.KilosortDataset();
+ks.load()
+
+% Define how the data are segmented into trials
+% (You must implement this function yourself)
+% tsi = computeTrialSegmentation(imec)
+
+% TODO: Figure out how to implement a trial segmentation function for these
+% examples so the Live Script can run through.
+
+% Segment the KilosortDataset into trials based on start and stop idx.
+% trial_ids are specified according to the data structure being merged into.
+% If a trial is included in trial_ids but not found in tsi,
+% its contents would be blank and trial_has_data(i) would be set false.
+%
+% Each of seg's properties are now nTrials x ... cells containing the data
+% corresponding to that trial
+trial_ids = min(tsi.trialId):max(tsi.trialId);
+seg = npxutils.KilosortTrialSegmentedDataset(ks, tsi, trial_ids);
+disp(seg)
+
+% Compute useful stats about each template and cluster
+metrics = ks.getMetrics()
+
+% Plot a drift map, annotated with trial start markers
+metrics.plotDriftmap('tsi', tsi);
+%% 
+% Note that the cluster structure looks distinct during a few time windows near 
+% the beginning and end of the recording, corresponding to regions when no trials 
+% were being performed (blue ticks near the bottom).
+
+% Extract raw waveforms for a specific cluster id at the 24 largest amplitude channels
+% Clean these waveforms by subtracting the contribution of other clusters spiking within the same time window
+ss = ks.getWaveformsFromRawData('cluster_id', 255, 'num_waveforms', 100, ...
+  'best_n_channels', 24,  'subtractOtherClusters', true)
+
+% Plot these waveforms at their physical coordinates on the neuropixel
+ss.plotAtProbeLocations()
+##### SOURCE END #####
+--></body></html>

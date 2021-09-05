@@ -1,0 +1,241 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8"><meta http-equiv="X-UA-Compatible" content="IE=edge,IE=9,chrome=1"><meta name="generator" content="MATLAB 2020b"><title>Running Kilosort 1 or 2 and loading the results</title><style type="text/css">.rtcContent { padding: 30px; } .S0 { margin: 3px 10px 5px 4px; padding: 0px; line-height: 28.8px; min-height: 0px; white-space: pre-wrap; color: rgb(213, 80, 0); font-family: Helvetica, Arial, sans-serif; font-style: normal; font-size: 24px; font-weight: 400; text-align: left;  }
+.S1 { margin: 2px 10px 9px 4px; padding: 0px; line-height: 21px; min-height: 0px; white-space: pre-wrap; color: rgb(0, 0, 0); font-family: Helvetica, Arial, sans-serif; font-style: normal; font-size: 14px; font-weight: 400; text-align: left;  }
+.S2 { margin: 20px 10px 5px 4px; padding: 0px; line-height: 20px; min-height: 0px; white-space: pre-wrap; color: rgb(60, 60, 60); font-family: Helvetica, Arial, sans-serif; font-style: normal; font-size: 20px; font-weight: 700; text-align: left;  }
+.S3 { border-left: 0px none rgb(0, 0, 0); border-right: 0px none rgb(0, 0, 0); border-top: 0px none rgb(0, 0, 0); border-bottom: 0px none rgb(0, 0, 0); border-radius: 0px; padding: 0px; line-height: 16px; min-height: 16px; white-space: pre; color: rgb(0, 0, 0); font-family: Menlo, Monaco, Consolas, "Courier New", monospace; font-size: 12px;  }
+.CodeBlock { background-color: #F7F7F7; margin: 10px 0 10px 0;}
+.S4 { border-left: 1px solid rgb(233, 233, 233); border-right: 1px solid rgb(233, 233, 233); border-top: 1px solid rgb(233, 233, 233); border-bottom: 0px none rgb(0, 0, 0); border-radius: 4px 4px 0px 0px; padding: 6px 45px 0px 13px; line-height: 17.234px; min-height: 18px; white-space: nowrap; color: rgb(0, 0, 0); font-family: Menlo, Monaco, Consolas, "Courier New", monospace; font-size: 14px;  }
+.S5 { border-left: 1px solid rgb(233, 233, 233); border-right: 1px solid rgb(233, 233, 233); border-top: 0px none rgb(0, 0, 0); border-bottom: 1px solid rgb(233, 233, 233); border-radius: 0px 0px 4px 4px; padding: 0px 45px 4px 13px; line-height: 17.234px; min-height: 18px; white-space: nowrap; color: rgb(0, 0, 0); font-family: Menlo, Monaco, Consolas, "Courier New", monospace; font-size: 14px;  }
+.S6 { margin: 10px 10px 9px 4px; padding: 0px; line-height: 21px; min-height: 0px; white-space: pre-wrap; color: rgb(0, 0, 0); font-family: Helvetica, Arial, sans-serif; font-style: normal; font-size: 14px; font-weight: 400; text-align: left;  }
+.S7 { border-left: 1px solid rgb(233, 233, 233); border-right: 1px solid rgb(233, 233, 233); border-top: 1px solid rgb(233, 233, 233); border-bottom: 1px solid rgb(233, 233, 233); border-radius: 4px; padding: 6px 45px 4px 13px; line-height: 17.234px; min-height: 18px; white-space: nowrap; color: rgb(0, 0, 0); font-family: Menlo, Monaco, Consolas, "Courier New", monospace; font-size: 14px;  }
+.S8 { margin: 10px 0px 20px; padding-left: 0px; font-family: Helvetica, Arial, sans-serif; font-size: 14px;  }
+.S9 { margin-left: 56px; line-height: 21px; min-height: 0px; text-align: left; white-space: pre-wrap;  }
+.S10 { margin: 15px 10px 5px 4px; padding: 0px; line-height: 18px; min-height: 0px; white-space: pre-wrap; color: rgb(60, 60, 60); font-family: Helvetica, Arial, sans-serif; font-style: normal; font-size: 17px; font-weight: 700; text-align: left;  }</style></head><body><div class = rtcContent><h1  class = 'S0'><span>Running Kilosort 1 or 2 and loading the results</span></h1><div  class = 'S1'><span style=' font-family: monospace;'>KilosortDataset</span><span> </span><span>is a wrapper around the output of Kilosort or Kilosort2, which will load the output files back into Matlab for further analysis. Most of these fields are explained in detail in the</span><span> </span><a href = "https://phy-contrib.readthedocs.io/en/latest/template-gui/"><span>Phy documentation</span></a><span> </span><span>but we document them here for convenience.</span></div><h2  class = 'S2'><span>Running Kilosort</span></h2><div  class = 'S1'><span>To run Kilosort or Kilosort2 on an ImecDataset:</span></div><div class = 'preformatted-matlab' style = 'margin: 10px 3px 10px 55px; padding: 10px 10px 10px 5px; '><div  class = 'S3'><span style="white-space: pre;"><span>npxutils.runKilosort1(imec, </span><span style="color: rgb(14, 0, 255);">...</span><span style="color: rgb(2, 128, 9);">);</span></span></div></div><div  class = 'S1'><span>Or for Kilosort 2:</span></div><div class = 'preformatted-matlab' style = 'margin: 10px 3px 10px 55px; padding: 10px 10px 10px 5px; '><div  class = 'S3'><span style="white-space: pre;"><span>npxutils.runKilosort2(imec, </span><span style="color: rgb(14, 0, 255);">...</span><span style="color: rgb(2, 128, 9);">);</span></span></div></div><div  class = 'S1'><span>By default, the standard configuration settings will be used. For Kilosort1, these are hardcoded based on </span><span style=' font-family: monospace;'>configFiles/StandardConfig_MOVEME.m</span><span>. For Kilosort2, the script </span><span style=' font-family: monospace;'>configFiles/configFile384.m</span><span> will be run to produce the </span><span style=' font-family: monospace;'>ops</span><span> struct, unless a different configuration file is set in the environment variable </span><span style=' font-family: monospace;'>KILOSORT_CONFIG_FILE</span><span>, which must be on the path. Default configuration settings can be overridden by passing in extra parameters, e.g.:</span></div><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre;"><span>npxutils.runKilosort1(imec, </span><span style="color: rgb(170, 4, 249);">'Th'</span><span>, [4 10], </span><span style="color: rgb(170, 4, 249);">'GPU'</span><span>, false);</span></span></div></div><div class="inlineWrapper"><div  class = 'S5'><span style="white-space: pre;"><span>npxutils.runKilosort2(imec, </span><span style="color: rgb(170, 4, 249);">'minfr_goodchannels'</span><span>, 0.1);</span></span></div></div></div><h2  class = 'S2'><span>Loading Kilosort results</span></h2><div  class = 'S1'><span>You can create a KilosortDataset instance by pointing at the folder containing the Kilosort output:</span></div><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre;"><span>ks = npxutils.KilosortDataset(pathToKilosortOutput();</span></span></div></div><div class="inlineWrapper"><div  class = 'S5'><span style="white-space: pre;"><span>ks.load();</span></span></div></div></div><div  class = 'S6'><span>The constructor will optionally take an ‘imecDataset’ parameter providing the</span><span> </span><span style=' font-family: monospace;'>npxutils.ImecDataset</span><span> </span><span>instance if there is no</span><span> </span><span style=' font-family: monospace;'>.imec.ap.bin</span><span> </span><span>file in the Kilosort directory, and a ‘channelMap’ parameter in case the default is not correct. The results can then be loaded using</span><span> </span><span style=' font-family: monospace;'>ks.load()</span><span>.</span></div><div  class = 'S1'><span>The descriptions of each property can be found in the</span><span> </span><span style=' font-family: monospace;'>+Neuropixel/KilosortDataset.m</span><span> </span><span>code, copied here for convenience, originally described in the</span><span> </span><a href = "https://phy-contrib.readthedocs.io/en/latest/template-gui/"><span>Phy documentation</span></a><span>:</span></div><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S7'><span style="white-space: pre;"><span>ks</span></span></div></div></div><ul  class = 'S8'><li  class = 'S9'><span style=' font-family: monospace;'>nChannels</span><span> </span><span>: number of channels used by Kilosort</span></li><li  class = 'S9'><span style=' font-family: monospace;'>nSpikes</span><span> </span><span>: number of spikes extracted</span></li><li  class = 'S9'><span style=' font-family: monospace;'>nClusters</span><span> </span><span>: number of unique clusters</span></li><li  class = 'S9'><span style=' font-family: monospace;'>nTemplates</span><span> </span><span>: number of spike templates</span></li><li  class = 'S9'><span style=' font-family: monospace;'>nPCFeatures</span><span> </span><span>number of spatiotemporal PC features used for templates</span></li><li  class = 'S9'><span style=' font-family: monospace;'>nFeaturesPerChannel</span><span> </span><span>: number of PC features used for each channel</span></li><li  class = 'S9'><span style=' font-family: monospace;'>amplitudes</span><span> </span><span>-</span><span> </span><span style=' font-family: monospace;'>[nSpikes]</span><span> </span><span>double vector with the amplitude scaling factor that was applied to the template when extracting that spike</span></li><li  class = 'S9'><span style=' font-family: monospace;'>channel_ids</span><span> </span><span>-</span><span> </span><span style=' font-family: monospace;'>[nChannels]</span><span> </span><span>uint32 vector with the channel ids used for sorting</span></li><li  class = 'S9'><span style=' font-family: monospace;'>channel_positions</span><span> </span><span>-</span><span> </span><span style=' font-family: monospace;'>[nChannels, 2]</span><span> </span><span>double matrix with each row giving the x and y coordinates of that channel. Together with the channel map, this determines how waveforms will be plotted in WaveformView (see below).</span></li><li  class = 'S9'><span style=' font-family: monospace;'>pc_features</span><span> </span><span>-</span><span> </span><span style=' font-family: monospace;'>[nSpikes, nFeaturesPerChannel, nPCFeatures]</span><span> </span><span>single matrix giving the PC values for each spike. The channels that those features came from are specified in pc_features_ind. E.g. the value at pc_features[123, 1, 5] is the projection of the 123rd spike onto the 1st PC on the channel given by pc_feature_ind[5].</span></li><li  class = 'S9'><span style=' font-family: monospace;'>pc_feature_ind</span><span> </span><span>-</span><span> </span><span style=' font-family: monospace;'>[nTemplates, nPCFeatures]</span><span> </span><span>uint32 matrix specifying which channels contribute to each entry in dim 3 of the pc_features matrix</span></li><li  class = 'S9'><span style=' font-family: monospace;'>similar_templates</span><span> </span><span>-</span><span> </span><span style=' font-family: monospace;'>[nTemplates, nTemplates]</span><span> </span><span>single matrix giving the similarity score (larger is more similar) between each pair of templates similar_templates(:, :) single</span></li><li  class = 'S9'><span style=' font-family: monospace;'>spike_templates</span><span> </span><span>-</span><span> </span><span style=' font-family: monospace;'>[nSpikes]</span><span> </span><span>uint32 vector specifying the identity of the template that was used to extract each spike</span></li><li  class = 'S9'><span style=' font-family: monospace;'>spike_times</span><span> </span><span>-</span><span> </span><span style=' font-family: monospace;'>[nSpikes]</span><span> </span><span>uint64 vector giving the spike time of each spike in samples. To convert to seconds, divide by sample_rate from params.py.</span></li><li  class = 'S9'><span style=' font-family: monospace;'>template_features</span><span> </span><span>-</span><span> </span><span style=' font-family: monospace;'>[nSpikes, nTempFeatures]</span><span> </span><span>single matrix giving the magnitude of the projection of each spike onto nTempFeatures other features. Which other features is specified in template_feature_ind.</span></li><li  class = 'S9'><span style=' font-family: monospace;'>template_feature_ind</span><span> </span><span>-</span><span> </span><span style=' font-family: monospace;'>[nTemplates, nTempFeatures]</span><span> </span><span>uint32 matrix specifying which templateFeatures are included in the template_features matrix.</span></li><li  class = 'S9'><span style=' font-family: monospace;'>templates</span><span> </span><span>-</span><span> </span><span style=' font-family: monospace;'>[nTemplates, nTimePoints, nTemplateChannels]</span><span> </span><span>single matrix giving the template shapes on the channels given in templates_ind</span></li><li  class = 'S9'><span style=' font-family: monospace;'>templates_ind</span><span> </span><span>-</span><span> </span><span style=' font-family: monospace;'>[nTemplates, nTempChannels]</span><span> </span><span>double matrix specifying the channels on which each template is defined. In the case of Kilosort templates_ind is just the integers from 0 to nChannels-1, since templates are defined on all channels.</span></li><li  class = 'S9'><span style=' font-family: monospace;'>whitening_mat</span><span> </span><span>-</span><span> </span><span style=' font-family: monospace;'>[nChannels, nChannels]</span><span> </span><span>double whitening matrix applied to the data during automatic spike sorting</span></li><li  class = 'S9'><span style=' font-family: monospace;'>whitening_mat_inv</span><span> </span><span>-</span><span> </span><span style=' font-family: monospace;'>[nChannels, nChannels]</span><span>double, the inverse of the whitening matrix.</span></li><li  class = 'S9'><span style=' font-family: monospace;'>spike_clusters</span><span> </span><span>-</span><span> </span><span style=' font-family: monospace;'>[nSpikes]</span><span> </span><span>uint32 vector giving the cluster identity of each spike.</span></li><li  class = 'S9'><span style=' font-family: monospace;'>cluster_groups</span><span> </span><span>-</span><span> </span><span style=' font-family: monospace;'>[nClusters]</span><span> </span><span>categorical vector giving the “cluster group” of each cluster (noise, mua, good, unsorted)</span></li><li  class = 'S9'><span style=' font-family: monospace;'>cluster_ids</span><span> </span><span>-</span><span> </span><span style=' font-family: monospace;'>[nClusters]</span><span> </span><span>unique clusters in spike_clusters</span></li></ul><h2  class = 'S2'><span>Segmenting a Kilosort dataset into trials</span></h2><div  class = 'S1'><span style=' font-family: monospace;'>ks.spike_times</span><span> contains the times for each spike in samples from the beginning of the file, but there is a more useful representation for data collected with a trial structure: split the spikes into separate groups based on which trial they occurred in, and convert the times to milliseconds since the start of the trial.</span></div><h3  class = 'S10'><span>TrialSegmentationInfo</span></h3><div  class = 'S1'><span>In order to do this, you need to figure out where trials start and stop. You’ll need to write this code, since this will differ for each experimental setup. Essentially, you need to create a </span><span style=' font-family: monospace;'>npxutils.TrialSegmentationInfo</span><span> instance and populate its fields with the correct values:</span></div><div class = 'preformatted-matlab' style = 'margin: 10px 3px 10px 55px; padding: 10px 10px 10px 5px; '><div  class = 'S3'><span style="white-space: pre;"><span>tsi = npxutils.TrialSegmentationInfo(nTrials, fsAP);</span></span></div><div  class = 'S3'><span style="white-space: pre;"><span>tsi.idxStart = [list of start sample indices]</span></span></div><div  class = 'S3'><span style="white-space: pre;"><span>tsi.idxStop = [list of stop sample indices];</span></span></div><div  class = 'S3'><span style="white-space: pre;"><span>tsi.trialId = [list of trial ids];</span></span></div></div><div  class = 'S1'><span>Here is an example script that uses the sync channel to determine where trials begin and end. It expects one bit (named </span><span style=' font-family: monospace;'>'trialStart'</span><span>) to contain TTL pulses each time a trial starts, and another bit (named </span><span style=' font-family: monospace;'>'trialInfo'</span><span>) to contain ASCII-serialized bits of text occurring at the start of each trial. For example, the string </span><span style=' font-family: monospace;'>id=1;c=2</span><span> would correspond to </span><span style=' font-family: monospace;'>trialId=1</span><span> and </span><span style=' font-family: monospace;'>conditionId=2</span><span>. It also assumes that a trial ends when the next trial begins (or at the end of the file). Long trials can be subsequently truncated using </span><span style=' font-family: monospace;'>tsi.truncateTrialsLongerThan(maxDurationSeconds)</span><span>.</span></div><div class = 'preformatted-matlab' style = 'margin: 10px 3px 10px 55px; padding: 10px 10px 10px 5px; '><div  class = 'S3'><span style="white-space: pre;"><span style="color: rgb(14, 0, 255);">function </span><span>tsi = parseTrialInfoFromSync(syncRaw, fs, syncBitNames)</span></span></div><div  class = 'S3'><span style="white-space: pre;"><span>    </span><span style="color: rgb(2, 128, 9);">% fs is in samples per second</span></span></div><div  class = 'S3'><span style="white-space: pre;"><span>    </span><span style="color: rgb(2, 128, 9);">% parses the sync line of an neuropixel .imec.ap.bin data file</span></span></div><div  class = 'S3'><span style="white-space: pre;"><span>    </span><span style="color: rgb(2, 128, 9);">% and produces a scalar TrialSegmentationInfo</span></span></div><div  class = 'S3'></div><div  class = 'S3'><span style="white-space: pre;"><span>    </span><span style="color: rgb(2, 128, 9);">% parse the sync</span></span></div><div  class = 'S3'><span style="white-space: pre;"><span>    </span><span style="color: rgb(14, 0, 255);">if </span><span>isempty(syncBitNames)</span></span></div><div  class = 'S3'><span style="white-space: pre;"><span>        trialInfoBitNum = 1;</span></span></div><div  class = 'S3'><span style="white-space: pre;"><span>        trialStartBitNum = 2;</span></span></div><div  class = 'S3'><span style="white-space: pre;"><span>    </span><span style="color: rgb(14, 0, 255);">else</span></span></div><div  class = 'S3'><span style="white-space: pre;"><span>        [tf, trialInfoBitNum] = ismember(</span><span style="color: rgb(170, 4, 249);">'trialInfo'</span><span>, syncBitNames);</span></span></div><div  class = 'S3'><span style="white-space: pre;"><span>        </span><span style="color: rgb(14, 0, 255);">if </span><span>~tf, trialInfoBitNum = 1; </span><span style="color: rgb(14, 0, 255);">end</span></span></div><div  class = 'S3'><span style="white-space: pre;"><span>        [tf, trialStartBitNum] = ismember(</span><span style="color: rgb(170, 4, 249);">'trialStart'</span><span>, syncBitNames);</span></span></div><div  class = 'S3'><span style="white-space: pre;"><span>        </span><span style="color: rgb(14, 0, 255);">if </span><span>~tf, trialStartBitNum = 1; </span><span style="color: rgb(14, 0, 255);">end</span></span></div><div  class = 'S3'><span style="white-space: pre;"><span>    </span><span style="color: rgb(14, 0, 255);">end</span></span></div><div  class = 'S3'></div><div  class = 'S3'><span style="white-space: pre;"><span>    serialBit = bitget(syncRaw, trialInfoBitNum);</span></span></div><div  class = 'S3'><span style="white-space: pre;"><span>    trialStart = bitget(syncRaw, trialStartBitNum);</span></span></div><div  class = 'S3'></div><div  class = 'S3'><span style="white-space: pre;"><span>    </span><span style="color: rgb(2, 128, 9);">% trials start when going high</span></span></div><div  class = 'S3'><span style="white-space: pre;"><span>    idxStart = find(diff(trialStart) == 1) + 1;</span></span></div><div  class = 'S3'><span style="white-space: pre;"><span>    nTrials = numel(idxStart);</span></span></div><div  class = 'S3'></div><div  class = 'S3'><span style="white-space: pre;"><span>    tsi = npxutils.TrialSegmentationInfo(nTrials, fs);</span></span></div><div  class = 'S3'></div><div  class = 'S3'><span style="white-space: pre;"><span>    samplesEachBit = round(fs / 1000); </span><span style="color: rgb(2, 128, 9);">% each bit delivered per ms</span></span></div><div  class = 'S3'><span style="white-space: pre;"><span>    </span><span style="color: rgb(14, 0, 255);">for </span><span>iR = 1:nTrials</span></span></div><div  class = 'S3'><span style="white-space: pre;"><span>        </span><span style="color: rgb(14, 0, 255);">if </span><span>iR &lt; nTrials</span></span></div><div  class = 'S3'><span style="white-space: pre;"><span>            idxNext = idxStart(iR+1) - 1;</span></span></div><div  class = 'S3'><span style="white-space: pre;"><span>        </span><span style="color: rgb(14, 0, 255);">else</span></span></div><div  class = 'S3'><span style="white-space: pre;"><span>            idxNext = numel(serialBit);</span></span></div><div  class = 'S3'><span style="white-space: pre;"><span>        </span><span style="color: rgb(14, 0, 255);">end</span></span></div><div  class = 'S3'><span style="white-space: pre;"><span>        bitsByTrial = uint8(serialBit(floor(samplesEachBit/2) + idxStart(iR) : samplesEachBit : idxNext));</span></span></div><div  class = 'S3'></div><div  class = 'S3'><span style="white-space: pre;"><span>        lastHigh = find(bitsByTrial, 1, </span><span style="color: rgb(170, 4, 249);">'last'</span><span>);</span></span></div><div  class = 'S3'><span style="white-space: pre;"><span>        lastHigh = ceil(lastHigh / 8) * 8;</span></span></div><div  class = 'S3'><span style="white-space: pre;"><span>        bitsByTrial = bitsByTrial(1:lastHigh);</span></span></div><div  class = 'S3'></div><div  class = 'S3'><span style="white-space: pre;"><span>        infoThis = parseInfoString(bitsToString(bitsByTrial));</span></span></div><div  class = 'S3'></div><div  class = 'S3'><span style="white-space: pre;"><span>        </span><span style="color: rgb(14, 0, 255);">if </span><span>isfield(infoThis, </span><span style="color: rgb(170, 4, 249);">'id'</span><span>)</span></span></div><div  class = 'S3'><span style="white-space: pre;"><span>            tsi.trialId(iR) = str2double(infoThis.id); </span><span style="color: rgb(2, 128, 9);">%#ok&lt;*AGROW&gt;</span></span></div><div  class = 'S3'><span style="white-space: pre;"><span>        </span><span style="color: rgb(14, 0, 255);">else</span></span></div><div  class = 'S3'><span style="white-space: pre;"><span>            tsi.trialId(iR) = NaN;</span></span></div><div  class = 'S3'><span style="white-space: pre;"><span>        </span><span style="color: rgb(14, 0, 255);">end</span></span></div><div  class = 'S3'><span style="white-space: pre;"><span>        </span><span style="color: rgb(14, 0, 255);">if </span><span>isfield(infoThis, </span><span style="color: rgb(170, 4, 249);">'c'</span><span>)</span></span></div><div  class = 'S3'><span style="white-space: pre;"><span>            tsi.conditionId(iR) = str2double(infoThis.c);</span></span></div><div  class = 'S3'><span style="white-space: pre;"><span>        </span><span style="color: rgb(14, 0, 255);">else</span></span></div><div  class = 'S3'><span style="white-space: pre;"><span>            tsi.conditionId(iR) = NaN;</span></span></div><div  class = 'S3'><span style="white-space: pre;"><span>        </span><span style="color: rgb(14, 0, 255);">end</span></span></div><div  class = 'S3'></div><div  class = 'S3'><span style="white-space: pre;"><span>        tsi.idxStart(iR) = idxStart(iR);</span></span></div><div  class = 'S3'><span style="white-space: pre;"><span>        tsi.idxStop(iR) = idxNext;</span></span></div><div  class = 'S3'><span style="white-space: pre;"><span>    </span><span style="color: rgb(14, 0, 255);">end</span></span></div><div  class = 'S3'></div><div  class = 'S3'><span style="white-space: pre;"><span>    </span><span style="color: rgb(14, 0, 255);">function </span><span>out = bitsToString(bits)</span></span></div><div  class = 'S3'><span style="white-space: pre;"><span>        nChar = numel(bits) / 8;</span></span></div><div  class = 'S3'><span style="white-space: pre;"><span>        assert(nChar == round(nChar), </span><span style="color: rgb(170, 4, 249);">'Bit length must be multiple of 8'</span><span>);</span></span></div><div  class = 'S3'><span style="white-space: pre;"><span>        out = blanks(nChar);</span></span></div><div  class = 'S3'><span style="white-space: pre;"><span>        </span><span style="color: rgb(14, 0, 255);">for </span><span>iC = 1:nChar</span></span></div><div  class = 'S3'><span style="white-space: pre;"><span>            idx = (1:8) + (iC-1)*8;</span></span></div><div  class = 'S3'><span style="white-space: pre;"><span>            out(iC)  = char(bin2dec(sprintf(</span><span style="color: rgb(170, 4, 249);">'%u'</span><span>, bits(idx))));</span></span></div><div  class = 'S3'><span style="white-space: pre;"><span>        </span><span style="color: rgb(14, 0, 255);">end</span></span></div><div  class = 'S3'><span style="white-space: pre;"><span>    </span><span style="color: rgb(14, 0, 255);">end</span></span></div><div  class = 'S3'></div><div  class = 'S3'><span style="white-space: pre;"><span>    </span><span style="color: rgb(14, 0, 255);">function </span><span>out = parseInfoString(str)</span></span></div><div  class = 'S3'><span style="white-space: pre;"><span>        keyval = regexp(str, </span><span style="color: rgb(170, 4, 249);">'(?&lt;key&gt;\w+)=(?&lt;value&gt;[\d\.]+)'</span><span>, </span><span style="color: rgb(170, 4, 249);">'names'</span><span>);</span></span></div><div  class = 'S3'><span style="white-space: pre;"><span>        </span><span style="color: rgb(14, 0, 255);">if </span><span>isempty(keyval)</span></span></div><div  class = 'S3'><span style="white-space: pre;"><span>            warning(</span><span style="color: rgb(170, 4, 249);">'Could not parse info string "%s"'</span><span>, str);</span></span></div><div  class = 'S3'><span style="white-space: pre;"><span>            out = struct();</span></span></div><div  class = 'S3'><span style="white-space: pre;"><span>        </span><span style="color: rgb(14, 0, 255);">else</span></span></div><div  class = 'S3'><span style="white-space: pre;"><span>            </span><span style="color: rgb(14, 0, 255);">for </span><span>i = 1:numel(keyval)</span></span></div><div  class = 'S3'><span style="white-space: pre;"><span>                out.(keyval(i).key) = keyval(i).value;</span></span></div><div  class = 'S3'><span style="white-space: pre;"><span>            </span><span style="color: rgb(14, 0, 255);">end</span></span></div><div  class = 'S3'><span style="white-space: pre;"><span>        </span><span style="color: rgb(14, 0, 255);">end</span></span></div><div  class = 'S3'><span style="white-space: pre;"><span>    </span><span style="color: rgb(14, 0, 255);">end</span></span></div><div  class = 'S3'><span style="white-space: pre;"><span style="color: rgb(14, 0, 255);">end</span></span></div><div  class = 'S3'></div></div><div  class = 'S1'><span>KilosortTrialSegmentedDataset</span></div><div  class = 'S1'><span>Once you have the trial boundaries stored in your </span><span style=' font-family: monospace;'>TrialSegmentationInfo</span><span> instance, you can split the properties of the </span><span style=' font-family: monospace;'>KilosortDataset</span><span> into each trial, resulting in a </span><span style=' font-family: monospace;'>npxutils.KilosortTrialSegmentedDataset</span><span> instance. To facilitate merging this into another data structure later, you will need to specify the ultimate </span><span style=' font-family: monospace;'>trialId</span><span> order you want the </span><span style=' font-family: monospace;'>KilosortTrialSegmentedDataset</span><span> to have. For example, if you have a behavioral data structure, you can extract the list of trial ids from that so that your </span><span style=' font-family: monospace;'>KilosortTrialSegmentedDataset</span><span> will have a matching trial sequence.</span></div><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S7'><span style="white-space: pre;"><span>trialIds = cat(1, behaviorStruct.trialId);</span></span></div></div></div><div  class = 'S6'><span>Any trials not found in the </span><span style=' font-family: monospace;'>TrialSegmentationInfo</span><span> will simply be empty in the </span><span style=' font-family: monospace;'>KilosortTrialSegmentedDataset</span><span>. If you simply want to preserve the trials in the order they are in </span><span style=' font-family: monospace;'>tsi</span><span>, you can simply use:</span></div><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S7'><span style="white-space: pre;"><span>trialIdsB = tsi.trialIds;</span></span></div></div></div><div  class = 'S6'><span>You can then segment the KilosortDataset using:</span></div><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S7'><span style="white-space: pre;"><span>seg = npxutils.KilosortTrialSegmentedDataset(ks, tsi, trial_ids)</span></span></div></div></div><div  class = 'S6'></div></div>
+<br>
+<!-- 
+##### SOURCE BEGIN #####
+%% Running Kilosort 1 or 2 and loading the results
+% |KilosortDataset| is a wrapper around the output of Kilosort or Kilosort2, 
+% which will load the output files back into Matlab for further analysis. Most 
+% of these fields are explained in detail in the <https://phy-contrib.readthedocs.io/en/latest/template-gui/ 
+% Phy documentation> but we document them here for convenience.
+%% Running Kilosort
+% To run Kilosort or Kilosort2 on an ImecDataset:
+%%
+% 
+%   npxutils.runKilosort1(imec, ...);
+%
+%% 
+% Or for Kilosort 2:
+%%
+% 
+%   npxutils.runKilosort2(imec, ...);
+%
+%% 
+% By default, the standard configuration settings will be used. For Kilosort1, 
+% these are hardcoded based on |configFiles/StandardConfig_MOVEME.m|. For Kilosort2, 
+% the script |configFiles/configFile384.m| will be run to produce the |ops| struct, 
+% unless a different configuration file is set in the environment variable |KILOSORT_CONFIG_FILE|, 
+% which must be on the path. Default configuration settings can be overridden 
+% by passing in extra parameters, e.g.:
+
+npxutils.runKilosort1(imec, 'Th', [4 10], 'GPU', false);
+npxutils.runKilosort2(imec, 'minfr_goodchannels', 0.1);
+%% Loading Kilosort results
+% You can create a KilosortDataset instance by pointing at the folder containing 
+% the Kilosort output:
+
+ks = npxutils.KilosortDataset(pathToKilosortOutput();
+ks.load();
+%% 
+% The constructor will optionally take an ‘imecDataset’ parameter providing 
+% the |npxutils.ImecDataset| instance if there is no |.imec.ap.bin| file in the 
+% Kilosort directory, and a ‘channelMap’ parameter in case the default is not 
+% correct. The results can then be loaded using |ks.load()|.
+% 
+% The descriptions of each property can be found in the |+Neuropixel/KilosortDataset.m| 
+% code, copied here for convenience, originally described in the <https://phy-contrib.readthedocs.io/en/latest/template-gui/ 
+% Phy documentation>:
+
+ks
+%% 
+% * |nChannels| : number of channels used by Kilosort
+% * |nSpikes| : number of spikes extracted
+% * |nClusters| : number of unique clusters
+% * |nTemplates| : number of spike templates
+% * |nPCFeatures| number of spatiotemporal PC features used for templates
+% * |nFeaturesPerChannel| : number of PC features used for each channel
+% * |amplitudes| - |[nSpikes]| double vector with the amplitude scaling factor 
+% that was applied to the template when extracting that spike
+% * |channel_ids| - |[nChannels]| uint32 vector with the channel ids used for 
+% sorting
+% * |channel_positions| - |[nChannels, 2]| double matrix with each row giving 
+% the x and y coordinates of that channel. Together with the channel map, this 
+% determines how waveforms will be plotted in WaveformView (see below).
+% * |pc_features| - |[nSpikes, nFeaturesPerChannel, nPCFeatures]| single matrix 
+% giving the PC values for each spike. The channels that those features came from 
+% are specified in pc_features_ind. E.g. the value at pc_features[123, 1, 5] is 
+% the projection of the 123rd spike onto the 1st PC on the channel given by pc_feature_ind[5].
+% * |pc_feature_ind| - |[nTemplates, nPCFeatures]| uint32 matrix specifying 
+% which channels contribute to each entry in dim 3 of the pc_features matrix
+% * |similar_templates| - |[nTemplates, nTemplates]| single matrix giving the 
+% similarity score (larger is more similar) between each pair of templates similar_templates(:, 
+% :) single
+% * |spike_templates| - |[nSpikes]| uint32 vector specifying the identity of 
+% the template that was used to extract each spike
+% * |spike_times| - |[nSpikes]| uint64 vector giving the spike time of each 
+% spike in samples. To convert to seconds, divide by sample_rate from params.py.
+% * |template_features| - |[nSpikes, nTempFeatures]| single matrix giving the 
+% magnitude of the projection of each spike onto nTempFeatures other features. 
+% Which other features is specified in template_feature_ind.
+% * |template_feature_ind| - |[nTemplates, nTempFeatures]| uint32 matrix specifying 
+% which templateFeatures are included in the template_features matrix.
+% * |templates| - |[nTemplates, nTimePoints, nTemplateChannels]| single matrix 
+% giving the template shapes on the channels given in templates_ind
+% * |templates_ind| - |[nTemplates, nTempChannels]| double matrix specifying 
+% the channels on which each template is defined. In the case of Kilosort templates_ind 
+% is just the integers from 0 to nChannels-1, since templates are defined on all 
+% channels.
+% * |whitening_mat| - |[nChannels, nChannels]| double whitening matrix applied 
+% to the data during automatic spike sorting
+% * |whitening_mat_inv| - |[nChannels, nChannels]|double, the inverse of the 
+% whitening matrix.
+% * |spike_clusters| - |[nSpikes]| uint32 vector giving the cluster identity 
+% of each spike.
+% * |cluster_groups| - |[nClusters]| categorical vector giving the “cluster 
+% group” of each cluster (noise, mua, good, unsorted)
+% * |cluster_ids| - |[nClusters]| unique clusters in spike_clusters
+%% Segmenting a Kilosort dataset into trials
+% |ks.spike_times| contains the times for each spike in samples from the beginning 
+% of the file, but there is a more useful representation for data collected with 
+% a trial structure: split the spikes into separate groups based on which trial 
+% they occurred in, and convert the times to milliseconds since the start of the 
+% trial.
+% TrialSegmentationInfo
+% In order to do this, you need to figure out where trials start and stop. You’ll 
+% need to write this code, since this will differ for each experimental setup. 
+% Essentially, you need to create a |npxutils.TrialSegmentationInfo| instance 
+% and populate its fields with the correct values:
+%%
+% 
+%   tsi = npxutils.TrialSegmentationInfo(nTrials, fsAP);
+%   tsi.idxStart = [list of start sample indices]
+%   tsi.idxStop = [list of stop sample indices];
+%   tsi.trialId = [list of trial ids];
+%
+%% 
+% Here is an example script that uses the sync channel to determine where trials 
+% begin and end. It expects one bit (named |'trialStart'|) to contain TTL pulses 
+% each time a trial starts, and another bit (named |'trialInfo'|) to contain ASCII-serialized 
+% bits of text occurring at the start of each trial. For example, the string |id=1;c=2| 
+% would correspond to |trialId=1| and |conditionId=2|. It also assumes that a 
+% trial ends when the next trial begins (or at the end of the file). Long trials 
+% can be subsequently truncated using |tsi.truncateTrialsLongerThan(maxDurationSeconds)|.
+%%
+% 
+%   function tsi = parseTrialInfoFromSync(syncRaw, fs, syncBitNames)
+%       % fs is in samples per second
+%       % parses the sync line of an neuropixel .imec.ap.bin data file
+%       % and produces a scalar TrialSegmentationInfo
+%   
+%       % parse the sync
+%       if isempty(syncBitNames)
+%           trialInfoBitNum = 1;
+%           trialStartBitNum = 2;
+%       else
+%           [tf, trialInfoBitNum] = ismember('trialInfo', syncBitNames);
+%           if ~tf, trialInfoBitNum = 1; end
+%           [tf, trialStartBitNum] = ismember('trialStart', syncBitNames);
+%           if ~tf, trialStartBitNum = 1; end
+%       end
+%   
+%       serialBit = bitget(syncRaw, trialInfoBitNum);
+%       trialStart = bitget(syncRaw, trialStartBitNum);
+%   
+%       % trials start when going high
+%       idxStart = find(diff(trialStart) == 1) + 1;
+%       nTrials = numel(idxStart);
+%   
+%       tsi = npxutils.TrialSegmentationInfo(nTrials, fs);
+%   
+%       samplesEachBit = round(fs / 1000); % each bit delivered per ms
+%       for iR = 1:nTrials
+%           if iR < nTrials
+%               idxNext = idxStart(iR+1) - 1;
+%           else
+%               idxNext = numel(serialBit);
+%           end
+%           bitsByTrial = uint8(serialBit(floor(samplesEachBit/2) + idxStart(iR) : samplesEachBit : idxNext));
+%   
+%           lastHigh = find(bitsByTrial, 1, 'last');
+%           lastHigh = ceil(lastHigh / 8) * 8;
+%           bitsByTrial = bitsByTrial(1:lastHigh);
+%   
+%           infoThis = parseInfoString(bitsToString(bitsByTrial));
+%   
+%           if isfield(infoThis, 'id')
+%               tsi.trialId(iR) = str2double(infoThis.id); %#ok<*AGROW>
+%           else
+%               tsi.trialId(iR) = NaN;
+%           end
+%           if isfield(infoThis, 'c')
+%               tsi.conditionId(iR) = str2double(infoThis.c);
+%           else
+%               tsi.conditionId(iR) = NaN;
+%           end
+%   
+%           tsi.idxStart(iR) = idxStart(iR);
+%           tsi.idxStop(iR) = idxNext;
+%       end
+%   
+%       function out = bitsToString(bits)
+%           nChar = numel(bits) / 8;
+%           assert(nChar == round(nChar), 'Bit length must be multiple of 8');
+%           out = blanks(nChar);
+%           for iC = 1:nChar
+%               idx = (1:8) + (iC-1)*8;
+%               out(iC)  = char(bin2dec(sprintf('%u', bits(idx))));
+%           end
+%       end
+%   
+%       function out = parseInfoString(str)
+%           keyval = regexp(str, '(?<key>\w+)=(?<value>[\d\.]+)', 'names');
+%           if isempty(keyval)
+%               warning('Could not parse info string "%s"', str);
+%               out = struct();
+%           else
+%               for i = 1:numel(keyval)
+%                   out.(keyval(i).key) = keyval(i).value;
+%               end
+%           end
+%       end
+%   end
+%   
+%
+%% 
+% KilosortTrialSegmentedDataset
+% 
+% Once you have the trial boundaries stored in your |TrialSegmentationInfo| 
+% instance, you can split the properties of the |KilosortDataset| into each trial, 
+% resulting in a |npxutils.KilosortTrialSegmentedDataset| instance. To facilitate 
+% merging this into another data structure later, you will need to specify the 
+% ultimate |trialId| order you want the |KilosortTrialSegmentedDataset| to have. 
+% For example, if you have a behavioral data structure, you can extract the list 
+% of trial ids from that so that your |KilosortTrialSegmentedDataset| will have 
+% a matching trial sequence.
+
+trialIds = cat(1, behaviorStruct.trialId);
+%% 
+% Any trials not found in the |TrialSegmentationInfo| will simply be empty in 
+% the |KilosortTrialSegmentedDataset|. If you simply want to preserve the trials 
+% in the order they are in |tsi|, you can simply use:
+
+trialIdsB = tsi.trialIds;
+%% 
+% You can then segment the KilosortDataset using:
+
+seg = npxutils.KilosortTrialSegmentedDataset(ks, tsi, trial_ids)
+%% 
+%
+##### SOURCE END #####
+--></body></html>

@@ -1,0 +1,263 @@
+% This LaTeX was auto-generated from MATLAB code.
+% To make changes, update the MATLAB code and export to LaTeX again.
+
+\documentclass{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{graphicx}
+\usepackage{color}
+\usepackage{hyperref}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{epstopdf}
+\usepackage[table]{xcolor}
+\usepackage{matlab}
+
+\sloppy
+\epstopdfsetup{outdir=./}
+\graphicspath{ {./ex03_running_kilosort_images/} }
+
+\begin{document}
+
+\matlabtitle{Running Kilosort 1 or 2 and loading the results}
+
+\begin{par}
+\begin{flushleft}
+\texttt{KilosortDataset} is a wrapper around the output of Kilosort or Kilosort2, which will load the output files back into Matlab for further analysis. Most of these fields are explained in detail in the \href{https://phy-contrib.readthedocs.io/en/latest/template-gui/}{Phy documentation} but we document them here for convenience.
+\end{flushleft}
+\end{par}
+
+\matlabheading{Running Kilosort}
+
+\begin{par}
+\begin{flushleft}
+To run Kilosort or Kilosort2 on an ImecDataset:
+\end{flushleft}
+\end{par}
+
+\begin{verbatim}
+npxutils.runKilosort1(imec, ...);
+\end{verbatim}
+\begin{par}
+\begin{flushleft}
+Or for Kilosort 2:
+\end{flushleft}
+\end{par}
+
+\begin{verbatim}
+npxutils.runKilosort2(imec, ...);
+\end{verbatim}
+\begin{par}
+\begin{flushleft}
+By default, the standard configuration settings will be used. For Kilosort1, these are hardcoded based on \texttt{configFiles/StandardConfig\_MOVEME.m}. For Kilosort2, the script \texttt{configFiles/configFile384.m} will be run to produce the \texttt{ops} struct, unless a different configuration file is set in the environment variable \texttt{KILOSORT\_CONFIG\_FILE}, which must be on the path. Default configuration settings can be overridden by passing in extra parameters, e.g.:
+\end{flushleft}
+\end{par}
+
+\begin{matlabcode}
+npxutils.runKilosort1(imec, 'Th', [4 10], 'GPU', false);
+npxutils.runKilosort2(imec, 'minfr_goodchannels', 0.1);
+\end{matlabcode}
+
+\matlabheading{Loading Kilosort results}
+
+\begin{par}
+\begin{flushleft}
+You can create a KilosortDataset instance by pointing at the folder containing the Kilosort output:
+\end{flushleft}
+\end{par}
+
+\begin{matlabcode}
+ks = npxutils.KilosortDataset(pathToKilosortOutput();
+ks.load();
+\end{matlabcode}
+
+\begin{par}
+\begin{flushleft}
+The constructor will optionally take an ‘imecDataset’ parameter providing the \texttt{npxutils.ImecDataset} instance if there is no \texttt{.imec.ap.bin} file in the Kilosort directory, and a ‘channelMap’ parameter in case the default is not correct. The results can then be loaded using \texttt{ks.load()}.
+\end{flushleft}
+\end{par}
+
+\begin{par}
+\begin{flushleft}
+The descriptions of each property can be found in the \texttt{+Neuropixel/KilosortDataset.m} code, copied here for convenience, originally described in the \href{https://phy-contrib.readthedocs.io/en/latest/template-gui/}{Phy documentation}:
+\end{flushleft}
+\end{par}
+
+\begin{matlabcode}
+ks
+\end{matlabcode}
+
+\begin{itemize}
+\setlength{\itemsep}{-1ex}
+   \item{\begin{flushleft} \texttt{nChannels} : number of channels used by Kilosort \end{flushleft}}
+   \item{\begin{flushleft} \texttt{nSpikes} : number of spikes extracted \end{flushleft}}
+   \item{\begin{flushleft} \texttt{nClusters} : number of unique clusters \end{flushleft}}
+   \item{\begin{flushleft} \texttt{nTemplates} : number of spike templates \end{flushleft}}
+   \item{\begin{flushleft} \texttt{nPCFeatures} number of spatiotemporal PC features used for templates \end{flushleft}}
+   \item{\begin{flushleft} \texttt{nFeaturesPerChannel} : number of PC features used for each channel \end{flushleft}}
+   \item{\begin{flushleft} \texttt{amplitudes} - \texttt{[nSpikes]} double vector with the amplitude scaling factor that was applied to the template when extracting that spike \end{flushleft}}
+   \item{\begin{flushleft} \texttt{channel\_ids} - \texttt{[nChannels]} uint32 vector with the channel ids used for sorting \end{flushleft}}
+   \item{\begin{flushleft} \texttt{channel\_positions} - \texttt{[nChannels, 2]} double matrix with each row giving the x and y coordinates of that channel. Together with the channel map, this determines how waveforms will be plotted in WaveformView (see below). \end{flushleft}}
+   \item{\begin{flushleft} \texttt{pc\_features} - \texttt{[nSpikes, nFeaturesPerChannel, nPCFeatures]} single matrix giving the PC values for each spike. The channels that those features came from are specified in pc\_features\_ind. E.g. the value at pc\_features[123, 1, 5] is the projection of the 123rd spike onto the 1st PC on the channel given by pc\_feature\_ind[5]. \end{flushleft}}
+   \item{\begin{flushleft} \texttt{pc\_feature\_ind} - \texttt{[nTemplates, nPCFeatures]} uint32 matrix specifying which channels contribute to each entry in dim 3 of the pc\_features matrix \end{flushleft}}
+   \item{\begin{flushleft} \texttt{similar\_templates} - \texttt{[nTemplates, nTemplates]} single matrix giving the similarity score (larger is more similar) between each pair of templates similar\_templates(:, :) single \end{flushleft}}
+   \item{\begin{flushleft} \texttt{spike\_templates} - \texttt{[nSpikes]} uint32 vector specifying the identity of the template that was used to extract each spike \end{flushleft}}
+   \item{\begin{flushleft} \texttt{spike\_times} - \texttt{[nSpikes]} uint64 vector giving the spike time of each spike in samples. To convert to seconds, divide by sample\_rate from params.py. \end{flushleft}}
+   \item{\begin{flushleft} \texttt{template\_features} - \texttt{[nSpikes, nTempFeatures]} single matrix giving the magnitude of the projection of each spike onto nTempFeatures other features. Which other features is specified in template\_feature\_ind. \end{flushleft}}
+   \item{\begin{flushleft} \texttt{template\_feature\_ind} - \texttt{[nTemplates, nTempFeatures]} uint32 matrix specifying which templateFeatures are included in the template\_features matrix. \end{flushleft}}
+   \item{\begin{flushleft} \texttt{templates} - \texttt{[nTemplates, nTimePoints, nTemplateChannels]} single matrix giving the template shapes on the channels given in templates\_ind \end{flushleft}}
+   \item{\begin{flushleft} \texttt{templates\_ind} - \texttt{[nTemplates, nTempChannels]} double matrix specifying the channels on which each template is defined. In the case of Kilosort templates\_ind is just the integers from 0 to nChannels-1, since templates are defined on all channels. \end{flushleft}}
+   \item{\begin{flushleft} \texttt{whitening\_mat} - \texttt{[nChannels, nChannels]} double whitening matrix applied to the data during automatic spike sorting \end{flushleft}}
+   \item{\begin{flushleft} \texttt{whitening\_mat\_inv} - \texttt{[nChannels, nChannels]}double, the inverse of the whitening matrix. \end{flushleft}}
+   \item{\begin{flushleft} \texttt{spike\_clusters} - \texttt{[nSpikes]} uint32 vector giving the cluster identity of each spike. \end{flushleft}}
+   \item{\begin{flushleft} \texttt{cluster\_groups} - \texttt{[nClusters]} categorical vector giving the “cluster group” of each cluster (noise, mua, good, unsorted) \end{flushleft}}
+   \item{\begin{flushleft} \texttt{cluster\_ids} - \texttt{[nClusters]} unique clusters in spike\_clusters \end{flushleft}}
+\end{itemize}
+
+\matlabheading{Segmenting a Kilosort dataset into trials}
+
+\begin{par}
+\begin{flushleft}
+\texttt{ks.spike\_times} contains the times for each spike in samples from the beginning of the file, but there is a more useful representation for data collected with a trial structure: split the spikes into separate groups based on which trial they occurred in, and convert the times to milliseconds since the start of the trial.
+\end{flushleft}
+\end{par}
+
+\matlabheadingtwo{TrialSegmentationInfo}
+
+\begin{par}
+\begin{flushleft}
+In order to do this, you need to figure out where trials start and stop. You’ll need to write this code, since this will differ for each experimental setup. Essentially, you need to create a \texttt{npxutils.TrialSegmentationInfo} instance and populate its fields with the correct values:
+\end{flushleft}
+\end{par}
+
+\begin{verbatim}
+tsi = npxutils.TrialSegmentationInfo(nTrials, fsAP);
+tsi.idxStart = [list of start sample indices]
+tsi.idxStop = [list of stop sample indices];
+tsi.trialId = [list of trial ids];
+\end{verbatim}
+\begin{par}
+\begin{flushleft}
+Here is an example script that uses the sync channel to determine where trials begin and end. It expects one bit (named \texttt{'trialStart'}) to contain TTL pulses each time a trial starts, and another bit (named \texttt{'trialInfo'}) to contain ASCII-serialized bits of text occurring at the start of each trial. For example, the string \texttt{id=1;c=2} would correspond to \texttt{trialId=1} and \texttt{conditionId=2}. It also assumes that a trial ends when the next trial begins (or at the end of the file). Long trials can be subsequently truncated using \texttt{tsi.truncateTrialsLongerThan(maxDurationSeconds)}.
+\end{flushleft}
+\end{par}
+
+\begin{verbatim}
+function tsi = parseTrialInfoFromSync(syncRaw, fs, syncBitNames)
+    % fs is in samples per second
+    % parses the sync line of an neuropixel .imec.ap.bin data file
+    % and produces a scalar TrialSegmentationInfo
+
+    % parse the sync
+    if isempty(syncBitNames)
+        trialInfoBitNum = 1;
+        trialStartBitNum = 2;
+    else
+        [tf, trialInfoBitNum] = ismember('trialInfo', syncBitNames);
+        if ~tf, trialInfoBitNum = 1; end
+        [tf, trialStartBitNum] = ismember('trialStart', syncBitNames);
+        if ~tf, trialStartBitNum = 1; end
+    end
+
+    serialBit = bitget(syncRaw, trialInfoBitNum);
+    trialStart = bitget(syncRaw, trialStartBitNum);
+
+    % trials start when going high
+    idxStart = find(diff(trialStart) == 1) + 1;
+    nTrials = numel(idxStart);
+
+    tsi = npxutils.TrialSegmentationInfo(nTrials, fs);
+
+    samplesEachBit = round(fs / 1000); % each bit delivered per ms
+    for iR = 1:nTrials
+        if iR < nTrials
+            idxNext = idxStart(iR+1) - 1;
+        else
+            idxNext = numel(serialBit);
+        end
+        bitsByTrial = uint8(serialBit(floor(samplesEachBit/2) + idxStart(iR) : samplesEachBit : idxNext));
+
+        lastHigh = find(bitsByTrial, 1, 'last');
+        lastHigh = ceil(lastHigh / 8) * 8;
+        bitsByTrial = bitsByTrial(1:lastHigh);
+
+        infoThis = parseInfoString(bitsToString(bitsByTrial));
+
+        if isfield(infoThis, 'id')
+            tsi.trialId(iR) = str2double(infoThis.id); %#ok<*AGROW>
+        else
+            tsi.trialId(iR) = NaN;
+        end
+        if isfield(infoThis, 'c')
+            tsi.conditionId(iR) = str2double(infoThis.c);
+        else
+            tsi.conditionId(iR) = NaN;
+        end
+
+        tsi.idxStart(iR) = idxStart(iR);
+        tsi.idxStop(iR) = idxNext;
+    end
+
+    function out = bitsToString(bits)
+        nChar = numel(bits) / 8;
+        assert(nChar == round(nChar), 'Bit length must be multiple of 8');
+        out = blanks(nChar);
+        for iC = 1:nChar
+            idx = (1:8) + (iC-1)*8;
+            out(iC)  = char(bin2dec(sprintf('%u', bits(idx))));
+        end
+    end
+
+    function out = parseInfoString(str)
+        keyval = regexp(str, '(?<key>\w+)=(?<value>[\d\.]+)', 'names');
+        if isempty(keyval)
+            warning('Could not parse info string "%s"', str);
+            out = struct();
+        else
+            for i = 1:numel(keyval)
+                out.(keyval(i).key) = keyval(i).value;
+            end
+        end
+    end
+end
+
+\end{verbatim}
+\begin{par}
+\begin{flushleft}
+KilosortTrialSegmentedDataset
+\end{flushleft}
+\end{par}
+
+\begin{par}
+\begin{flushleft}
+Once you have the trial boundaries stored in your \texttt{TrialSegmentationInfo} instance, you can split the properties of the \texttt{KilosortDataset} into each trial, resulting in a \texttt{npxutils.KilosortTrialSegmentedDataset} instance. To facilitate merging this into another data structure later, you will need to specify the ultimate \texttt{trialId} order you want the \texttt{KilosortTrialSegmentedDataset} to have. For example, if you have a behavioral data structure, you can extract the list of trial ids from that so that your \texttt{KilosortTrialSegmentedDataset} will have a matching trial sequence.
+\end{flushleft}
+\end{par}
+
+\begin{matlabcode}
+trialIds = cat(1, behaviorStruct.trialId);
+\end{matlabcode}
+
+\begin{par}
+\begin{flushleft}
+Any trials not found in the \texttt{TrialSegmentationInfo} will simply be empty in the \texttt{KilosortTrialSegmentedDataset}. If you simply want to preserve the trials in the order they are in \texttt{tsi}, you can simply use:
+\end{flushleft}
+\end{par}
+
+\begin{matlabcode}
+trialIdsB = tsi.trialIds;
+\end{matlabcode}
+
+\begin{par}
+\begin{flushleft}
+You can then segment the KilosortDataset using:
+\end{flushleft}
+\end{par}
+
+\begin{matlabcode}
+seg = npxutils.KilosortTrialSegmentedDataset(ks, tsi, trial_ids)
+\end{matlabcode}
+
+\end{document}
