@@ -1,4 +1,11 @@
-function writeINI(fname, data)
+function writeINI(fname, data, varargin)
+    p = inputParser();
+    p.addParameter('prefixTildeFields', strings(0, 1), @isstring); % these fields should have a tilde before them, ignoring this broke certain Python tools like Neo
+    p.addParameter('quoteStrings', false, @islogical);
+    p.parse(varargin{:});
+    prefixTildeFields = string(p.Results.prefixTildeFields);
+    quoteStrings = p.Results.quoteStrings;
+    
     fid = fopen(fname,'w');
     if fid == -1
         error('Could not open %s for writing', fname);
@@ -7,29 +14,40 @@ function writeINI(fname, data)
     flds = fieldnames(data);
     
     for iF = 1:numel(flds)
-        valStr = convertVal(data.(flds{iF}));
-        fprintf(fid, '%s=%s\n', flds{iF}, valStr);
+        valStr = convertVal(data.(flds{iF}), quoteStrings);
+        
+        if ismember(flds{iF}, prefixTildeFields)
+            fld = "~" + string(flds{iF});
+        else
+            fld = flds{iF};
+        end
+        fprintf(fid, '%s=%s\n', fld, valStr);
     end
     
     fclose(fid);
 end
 
-function valStr = convertVal(val)
+function valStr = convertVal(val, quoteStrings)
     if ischar(val)
         if isempty(val)
             valStr = '';
-        else
+        elseif quoteStrings
             valStr = ['''' strtrim(val) ''''];
+        else
+            valStr = strtrim(val);
         end
         
     elseif isstring(val)
         if isscalar(val)
-            valStr = "'" + strtrim(val) + "'";
+            if quoteStrings
+                valStr = "'" + strtrim(val) + "'";
+            else
+                valStr = strtrim(val);
+            end
         else
             valStrCell = cellstr(val);
             valStr = ['{' strjoin(valStrCell, ',') '}'];
         end
-        
     elseif iscell(val)
         valStrCell = cellfun(@convertVal, val(:), 'UniformOutput', false);
         valStr = ['{' strjoin(valStrCell, ',') '}'];

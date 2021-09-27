@@ -1734,6 +1734,8 @@ classdef ImecDataset < handle
         function meta = generateModifiedAPMeta(imec)
             meta = imec.readAPMeta;
 
+            meta.fileSizeBytes = imec.bytesPerSample * imec.nChannels * imec.nSamplesAP;
+            meta.fileTimeSec = imec.nSamplesAP / imec.fsAP;
             meta.syncBitNames = imec.syncBitNames;
             meta.badChannels = imec.badChannels;
         end
@@ -1752,19 +1754,22 @@ classdef ImecDataset < handle
 
         function writeModifiedAPMeta(imec, varargin)
             p = inputParser();
+            p.addParameter('filename', imec.pathAPMeta, @isstringlike);
             p.addParameter('extraMeta', struct(), @isstruct);
+            p.addParameter('prefixTildeFields', ["imroTbl", "snsChanMap", "snsShankMap"], @isstring); % these fields should have a tilde before them, ignoring this broke certain Python tools like Neo
             p.parse(varargin{:});
 
             meta = imec.generateModifiedAPMeta();
 
             % set extra user provided fields
             extraMeta = p.Results.extraMeta;
-            extraMetaFields = fieldnames(extraMeta);
+            extraMetaFields = string(fieldnames(extraMeta));
             for iFld = 1:numel(extraMetaFields)
                 meta.(extraMetaFields{iFld}) = extraMeta.(extraMetaFields{iFld});
             end
 
-            Neuropixel.writeINI([imec.pathAPMeta], meta);
+            filename = string(p.Results.filename);
+            Neuropixel.writeINI(filename, meta, 'prefixTildeFields', p.Results.prefixTildeFields);
         end
 
         function meta = readLFMeta(imec)
