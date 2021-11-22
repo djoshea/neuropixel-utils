@@ -1130,7 +1130,7 @@ classdef KilosortMetrics < handle
                 
                 if showIndividual && (~onlyGaps || hasGaps)
                     h = plot(x, y, '.', 'Color', cmap(iC,:), 'MarkerSize', sz, 'UserData', ud);
-                    TrialDataUtilities.Plotting.setMarkerOpacity(h, alpha);
+                    Neuropixel.Utils.setMarkerOpacity(h, alpha);
                     
                     hold on;
                 end
