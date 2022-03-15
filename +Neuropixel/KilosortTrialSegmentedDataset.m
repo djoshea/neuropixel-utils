@@ -45,6 +45,9 @@ classdef KilosortTrialSegmentedDataset < handle & matlab.mixin.Copyable
         trial_has_nonzero_spikes
 
         fsAP % sampling rate pass thru
+        
+        spike_clusters (:,:) cell
+        cutoff_spike_clusters (:, :) cell
     end
 
     % Properties that are segmented by trial
@@ -74,6 +77,7 @@ classdef KilosortTrialSegmentedDataset < handle & matlab.mixin.Copyable
 
         % [nSpikes, ] uint32 vector specifying the identity of the template that was used to extract each spike
         spike_templates(:, :) cell
+        spike_templates_preSplit (:, :) cell
 
         % these are only useful if segment_by_trials or segment_by_clusters are false
         spike_trial_ind(:, :) cell
@@ -85,7 +89,9 @@ classdef KilosortTrialSegmentedDataset < handle & matlab.mixin.Copyable
         cutoff_spike_times(:, :)  cell
         cutoff_spike_times_ms_rel_start(:, :) cell
         cutoff_spike_templates(:, :) cell
+        cutoff_spike_templates_preSplit (:, :) cell
         cutoff_template_features(:, :) cell
+        cutoff_pc_features (:, :) cell
         
         cutoff_spike_trial_inds(:, :) cell
         cutoff_spike_cluster_inds(:, :) cell  
@@ -309,9 +315,13 @@ classdef KilosortTrialSegmentedDataset < handle & matlab.mixin.Copyable
             prog.increment('Segmenting trials: spike_clusters');
             seg.spike_templates = Neuropixel.Utils.TensorUtils.splitAlongDimensionBySubscripts(...
                 ks.spike_templates(spike_mask), 1, [nTrialsSegment, nUnitsSegment], subs(spike_mask, :));
+            seg.spike_templates_preSplit = Neuropixel.Utils.TensorUtils.splitAlongDimensionBySubscripts(...
+                ks.spike_templates_preSplit(spike_mask), 1, [nTrialsSegment, nUnitsSegment], subs(spike_mask, :));
             if loadCutoff
                 seg.cutoff_spike_templates = Neuropixel.Utils.TensorUtils.splitAlongDimensionBySubscripts(...
                     ks.cutoff_spike_templates(cutoff_spike_mask), 1, [nTrialsSegment, nUnitsSegment], cutoff_subs(cutoff_spike_mask, :));
+                seg.cutoff_spike_templates_preSplit = Neuropixel.Utils.TensorUtils.splitAlongDimensionBySubscripts(...
+                    ks.cutoff_spike_templates_preSplit(cutoff_spike_mask), 1, [nTrialsSegment, nUnitsSegment], cutoff_subs(cutoff_spike_mask, :));
             end
 
             seg.syncBitNames = ks.syncBitNames;
@@ -354,7 +364,7 @@ classdef KilosortTrialSegmentedDataset < handle & matlab.mixin.Copyable
         end
 
         function n = get.nChannelsSorted(seg)
-            n = numel(seg.channel_ids);
+            n = numel(seg.channel_ids_sorted);
         end
 
         function n = get.channel_ids_sorted(seg)
@@ -372,6 +382,14 @@ classdef KilosortTrialSegmentedDataset < handle & matlab.mixin.Copyable
 
         function fsAP = get.fsAP(ds)
             fsAP = ds.dataset.fsAP;
+        end
+        
+        function spike_clusters = get.spike_clusters(seg)
+            spike_clusters = cellfun(@(inds) seg.cluster_ids(inds), seg.spike_cluster_inds, 'UniformOutput', false);
+        end
+        
+        function spike_clusters = get.cutoff_spike_clusters(seg)
+            spike_clusters = cellfun(@(inds) seg.cluster_ids(inds), seg.cutoff_spike_cluster_inds, 'UniformOutput', false);
         end
 
         function idx = lookupSyncBitByName(seg, names)

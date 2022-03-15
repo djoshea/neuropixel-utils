@@ -2257,6 +2257,7 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
 
     methods
         function [batch_ind, sorted_batch_ind] = compute_which_batch(ks, sample_idx)
+            assert(~isempty(ks.batch_starts), 'batch_starts is empty. Load KS dataset with loadBatchwise=true');
             batch_ind = discretize(sample_idx, [ks.batch_starts; Inf]);
             [~, batch_sorted_location] = ismember((1:ks.nBatches)', ks.batch_sort_order);
             sorted_batch_ind = batch_sorted_location(batch_ind);
@@ -2688,7 +2689,7 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
             if ~isempty(p.Results.rez_reextract)
                 rez = p.Results.rez_reextract;
             else
-                rez = reextractSpikesWithFixedTemplates(ks, p.Unmatched);
+                rez = Kilosort2.MainLoop.reextractSpikesWithFixedTemplates(ks, p.Unmatched);
             end
 
             % copy the updated fields from rez back into ks

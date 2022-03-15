@@ -225,7 +225,7 @@ classdef ChannelMap
         
         function zlim = get.zlim(map)
             zs = map.yspacing;
-            zlim = [min(map.zcoords) - zs, maz(map.zcoords) + zs];
+            zlim = [min(map.zcoords) - zs, max(map.zcoords) + zs];
         end
         
         function coords = get.coords(map)

@@ -1,5 +1,7 @@
 classdef KilosortPartialResort < handle & matlab.mixin.Copyable
-
+    % container for the results of re-running Kilosort2 on a specific sample window with fixed templates 
+    % to conduct a re-extraction / sorting of spikes on altered data from specific windows of time
+    
     properties(Transient)
         ks  % Neuropixel.KilosortDataset
     end
@@ -32,6 +34,13 @@ classdef KilosortPartialResort < handle & matlab.mixin.Copyable
         cutoff_spike_templates(:, 1) uint32
         cutoff_spike_templates_preSplit(:, 1) uint32
         cutoff_spike_clusters(:, 1) uint32
+        
+        is_deduplicated (1, 1) logical = false;
+        deduplication_stats struct;
+        deduplicate_spikes logical = false;
+        deduplicate_cutoff_spikes logical = false;
+        deduplicate_within_samples uint64 = 5;
+        deduplicate_within_distance single = 50;
     end
     
     properties(Transient)
@@ -216,6 +225,121 @@ classdef KilosortPartialResort < handle & matlab.mixin.Copyable
     end
     
     methods % post-sort modifications matching those in KilosortDataset
+        function [mask_dup_spikes, mask_dup_spikes_cutoff, stats] = identify_duplicate_spikes(kspr, varargin)
+            p = inputParser();
+            p.addParameter('include_cutoff_spikes', kspr.deduplicate_cutoff_spikes, @islogical);
+            p.addParameter('withinSamples', kspr.deduplicate_within_samples, @isscalar);
+            p.addParameter('withinDistance', kspr.deduplicate_within_distance, @isscalar);
+            p.addParameter('progress', true, @islogical);
+            p.parse(varargin{:});
+
+            assert(~isempty(kspr.ks), 'Requires .ks field set');
+            assert(issorted(kspr.spike_times), 'call .sortSpikes first');
+            assert(issorted(kspr.cutoff_spike_times), 'call .sortSpikes first');
+
+            withinSamples = p.Results.withinSamples;
+            withinDistance = p.Results.withinDistance;
+
+            % lookup best channels by templates
+            ks = kspr.ks;
+            m = ks.computeMetrics();
+
+            % determine which templates are withinDistance of each other templates based on centroid
+            temptempdist = squareform(pdist(m.template_centroid, 'euclidean'));
+            temptempprox = temptempdist < withinDistance;
+
+            % begin by combining spikes with spikes cutoff
+            if p.Results.include_cutoff_spikes
+                spikes = cat(1, kspr.spike_times, kspr.cutoff_spike_times);
+                templates = cat(1, kspr.spike_templates, kspr.cutoff_spike_templates);
+                clusters = cat(1, kspr.spike_clusters, kspr.cutoff_spike_clusters);
+                [spikes, sort_idx] = sort(spikes);
+                templates = templates(sort_idx);
+                clusters = clusters(sort_idx);
+
+                mask_from_cutoff = true(size(spikes));
+                mask_from_cutoff(1:kspr.nSpikes) = false;
+                mask_from_cutoff = mask_from_cutoff(sort_idx);
+            else
+                spikes = kspr.spike_times;
+                templates = kspr.spike_templates;
+                clusters = kspr.spike_clusters;
+                mask_from_cutoff = false(size(spikes));
+            end
+
+            cluster_inds = ks.lookup_clusterIds(clusters);
+
+            mask_dup = false(size(spikes));
+            dup_from_template = zeros(size(spikes), 'like', templates);
+            dup_from_cluster_ind = zeros(size(spikes), 'like', cluster_inds);
+            if p.Results.progress
+                prog = Neuropixel.Utils.ProgressBar(numel(spikes), 'Checking for duplicate spikes');
+            else
+                prog.update = @(varargin) true;
+                prog.finish = @(varargin) true;
+            end
+            
+            for iS = 1:numel(spikes)
+                if mask_dup(iS), continue, end
+                temp1 = templates(iS);
+                iS2 = iS+1;
+                while iS2 < numel(spikes) && spikes(iS2) < spikes(iS) + withinSamples
+                    temp2 = templates(iS2);
+                    if temptempprox(temp1, temp2)
+                        mask_dup(iS2) = true;
+                        dup_from_template(iS2) = temp1;
+                        dup_from_cluster_ind(iS2) = cluster_inds(iS);
+                    end
+                    iS2 = iS2 + 1;
+                end
+                if mod(iS, 1000) == 0
+                    prog.update(iS);
+                end
+            end
+            prog.finish();
+
+            if p.Results.include_cutoff_spikes
+                mask_dup_spikes = mask_dup(~mask_from_cutoff);
+                mask_dup_spikes_cutoff = mask_dup(mask_from_cutoff);
+            else
+                mask_dup_spikes = mask_dup;
+                mask_dup_spikes_cutoff = false(kspr.nSpikesCutoff, 1);
+            end
+
+            % compute stats
+            mask_dup_same_template = mask_dup & dup_from_template == templates;
+            stats.nSameTemplate = nnz(mask_dup_same_template);
+            stats.fracRemoved = mean(mask_dup);
+            stats.fracRemovedExcludingSameTemplate = mean(mask_dup & ~mask_dup_same_template);
+
+            mask_dup_same_cluster = mask_dup & dup_from_cluster_ind == cluster_inds;
+            stats.fracRemovedExcludingSameCluster = mean(mask_dup & ~mask_dup_same_cluster);
+
+            % accumulate (i, j) is the count of spikes with template i that were marked as duplicates of template j
+            stats.templateTemplateDuplicateCounts = accumarray([templates(mask_dup), dup_from_template(mask_dup)], 1, [ks.nTemplates, ks.nTemplates], @sum);
+            stats.templateDuplicateCounts = sum(stats.templateTemplateDuplicateCounts, 2);
+            template_spike_counts =  accumarray(templates, 1, [ks.nTemplates, 1], @sum);
+            stats.templateDuplicateFrac = stats.templateDuplicateCounts ./ template_spike_counts;
+
+            % same stats but for clusters
+            stats.clusterClusterDuplicateCounts = accumarray([cluster_inds(mask_dup), dup_from_cluster_ind(mask_dup)], 1, [ks.nClusters, ks.nClusters], @sum);
+            stats.clusterDuplicateCounts = sum(stats.clusterClusterDuplicateCounts, 2);
+            cluster_spike_counts =  accumarray(cluster_inds, 1, [ks.nClusters, 1], @sum);
+            stats.clusterDuplicateFrac = stats.clusterDuplicateCounts ./ cluster_spike_counts;
+        end
+        
+        function stats = remove_duplicate_spikes(kspr, varargin)
+            if kspr.is_deduplicated
+                return;
+            end
+
+            debug('Removing duplicate spikes from KSPR dataset\n');
+            [mask_dup_spikes, mask_dup_spikes_cutoff, stats] = kspr.identify_duplicate_spikes(varargin{:});
+            kspr.mask_spikes(~mask_dup_spikes, ~mask_dup_spikes_cutoff);
+            kspr.is_deduplicated = true;
+            kspr.deduplication_stats = stats;
+        end
+        
         function accept_cutoff_spikes(kspr, ratings_or_cluster_ids)
             if isempty(kspr.cutoff_spike_times)
                 return;
@@ -416,7 +540,7 @@ classdef KilosortPartialResort < handle & matlab.mixin.Copyable
         end
     end
     
-    methods(Static)
+    methods(Static) % Construction by re-sorting
         function kspr = construct_reextractSpikesWithFixedTemplates(ks, varargin)
             p = inputParser();
             % these are used to replace specific time windows in the raw data with 
@@ -435,6 +559,10 @@ classdef KilosortPartialResort < handle & matlab.mixin.Copyable
             kspr.ks = ks;
             kspr.fsAP = ks.fsAP;
             kspr.cluster_ids = ks.cluster_ids;
+            kspr.deduplicate_spikes = ks.deduplicate_spikes;
+            kspr.deduplicate_cutoff_spikes = ks.deduplicate_cutoff_spikes;
+            kspr.deduplicate_within_samples = ks.deduplicate_within_samples;
+            kspr.deduplicate_within_distance = ks.deduplicate_within_distance;
             
             data_replace = p.Results.data_replace;
             data_replace_windows = p.Results.data_replace_windows;
@@ -455,10 +583,16 @@ classdef KilosortPartialResort < handle & matlab.mixin.Copyable
             end
 
             if ~isempty(spike_extract_windows)
-                rez = reextractSpikesWithFixedTemplates(ks, ...
+                % to deduplicate correctly at the edges, we need a little bit of extra padding that we'll strip here
+                if kspr.deduplicate_spikes
+                    dedup_padding = kspr.deduplicate_within_samples * 2;
+                end
+                spike_extract_windows_dedup_padded = [spike_extract_windows(:, 1) - dedup_padding, spike_extract_windows(:, 2) + dedup_padding];
+            
+                rez = Kilosort2.MainLoop.reextractSpikesWithFixedTemplates(ks, ...
                         'data_replace', data_replace, ...
                         'data_replace_windows', data_replace_windows, ...
-                        'spike_extract_windows', spike_extract_windows);
+                        'spike_extract_windows', spike_extract_windows_dedup_padded);
                 
                 % now build out the kspr fields
                 cluster_offset = -1;
@@ -480,6 +614,82 @@ classdef KilosortPartialResort < handle & matlab.mixin.Copyable
                 kspr.cutoff_spike_clusters = uint32(rez.st3_cutoff_invalid(:, rez.st3_cluster_col) + cluster_offset);
                 kspr.cutoff_template_features = rez.cProj_cutoff_invalid;
                 kspr.cutoff_pc_features = rez.cProjPC_cutoff_invalid;
+                
+                if kspr.deduplicate_spikes
+                    % deduplicate the spikes (which still include spikes in the padding windows
+                    kspr.remove_duplicate_spikes();
+
+                    % and now trim the spikes again to remove the dedup_padding
+                    mask_within_windows = any(kspr.spike_times >= spike_extract_windows(:, 1)' & kspr.spike_times <= spike_extract_windows(:, 2)', 2); % nSpikes x nWindows --> nSpikes
+                    cutoff_mask_within_windows = any(kspr.cutoff_spike_times >= spike_extract_windows(:, 1)' & kspr.cutoff_spike_times <= spike_extract_windows(:, 2)', 2); % nSpikes x nWindows --> nSpikes
+                    kspr.mask_spikes(mask_within_windows, cutoff_mask_within_windows);
+                end
+            else
+                if ~p.Results.suppressEmptySpikeWindowWarning
+                    warning('Empty spike_extract_windows provided, no spikes were reextracted')
+                end
+                kspr.sort_windows = spike_extract_windows;
+            end
+        end
+        
+        function kspr = construct_resegmentKilosortDatasetUnchanged(ks, varargin)
+            p = inputParser();
+            % these are used to replace specific time windows in the raw data with 
+            p.addParameter('pad_spike_extract_windows', [0 0], @isvector); % pad spike-sorted windows by this amount [pre post] relative to the data_replace_windows
+            % use this to simply reextract spikes from specific windows, useful when not replacing data in situ
+            p.addParameter('spike_extract_windows', zeros(0, 2), @(x) ismatrix(x) && size(x, 2) == 2);
+            p.addParameter('suppressEmptySpikeWindowWarning', false, @islogical);
+            p.parse(varargin{:});
+            
+            assert(isa(ks, 'Neuropixel.KilosortDataset'));
+            kspr = Neuropixel.KilosortPartialResort();
+            kspr.ks = ks;
+            kspr.fsAP = ks.fsAP;
+            kspr.cluster_ids = ks.cluster_ids;
+            kspr.deduplicate_spikes = ks.deduplicate_spikes;
+            kspr.deduplicate_cutoff_spikes = ks.deduplicate_cutoff_spikes;
+            kspr.deduplicate_within_samples = ks.deduplicate_within_samples;
+            kspr.deduplicate_within_distance = ks.deduplicate_within_distance;
+            
+            pad_spike_extract_windows = p.Results.pad_spike_extract_windows;
+            spike_extract_windows = p.Results.spike_extract_windows;
+            if ismember('spike_extract_windows', p.UsingDefaults)
+                error('spike_extract_windows must be specified, not sure what to resort');
+            end
+            spike_extract_windows = [spike_extract_windows(:, 1) - pad_spike_extract_windows(1), spike_extract_windows(:, 2) + pad_spike_extract_windows(2)];
+            
+            if ~isempty(spike_extract_windows)
+                % we use a segmented dataset to do the extraction for us and then copy the fields over
+                nWindows = size(spike_extract_windows, 1);
+                tsi = Neuropixel.TrialSegmentationInfo(nWindows, ks.fsAP);
+                tsi.trialId = 1:nWindows;
+                tsi.conditionId = ones(nWindows, 1);
+                tsi.idxStart = spike_extract_windows(:, 1);
+                tsi.idxStop = spike_extract_windows(:, 2);
+                
+                seg = Neuropixel.KilosortTrialSegmentedDataset(ks, tsi, tsi.trialId, ...
+                    'segment_by_trials', true, 'segment_by_clusters', false, ... % KSPR keeps the spikes from all clusters together
+                    'loadFeatures', true, 'loadSync', false, 'cluster_ids', ks.cluster_ids);
+
+                kspr.sort_windows = spike_extract_windows;
+
+                % seg is naturally segmented by trials, but kspr stores all its resorted windows contiguously so that it resembles
+                % a KilosortDataset object internally, so here we re concatenate them. 
+                kspr.spike_times = cat(1, seg.spike_times{:});
+                kspr.spike_templates_preSplit = cat(1, seg.spike_templates_preSplit{:});
+                kspr.amplitudes = cat(1, seg.amplitudes{:});
+                kspr.spike_templates = cat(1, seg.spike_templates{:});
+                kspr.spike_clusters = cat(1, seg.spike_clusters{:});
+                kspr.template_features = cat(1, seg.template_features{:});
+                kspr.pc_features = cat(1, seg.pc_features{:});
+                
+                kspr.cutoff_spike_times = cat(1, seg.cutoff_spike_times{:});
+                kspr.cutoff_spike_templates_preSplit = cat(1, seg.cutoff_spike_templates_preSplit{:});
+                kspr.cutoff_amplitudes = cat(1, seg.cutoff_amplitudes{:});
+                kspr.cutoff_spike_templates = cat(1, seg.cutoff_spike_templates{:});
+                kspr.cutoff_spike_clusters = cat(1, seg.cutoff_spike_clusters{:});
+                kspr.cutoff_template_features = cat(1, seg.cutoff_template_features{:});
+                kspr.cutoff_pc_features = cat(1, seg.cutoff_pc_features{:});
             else
                 if ~p.Results.suppressEmptySpikeWindowWarning
                     warning('Empty spike_extract_windows provided, no spikes were reextracted')

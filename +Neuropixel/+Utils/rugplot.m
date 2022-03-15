@@ -43,7 +43,7 @@ function h = rugplot(ticks, varargin)
     end
     len = p.Results.length * (full(2)-full(1));
     
-    offset = p.Results.offset;
+    offset = p.Results.offset * (full(2)-full(1));
        
     switch side
         case 'top'
