@@ -587,8 +587,26 @@ classdef ImecDataset < handle
             data = imec.internal_read_idx(sampleIdx, 'band', 'ap', varargin{:});
         end
         
+        function data = readAP_idx_alongside_source(imec, sampleIdx, varargin)
+            data = imec.internal_read_idx_alongside_source(sampleIdx, 'band', 'ap', varargin{:});
+        end
+        
         function data = readLF_idx(imec, sampleIdx, varargin)
             data = imec.internal_read_idx(sampleIdx, 'band', 'lf', varargin{:});
+        end
+        
+        function data = internal_read_idx_alongside_source(imec, sampleIdx, varargin)
+            p = inputParser();
+            p.addParameter('fromSourceDatasets', false, @islogical);
+            p.addParameter('scaleSourceToMatch', true, @islogical);
+            p.KeepUnmatched = true;
+            p.parse(varargin{:});
+            
+            % returns data from this dataset as well as data fromSourceDatasets, concatenated along dim 3
+            data_this = imec.internal_read_idx(sampleIdx, p.Unmatched);
+            data_source = imec.internal_read_idx(sampleIdx, 'fromSourceDatasets', true, 'scaleSourceToMatch', p.Results.scaleSourceToMatch, p.Unmatched);
+            
+            data = cat(3, data_this, data_source);
         end
         
         function data = internal_read_idx(imec, sampleIdx, varargin)
@@ -742,6 +760,7 @@ classdef ImecDataset < handle
             p.addParameter('car', false, @islogical); % subtract median of all channels at each time
             p.addParameter('center', false, @islogical); % subtract median of each channel over time
             p.addParameter('fromSourceDatasets', false, @islogical);
+            p.addParameter('compareSourceDatasets', false, @islogical); % if true, supercedes fromSourceDatasets and both will be plotted
             p.addParameter('syncFromSourceDatasets', [], @(x) isempty(x) || islogical(x));
             p.addParameter('downsample',1, @isscalar); 
             p.addParameter('timeInSeconds', false, @islogical);
@@ -759,6 +778,7 @@ classdef ImecDataset < handle
             % by default, sync comes from same source v. processed data as the data being plotted, 
             % but this can be overrriden
             fromSource = p.Results.fromSourceDatasets;
+            compareSource = p.Results.compareSourceDatasets;
             syncFromSource = p.Results.syncFromSourceDatasets;
             if isempty(syncFromSource)
                 syncFromSource = fromSource;
@@ -781,8 +801,19 @@ classdef ImecDataset < handle
             
             sampleIdx = floor(sampleIdx);
             
-            mat = imec.internal_read_idx(sampleIdx, 'band', band, 'fromSourceDatasets', fromSource, 'applyScaling', true); % C x T
+            if compareSource
+                mat = imec.internal_read_idx_alongside_source(sampleIdx, 'band', band, 'applyScaling', true); % C x T x 2 (this, source)
+                %labelsSuperimposed = ["processed", "source"];
+            else
+                mat = imec.internal_read_idx(sampleIdx, 'band', band, 'fromSourceDatasets', fromSource, 'applyScaling', true); % C x T
+                if fromSource
+                    %labelsSuperimposed = "source";
+                else
+                    %labelsSuperimpposed = "processed";
+                end
+            end
             labels = imec.channelNamesPadded;
+            
             
             [channelInds, channelIds] = imec.lookup_channelIds(p.Results.channels); %#ok<*PROPLC>
             if p.Results.goodChannelsOnly
@@ -796,13 +827,13 @@ classdef ImecDataset < handle
                 channelIds = channelIds(mask);
             end
             
-            mat = mat(channelInds, :);
+            mat = mat(channelInds, :, :);
             labels = labels(channelInds);
             connected = ismember(channelIds, imec.connectedChannels);
             bad = ismember(channelIds, imec.badChannels);
             
             if p.Results.downsample > 1
-                mat = mat(:, 1:p.Results.downsample:end);
+                mat = mat(:, 1:p.Results.downsample:end, :);
                 sampleIdx = sampleIdx(1:p.Results.downsample:end);
             end
             mat = single(mat);
@@ -835,7 +866,13 @@ classdef ImecDataset < handle
             syncBits = p.Results.syncBits;
             if ~isempty(syncBits) && showSync
                 % make sure we grab sync from the matching band
-                syncBitMat = imec.readSyncBits_idx(syncBits, sampleIdx, 'fromSourceDatasets', syncFromSource, 'band', band);
+                if compareSource
+                    sync_this = imec.readSyncBits_idx(syncBits, sampleIdx, 'fromSourceDatasets', false, 'band', band);
+                    sync_source = imec.readSyncBits_idx(syncBits, sampleIdx, 'fromSourceDatasets', true, 'band', band);
+                    syncBitMat = cat(3, sync_this, sync_source);
+                else
+                    syncBitMat = imec.readSyncBits_idx(syncBits, sampleIdx, 'fromSourceDatasets', syncFromSource, 'band', band);
+                end
                 mat = cat(1, mat, syncBitMat);
                 syncColor = [0.75 0 0.9];
                 colors = cat(1, colors, repmat(syncColor, size(syncBitMat, 1), 1));
@@ -857,9 +894,16 @@ classdef ImecDataset < handle
             
             switch style
                 case 'traces'
-                    Neuropixel.Utils.plotStackedTraces(time, mat', 'colors', colors, 'labels', labels, ...
-                        'gain', p.Results.gain, 'invertChannels', false, ...
-                        'normalizeMask', normalizeMask, 'normalizeEach', false);
+                    if compareSource
+                        layer_colors = [0 0 0; 0.7 0.2 0.2];
+                        Neuropixel.Utils.plotStackedTraces(time, permute(mat, [2 1 3]), 'layerColors', layer_colors, 'labels', labels, ...
+                            'gain', p.Results.gain, 'invertChannels', false, ...
+                            'normalizeMask', normalizeMask, 'normalizeEach', false); 
+                    else
+                        Neuropixel.Utils.plotStackedTraces(time, mat', 'colors', colors, 'labels', labels, ...
+                            'gain', p.Results.gain, 'invertChannels', false, ...
+                            'normalizeMask', normalizeMask, 'normalizeEach', false);
+                    end
                 case 'pmatbal'
                     if p.Results.invertChannels
                         mat = flipud(mat);
