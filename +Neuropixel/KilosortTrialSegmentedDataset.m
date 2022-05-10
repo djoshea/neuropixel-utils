@@ -48,6 +48,8 @@ classdef KilosortTrialSegmentedDataset < handle & matlab.mixin.Copyable
         
         spike_clusters (:,:) cell
         cutoff_spike_clusters (:, :) cell
+        
+        spike_times_rel_start (:, :) cell % spike time of each spike in samples from trial start
     end
 
     % Properties that are segmented by trial
@@ -390,6 +392,16 @@ classdef KilosortTrialSegmentedDataset < handle & matlab.mixin.Copyable
         
         function spike_clusters = get.cutoff_spike_clusters(seg)
             spike_clusters = cellfun(@(inds) seg.cluster_ids(inds), seg.cutoff_spike_cluster_inds, 'UniformOutput', false);
+        end
+
+        function spike_times_rel_start = get.spike_times_rel_start(seg)
+            [nT, nU] = size(seg.spike_times);
+            spike_times_rel_start = cell([nT nU]);
+            for iT = 1:nT
+                for iU = 1:nU
+                    spike_times_rel_start{iT, iU} = seg.spike_times{iT, iU} - seg.trial_start(iT);
+                end
+            end
         end
 
         function idx = lookupSyncBitByName(seg, names)
