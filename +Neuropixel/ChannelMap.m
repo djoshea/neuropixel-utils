@@ -71,7 +71,11 @@ classdef ChannelMap
             [~, map.name, ~] = fileparts(fname);
             map.channelIdsMapped = Neuropixel.Utils.makecol(d.chanMap);
             map.connected = Neuropixel.Utils.makecol(d.connected);
-            map.shankInd = Neuropixel.Utils.makecol(d.shankInd);
+            if isfield(d, 'shankInd')
+                map.shankInd = Neuropixel.Utils.makecol(d.shankInd);
+            else
+                map.shankInd = ones(size(map.connected));
+            end
             map.xcoords = Neuropixel.Utils.makecol(d.xcoords);
             map.ycoords = Neuropixel.Utils.makecol(d.ycoords);
             if isfield(d, 'zcoords')

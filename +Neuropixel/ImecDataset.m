@@ -170,6 +170,10 @@ classdef ImecDataset < handle
                 
             elseif isstring(channelMap)
                 if channelMap == ""
+                    % try default paths with ks.path
+                    channelMap = Neuropixel.Utils.searchForChannelMapInDirectory(imec.pathRoot);
+                end
+                if channelMap == ""
                     % use default channel map file
                     channelMap = Neuropixel.Utils.getDefaultChannelMapFile(true);
                 end
@@ -2262,10 +2266,14 @@ end
                 return;
             end
 
-            [pathRoot, fileStem, fileTypeAP] = Neuropixel.ImecDataset.parseImecFileName(file);
-            pathAP = fullfile(pathRoot, [fileStem '.imec.' fileTypeAP '.bin']);
-            pathAPMeta = fullfile(pathRoot, [fileStem '.imec.ap.meta']);
-
+            [pathRoot, fileStem, fileTypeAP, imecNumber] = Neuropixel.ImecDataset.parseImecFileName(file);
+            if isnan(imecNumber)
+                pathAP = fullfile(pathRoot, [fileStem '.imec.' fileTypeAP '.bin']);
+                pathAPMeta = fullfile(pathRoot, [fileStem '.imec.ap.meta']);
+            else
+                pathAP = fullfile(pathRoot, [fileStem sprintf('.imec%d.', imecNumber) fileTypeAP '.bin']);
+                pathAPMeta = fullfile(pathRoot, [fileStem sprintf('.imec%d.ap.meta', imecNumber)]);
+            end
             tf = exist(pathAP, 'file') && exist(pathAPMeta, 'file');
             if exist(pathAP, 'file') && ~exist(pathAPMeta, 'file')
                 warning('Found data file %s but not meta file %s', pathAP, pathAPMeta);

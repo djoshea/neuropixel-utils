@@ -549,11 +549,15 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                     channelMap = ks.raw_dataset.channelMap;
                 end
                 if isempty(channelMap)
-                    channelMap = Neuropixel.Utils.getDefaultChannelMapFile(true);
+                    % try default paths with ks.path
+                    channelMap = Neuropixel.Utils.searchForChannelMapInDirectory(ks.path);
+                    if channelMap == ""
+                        channelMap = Neuropixel.Utils.getDefaultChannelMapFile(true);
+                    end
                 end
             end
 
-            if ischar(channelMap)
+            if ischar(channelMap) || isstring(channelMap)
                 channelMap = Neuropixel.ChannelMap(channelMap);
             end
             ks.channelMap = channelMap;
@@ -2495,6 +2499,7 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
             p.addParameter('progressInitializeFn', [], @(x) isempty(x) || isa(x, 'function_handle')); % f(nUpdates) to print update
             p.addParameter('progressIncrementFn', [], @(x) isempty(x) || isa(x, 'function_handle')); % f(updateString) to print update
             p.addParameter('allowOverwriteSelf', false, @islogical);
+            p.addParameter('updateParamsDotPyDatPath', "", @isstringlike);
             p.parse(varargin{:});
 
             overwriteSelf = strcmp(outpath, ks.path);
@@ -2531,7 +2536,19 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
 
             if ~overwriteSelf
                 progIncrFn('Copying params.py');
-                copyfile(oldp('params.py'), newp('params.py'));
+                new_dat_path = string(p.Results.updateParamsDotPyDatPath);
+                if new_dat_path == ""
+                    % leave dat_path alone in params.py
+                    copyfile(oldp('params.py'), newp('params.py'));
+                else
+                    lines = readlines(oldp('params.py'));
+                    dat_path_line = find(startsWith(lines, "dat_path"), 1, 'last');
+                    if isempty(dat_path_line)
+                        error('Could not find line beginning with dat_path in params.py');
+                    end
+                    lines(dat_path_line) = sprintf("dat_path = '%s'", new_dat_path);
+                    writelines(lines, newp('params.py'));
+                end
             end
 
             if ~isempty(ks.ops)

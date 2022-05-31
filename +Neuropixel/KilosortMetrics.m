@@ -1777,7 +1777,7 @@ classdef KilosortMetrics < handle
             if nargin < 2
                 nBatch = m.nBatchesComputed;
             end
-                        cmap = Neuropixel.Utils.colorcet('d6', 'N', nBatch);
+            cmap = Neuropixel.Utils.colorcet('d6', 'N', nBatch);
 %             cmap = Neuropixel.Utils.cmocean('haline', nBatch);
         end
         
