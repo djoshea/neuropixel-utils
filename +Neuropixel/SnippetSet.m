@@ -11,6 +11,7 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
     
     properties
         data % (:, :, :, :) int16 % channels x time x snippets x layers - we deactivate the size checking here 
+        data_trust_mask logical % optional, same size as data indicating which data points are considered usable within data. If empty, all are valid
         
         % optional, set if each snippet corresponds to a specific cluster
         cluster_ids (:, 1) uint32 % nSnippets x 1, array indicating which cluster is extracted in each snippet, if this makes sense. otherwise will just be 1s
@@ -215,7 +216,7 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
     end
     
     methods % plotting
-        function [hdata, settings] = plotAtProbeLocations(ss, varargin)
+        function [hdata, settings, scale_info] = plotAtProbeLocations(ss, varargin)
             p = inputParser();
             % specify one of these 
             p.addParameter('cluster_ids', [], @(x) isempty(x) || isvector(x));
@@ -244,21 +245,31 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
             
             p.addParameter('showIndividual', true, @islogical); 
             p.addParameter('showMean', false, @islogical);
+            p.addParameter('showSem', false, @islogical);
+            p.addParameter('showStd', false, @islogical);
+
             p.addParameter('showMedian', false, @islogical);
-            p.addParameter('meanPlotArgs', {'LineWidth', 3}, @iscell); 
-            p.addParameter('medianPlotArgs', {'LineWidth', 3}, @iscell);
+            p.addParameter('showMad', false, @islogical);
+
+            p.addParameter('meanPlotArgs', {'LineWidth', 1}, @iscell); 
+            p.addParameter('medianPlotArgs', {'LineWidth', 1}, @iscell);
             
             p.addParameter('plotArgs', {'LineWidth', 0.5}, @iscell);
             
             p.addParameter('showChannelLabels', true, @islogical);
             p.addParameter('labelArgs', {}, @iscell);
             p.addParameter('alpha', 0.4, @isscalar);
+
+            p.addParameter('markChannelIds', [], @isvector); % if specified, these channels may be marked with a round symbol 
+            p.addParameter('markChannelColors', [0 0 0], @ismatrix); % nChannels x 3 colormap
+            p.addParameter('markChannelSize', 5, @isscalar);
+            p.addParameter('markChannelOffset', [0 0], @isvector);
             
             p.addParameter('xlim', [], @(x) true);
             p.addParameter('ylim', [], @(x) true);
             
             p.addParameter('colormap', get(groot, 'DefaultAxesColorOrder'), @(x) true);
-            
+
             p.addParameter('suppressWarnings', false, @islogical);
             p.addParameter('axh', [], @(x) true);
             p.KeepUnmatched = false;
@@ -281,9 +292,12 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
             axh = p.Results.axh;
             if isempty(axh), axh = gca; end
             
-            % plot relative time vector
-            tvec = linspace(0, xspacing * xmag, numel(ss.window(1) : ss.window(2)));
-            dt = tvec(2) - tvec(1);
+            % plot relative time vector in ms
+            nT = numel(ss.window(1) : ss.window(2));
+            tvec = linspace(0, xspacing * xmag, nT);
+            dt = tvec(2) - tvec(1); % dt is the actual delta x in plot
+
+            scale_info.x_to_ms = (1000 / ss.fs) / dt; 
             
             if ~isempty(specified_cluster_ids)
                 maskSnippets = ismember(ss.cluster_ids, specified_cluster_ids) & ss.valid;
@@ -323,6 +337,12 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
                 gain = yspacing * ymag ./ (minmax(2) - minmax(1));
             end
             data = data .* gain;
+            scale_info.y_to_uv = 1 ./ gain;
+
+            if ~isempty(ss.data_trust_mask)
+                data_trust_mask = ss.data_trust_mask(p.Results.maskChannels, p.Results.maskTime, maskSnippets);
+                data(~data_trust_mask) = NaN;
+            end
             
             if ~isempty(specified_cluster_ids)
                 % keep the list the same because colormap may be passed in
@@ -340,8 +360,8 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
                 nChannelsMaxPerCluster = min(nChannels, p.Results.maxChannelsPerCluster);
             end
             handlesIndiv = cell(nChannelsMaxPerCluster, nUniqueClusters);
-            handlesMean = gobjects(nChannelsMaxPerCluster, nUniqueClusters);
-            handlesMedian = gobjects(nChannelsMaxPerCluster, nUniqueClusters);
+            [handlesMean, handlesSem, handlesStd] = deal(gobjects(nChannelsMaxPerCluster, nUniqueClusters));
+            [handlesMedian, handlesMad] = deal(gobjects(nChannelsMaxPerCluster, nUniqueClusters));
             channels_plotted = false(ss.channelMap.nChannels, 1);
             
             cmap = p.Results.colormap;
@@ -406,22 +426,49 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
                 end
                 
                 if p.Results.showMean
-                    handlesMean(:, iClu) = plot(axh, tvec' + xc', squeeze(mean(data_plot, 2)), 'Color', cmap(cmapIdx, :), ...
+                    data_plot_mean = squeeze(mean(data_plot, 2, 'omitnan'));
+
+                    if p.Results.showSem
+                        data_plot_sem = squeeze(Neuropixel.Utils.sem(data_plot, 2));
+                        handlesSem(:, iClu) = Neuropixel.Utils.errorshadeInterval(tvec' + xc', data_plot_mean - data_plot_sem, data_plot_mean + data_plot_sem, ...
+                            cmap(cmapIdx, :), 'axh', axh);
+                        hold(axh, 'on');
+                        Neuropixel.Utils.hideInLegend(handlesSem(:, iClu));
+                    end
+
+                    if p.Results.showStd
+                        data_plot_std = squeeze(std(data_plot, 0, 2, 'omitnan'));
+                        handlesStd(:, iClu) = Neuropixel.Utils.errorshadeInterval(tvec' + xc', data_plot_mean - data_plot_std, data_plot_mean + data_plot_std, ...
+                            cmap(cmapIdx, :), 'axh', axh);
+                        hold(axh, 'on');
+                        Neuropixel.Utils.hideInLegend(handlesStd(:, iClu));
+                    end
+                    
+                    handlesMean(:, iClu) = plot(axh, tvec' + xc', data_plot_mean, 'Color', cmap(cmapIdx, :), ...
                         'AlignVertexCenters', true, p.Results.meanPlotArgs{:});
                     hold(axh, 'on');
+                    
                 end
                 if p.Results.showMedian
-                    handlesMedian(:, iClu) = plot(axh, tvec' + xc', squeeze(median(data_plot, 2)), 'Color', cmap(cmapIdx, :), ...
+                    data_plot_median = squeeze(median(data_plot, 2, 'omitnan'));
+                    if p.Results.showMad
+                        data_plot_mad = squeeze(mad(data_plot, 1, 2, 'omitnan'));
+                        handlesMad = Neuropixel.Utils.errorshadeInterval(tvec' + xc', data_plot_median - data_plot_mad, data_plot_median + data_plot_mad, ...
+                            cmap(cmapIdx, :), 'axh', axh);
+                        hold(axh, 'on');
+                        Neuropixel.Utils.hideInLegend(handlesMad);
+                    end
+                    handlesMedian(:, iClu) = plot(axh, tvec' + xc', data_plot_median, 'Color', cmap(cmapIdx, :), ...
                         'AlignVertexCenters', true, p.Results.medianPlotArgs{:});
                     hold(axh, 'on');
                 end
                 
                 if p.Results.showMean
-                        Neuropixel.Utils.showFirstInLegend(handlesMean(1, iClu), sprintf('cluster %d', this_cluster_id));
-                    elseif p.Results.showMedian
-                        Neuropixel.Utils.showFirstInLegend(handlesMedian(1, iClu), sprintf('cluster %d', this_cluster_id));
-                    else
-                        Neuropixel.Utils.showFirstInLegend(handlesIndiv{1, iClu}, sprintf('cluster %d', this_cluster_id));
+                    Neuropixel.Utils.showFirstInLegend(handlesMean(1, iClu), sprintf('cluster %d', this_cluster_id));
+                elseif p.Results.showMedian
+                    Neuropixel.Utils.showFirstInLegend(handlesMedian(1, iClu), sprintf('cluster %d', this_cluster_id));
+                else
+                    Neuropixel.Utils.showFirstInLegend(handlesIndiv{1, iClu}, sprintf('cluster %d', this_cluster_id));
                 end
 % 
 %                 for iC = 1:nChannelsMaxPerCluster
@@ -465,9 +512,32 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
                 
                 for iC = 1:ss.channelMap.nChannels
                     if channels_plotted(iC)
-                        text(xc(iC), yc(iC), sprintf('ch %d', ss.channelMap.channelIds(iC)), ...
-                            'Parent', axh, 'HorizontalAlignment', 'right', 'VerticalAlignment', 'middle', ...
+                        text(xc(iC), yc(iC), sprintf('ch %d ', ss.channelMap.channelIds(iC)), ...
+                            'Parent', axh, 'HorizontalAlignment', 'right', 'VerticalAlignment', 'middle', 'Background', 'none',  ...
                             p.Results.labelArgs{:});
+                    end
+                end
+            end
+
+            if ~isempty(p.Results.markChannelIds)
+                xc = ss.channelMap.xcoords + xoffset + p.Results.markChannelOffset(1);
+                yc = ss.channelMap.ycoords + yoffset + yspacing/2 +  p.Results.markChannelOffset(2); 
+                
+                markChannels = p.Results.markChannelIds;
+                markColors = p.Results.markChannelColors;
+                nMark = numel(markChannels);
+                [tf, markChannelInds] = ismember(markChannels, ss.channelMap.channelIds);
+                assert(all(tf), 'Some markChannels could not be found in channelMap');
+                if size(markColors, 1) == 1
+                    markColors = repmat(markColors, nMark, 1);
+                end
+
+                handlesMarkChannels = gobjects(nMark, 1);
+                for iM = 1:nMark
+                    ind = markChannelInds(iM);
+                    if channels_plotted(ind)
+                        handlesMarkChannels(iM) = plot(xc(ind), yc(ind), 'o', MarkerFaceColor=markColors(iM, :), ...
+                            MarkerEdgeColor="none", MarkerSize=p.Results.markChannelSize);
                     end
                 end
             end
@@ -493,7 +563,21 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
 %             end
             
             hdata.waveforms = handlesIndiv;
-            hdata.waveformMeans = handlesMean;
+            if p.Results.showMean
+                hdata.waveformMeans = handlesMean;
+            end
+            if p.Results.showSem
+                hdata.waveformSem = handlesSem;
+            end
+            if p.Results.showStd
+                hdata.waveformStd = handlesStd;
+            end
+            if p.Results.showMedian
+                hdata.waveformMedian = handlesMedian;
+            end
+            if p.Results.showMad
+                hdata.waveformMad = handlesMad;
+            end
             
             settings.ymag = ymag;
             settings.xmag = xmag;
