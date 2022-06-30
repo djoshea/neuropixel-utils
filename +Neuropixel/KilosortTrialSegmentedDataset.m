@@ -272,7 +272,7 @@ classdef KilosortTrialSegmentedDataset < handle & matlab.mixin.Copyable
                 seg.spike_trial_ind = Neuropixel.Utils.TensorUtils.splitAlongDimensionBySubscripts(...
                     local_trial_ind_each_spike(spike_mask), 1, [nTrialsSegment, nUnitsSegment], subs(spike_mask, :));
                 if loadCutoff
-                    seg.cutoff_spike_trial_ind = Neuropixel.Utils.TensorUtils.splitAlongDimensionBySubscripts(...
+                    seg.cutoff_spike_trial_inds = Neuropixel.Utils.TensorUtils.splitAlongDimensionBySubscripts(...
                         cutoff_local_trial_ind_each_spike(cutoff_spike_mask), 1, [nTrialsSegment, nUnitsSegment], cutoff_subs(cutoff_spike_mask, :));
                 end
             end
@@ -477,6 +477,7 @@ classdef KilosortTrialSegmentedDataset < handle & matlab.mixin.Copyable
             p.addParameter('cluster_ids', seg.cluster_ids, @isvector); % which clusters each column of mask_cell correspond to
             p.addParameter('channel_ids_by_cluster', [], @(x) isempty(x) || ismatrix(x)); % specify a subset of channels to extract
             p.addParameter('best_n_channels', NaN, @isscalar); % or take the best n channels based on this clusters template when cluster_id is scalar
+            p.addParameter('data_distrust_mask', [], @(x) isempty(x) || islogical(x)); % if provided, these samples will be flagged when included in snippets via ss.data_trust_mask
 
             % other params:
             p.addParameter('window', [-40 41], @isvector); % Number of samples before and after spiketime to include in waveform
@@ -484,11 +485,18 @@ classdef KilosortTrialSegmentedDataset < handle & matlab.mixin.Copyable
             p.addParameter('centerUsingFirstSamples', 20, @(x) isscalar(x) || islogical(x)); % subtract mean of each waveform's first n samples, don't do if false
             p.addParameter('num_waveforms', Inf, @isscalar); % caution: Inf will request ALL waveforms in order (typically useful if spike_times directly specified)
 
-            p.addParameter('subtractOtherClusters', false, @islogical); % time consuming step to remove the contribution of the other clusters to a given snippet
-
+            p.addParameter('primary_template_only', true, @islogical); % only sample waveforms that use the clusters primary template
+            
+            % time consuming step to remove the contribution of the other clusters to a given snippet. 
+            % "auto" uses a mode that subtracts only if it decreases the waveform's variance
+            p.addParameter('subtractOtherClusters', false, @(x) islogical(x) || isstringlike(x)); 
+            p.addParameter('excludeClusterFromOwnReconstruction', true, @islogical); % avoid reconstructing a cluster with itself (set false if a cell has many spikes in close proximity
+             
             p.addParameter('raw_dataset', seg.raw_dataset, @(x) true);
             p.addParameter('fromSourceDatasets', false, @islogical); % go all the way back to the imecDatasets that were concatenated to form ks.raw_dataset
             p.addParameter('from_cutoff_spikes', false, @islogical);
+            p.addParameter('random_seed', 'shuffle');
+
             p.parse(varargin{:});
 
             % lookup cluster_ids from
@@ -506,7 +514,16 @@ classdef KilosortTrialSegmentedDataset < handle & matlab.mixin.Copyable
             assert(size(mask_cell, 1) == seg.nTrials, 'mask_cell must be nTrials along dim 1');
             assert(size(mask_cell, 2) == nClu, 'mask_cell must be nClusters along dim 2');
 
-%             % assemble spike_times we want to collect, all at once
+            % check that mask sizes match
+            idx = seg.spike_idx(:, cluster_ind);
+            for iT = 1:seg.nTrials
+                for iC = 1:nClu
+                    assert(numel(idx{iT, iC}) == numel(mask_cell{iT, iC}), 'Spike mask_cell{%d, %d} mismatched with seg.spike_idx, trial id %d, cluster id %d', ...
+                        iT, iC, seg.trial_ids(iT), cluster_ids(iC));
+                end
+            end
+                
+            % assemble spike_times we want to collect, all at once
             if ~p.Results.from_cutoff_spikes
                 masked_spike_idx = cellfun(@(spike_idx, mask) spike_idx(mask), seg.spike_idx(:, cluster_ind), mask_cell, 'UniformOutput', false);
             else
