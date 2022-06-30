@@ -1577,18 +1577,21 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
              p.addParameter('channel_ids', [], @(x) isempty(x) || isvector(x));
              p.addParameter('channel_ids_by_cluster', [], @(x) isempty(x) || ismatrix(x));
              p.addParameter('best_n_channels', NaN, @isscalar); % or take the best n channels based on this clusters template when cluster_id is scalar
-
+    
              % if specified, spikes times will be filtered within this window
              p.addParameter('filter_window', [], @(x) isempty(x) || isvector(x));
 
              % other params:
              p.addParameter('num_waveforms', Inf, @isscalar); % caution: Inf will request ALL waveforms in order (typically useful if spike_times directly specified)
              p.addParameter('subselect_waveforms_mode', "random", @isstringlike); % modes include "random", "first". When num_waveforms is infinite, how to pick the ones we keep
-             
+             p.addParameter('random_seed', 'shuffle'); 
+             p.addParameter('primary_template_only', true, @islogical); % only sample waveforms that use each cluster's primary template
+            
              p.addParameter('window', [-40 41], @isvector); % Number of samples before and after spiketime to include in waveform
              p.addParameter('car', false, @islogical);
              p.addParameter('centerUsingFirstSamples', 20, @(x) isscalar(x) || islogical(x)); % subtract mean of each waveform's first n samples, don't do if false
-             p.addParameter('subtractOtherClusters', false, @islogical); % time consuming step to remove the contribution of the other clusters to a given snippet
+             p.addParameter('subtractOtherClusters', false, @(x) islogical(x) || isstringlike(x)); % time consuming step to remove the contribution of the other clusters to a given snippet. Auto is a mode that subtracts only if it decreases the wavefroms variance
+             p.addParameter('excludeClusterFromOwnReconstruction', true, @islogical); % avoid reconstructing a cluster with itself (set false if a cell has many spikes in close proximity
              p.addParameter('applyScaling', false, @islogical); % scale to uV
              
              p.addParameter('band', 'ap', @ischar); % 'ap' or 'lf'
@@ -1597,6 +1600,8 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
 
              % other metadata set in snippetSet
              p.addParameter('trial_idx', [], @isvector);
+
+             p.addParameter('data_distrust_mask', [], @(x) isempty(x) || islogical(x)); % if provided, these samples will be flagged when included in snippets via ss.data_trust_mask
 
              p.addParameter('from_cutoff_spikes', false, @islogical);
 
@@ -1701,6 +1706,18 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                  mask = mask & spike_times >= uint64(filter_window(1)) & spike_times <= uint64(filter_window(2));
              end
 
+             if ~isempty(p.Results.primary_template_only)
+                 % filter only spikes that use its cluster's primary template
+                 which_cluster_id = ks.spike_clusters(spike_idx);
+                 which_template = ks.spike_templates(spike_idx);
+
+                 metrics = ks.computeMetrics();
+                 which_cluster_ind = metrics.lookup_clusterIds(which_cluster_id);
+                 which_template_primary = metrics.cluster_template_mostUsed(which_cluster_ind);
+                 
+                 mask = mask & which_template == which_template_primary;
+             end
+
              % apply mask
              spike_idx = spike_idx(mask);
              spike_times = spike_times(mask);
@@ -1745,6 +1762,7 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
 
              % take max of num_waveforms from each cluster
              subselect_waveforms_mode = string(p.Results.subselect_waveforms_mode);
+             rs = RandStream('mt19937ar','Seed', p.Results.random_seed);
              if isfinite(p.Results.num_waveforms)
                  mask = false(numel(spike_idx), 1);
                  nSample = p.Results.num_waveforms;
@@ -1758,7 +1776,7 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                          % TODO: might want to add more intelligent subselection modes here, e.g. for sampling evenly with respect to batches
                          switch subselect_waveforms_mode
                              case "random"
-                                 mask(thisC(randsample(numel(thisC), nSample, false))) = true;
+                                 mask(thisC(randsample(rs, numel(thisC), nSample, false))) = true;
                              case "first"
                                  mask(thisC(1:nSample)) = true;
                              case "largest"
@@ -1824,14 +1842,33 @@ classdef KilosortDataset < handle & matlab.mixin.Copyable
                  'car', p.Results.car, 'fromSourceDatasets', p.Results.fromSourceDatasets, ...
                  'average_by_cluster_id', average_by_cluster_id, ...
                  'average_by_group_id', average_by_group_id, 'group_ids', group_ids, ...
-                 'applyScaling', p.Results.applyScaling);
+                 'applyScaling', p.Results.applyScaling, ...
+                 'data_distrust_mask', p.Results.data_distrust_mask);
              snippetSet.trial_idx = trial_idx;
              snippetSet.ks = ks;
 
-             if p.Results.subtractOtherClusters
+             subtractOtherClusters = p.Results.subtractOtherClusters;
+             subtractOtherClustersAuto = false;
+             if ~islogical(subtractOtherClusters)
+                 if strcmpi(subtractOtherClusters, "auto")
+                     subtractOtherClusters = true;
+                     subtractOtherClustersAuto = true;
+                 else
+                     error('Unknown value for subtractOtherClusters. Supported values are true, false and "auto"')
+                 end
+             end
+             if subtractOtherClusters
                  reconstructionFromOtherClusters = ks.reconstructSnippetSetFromTemplates(snippetSet, ...
-                     'excludeClusterFromOwnReconstruction', true);
-                 snippetSet.data = snippetSet.data - reconstructionFromOtherClusters.data;
+                     'excludeClusterFromOwnReconstruction', p.Results.excludeClusterFromOwnReconstruction);
+                 % nChannels x time x nSnippets
+                 candidate = snippetSet.data - reconstructionFromOtherClusters.data;
+                 if subtractOtherClustersAuto
+                     % apply only if the subtraction reduces a given snippet's variance
+                     mask_apply = var(single(snippetSet.data), 0, [1 2]) >= var(single(candidate), 0, [1 2]);
+                     snippetSet.data(:, :, mask_apply) = candidate(:, :, mask_apply);
+                 else
+                    snippetSet.data = candidate;
+                 end
              end
 
              if p.Results.centerUsingFirstSamples
