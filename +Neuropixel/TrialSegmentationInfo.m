@@ -60,6 +60,18 @@ classdef TrialSegmentationInfo < handle & matlab.mixin.Copyable
             mask = tsi.trialId >= trialIdLims(1) & tsi.trialId <= trialIdLims(2);
             tsi.maskTrials(mask);
         end
+
+        function maskTimeWindowMsWithinTrial(tsi, offsetMsStart, offsetMsStop)
+            % reduces the size of each trial to a specific time window within each trial relative to start
+            assert(numel(offsetMsStart) == tsi.nTrials);
+            assert(numel(offsetMsStop) == tsi.nTrials);
+
+            offsetSampleStart = int64(round(double(offsetMsStart) * double(tsi.fs) / 1000));
+            offsetSampleStop = int64(round(double(offsetMsStop) * double(tsi.fs) / 1000));
+            start = int64(tsi.idxStart);
+            tsi.idxStart = uint64(start + offsetSampleStart);
+            tsi.idxStop = uint64(start + offsetSampleStop);
+        end
         
         function tf = get.trialsAreAdjacent(tsi)
             % true if each trial's stop == next trial's start (or within one sample
