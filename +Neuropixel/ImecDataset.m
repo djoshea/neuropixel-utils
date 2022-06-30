@@ -1115,7 +1115,7 @@ classdef ImecDataset < handle
     end
 
     methods(Hidden) % Read data at specified times
-        function [data_ch_by_time_by_snippet, cluster_ids, channel_ids_by_snippet, scaleToUv_by_snippet, group_ids] = readSnippetsRaw(imec, times, window, varargin)
+        function [data_ch_by_time_by_snippet, cluster_ids, channel_ids_by_snippet, scaleToUv_by_snippet, group_ids, data_trust_mask] = readSnippetsRaw(imec, times, window, varargin)
             % for each sample index in times, read the window times + window(1):window(2)
             % of samples around this time from some channels
 
@@ -1145,6 +1145,8 @@ classdef ImecDataset < handle
             
             p.addParameter('applyScaling', false, @islogical); % scale to uV and return single
             p.addParameter('scaleSourceToMatch', false, @islogical); % when fromSourceDatasets is true, scale the raw data to match the scaling of the cleaned datsets
+
+            p.addParameter('data_distrust_mask', [], @(x) isempty(x) || islogical(x)); % if provided, these samples will be flagged when included in snippets via ss.data_trust_mask
             p.parse(varargin{:});
 
             channel_ids = p.Results.channel_ids;
@@ -1200,7 +1202,12 @@ classdef ImecDataset < handle
             if isempty(syncFromSource)
                 syncFromSource = fromSourceDatasets;
             end
-            
+
+            data_distrust_mask = p.Results.data_distrust_mask;
+            use_distrust_mask = ~isempty(data_distrust_mask);
+
+            do_center = p.Results.center;
+            do_car = p.Results.car;
             
             switch band
                 case 'ap'
@@ -1269,6 +1276,17 @@ classdef ImecDataset < handle
             nC = size(channel_ids_by_snippet, 1);
             nC_all = imec.nChannels;
             nS = numel(times); % actual number of input snippets extracted
+
+            if use_distrust_mask
+                if size(data_distrust_mask, 1) == nC_all - 1
+                    % doesn't include sync
+                    nC_all_distrust = nC_all - 1;
+                else
+                    assert(size(data_distrust_mask, 1) == nC_all, 'data_distrust_mask channel count must be %d or %d', nC_all - 1, nC_all);
+                    nC_all_distrust = nC;
+                end
+                assert(size(data_distrust_mask, 2) == size(mm.Data.x, 2), 'data_distrust_mask timepoints does not match data');
+            end
             
             % nS out is the accumulated number of output snippets (equals nS or number of clusters if we're averaging)
             if average_by_cluster_id
@@ -1317,7 +1335,11 @@ classdef ImecDataset < handle
             end
             
             out = zeros(nC, nT, nS_out, outClass);
-            accum_counter = zeros(nS_out, 1);
+            if use_distrust_mask
+                accum_trust_counter = zeros(nC, nT, nS_out);
+            else
+                accum_counter = zeros(nS_out, 1);
+            end
             
             if ~fromSourceDatasets
                 scaleToUv_by_snippet = repmat(single(scaleToUv), nS_out, 1);
@@ -1375,14 +1397,21 @@ classdef ImecDataset < handle
                     end
                 end
                 
-                if p.Results.car
+                if do_car
                     ar = median(extract_all_ch(good_ch_inds, :, :), 1);
                 else
                     ar = zeros([1 nT nS_this], 'like', extract_all_ch);
                 end
 
+                if use_distrust_mask
+                    distrust_all_ch = reshape(full(data_distrust_mask(:, idx_request_this(:))), [nC_all_distrust, nT, nS_this]);
+                end
+
                 for iiS = 1:nS_this
                     this_extract =  extract_all_ch(channel_inds_by_snippet(:, idxS(iiS)), :, iiS);
+                    if use_distrust_mask
+                        this_distrust = distrust_all_ch(channel_inds_by_snippet(:, idxS(iiS)), :, iiS);
+                    end
                     
                     % optionally insert sync from separate dataset, and track it so we don't apply numerical computations to sync line
                     mask_sync = channel_inds_by_snippet(:, idxS(iiS)) == syncChannelIndex;
@@ -1401,16 +1430,30 @@ classdef ImecDataset < handle
                         % this would scale the source data to match the cleaned data while keeping everything int16
                         this_extract(mask_scale, :) = this_extract(mask_scale, :) * sourceToDestScaling_by_snippet(idxInsert(iiS));
                     end
-                    if p.Results.center
-                        this_extract(mask_scale, :) = this_extract(mask_scale, :) - median(this_extract(mask_scale, :), 2);
+                    if do_center
+                        if use_distrust_mask
+                            % exclude distrust from median calculation
+                            temp = cast(this_extract(mask_scale, :), 'single');
+                            temp(this_distrust(mask_scale, :)) = NaN;
+                            this_extract(mask_scale, :) = this_extract(mask_scale, :) - cast(median(temp, 2, 'omitnan'), 'like', this_extract);
+                        else
+                            this_extract(mask_scale, :) = this_extract(mask_scale, :) - median(this_extract(mask_scale, :), 2);
+                        end
                     end
                     % scale before accumulating
                     if ~isempty(average_weight)
                         this_extract(mask_scale, :) = this_extract(mask_scale, :) * average_weight(idxS(iiS));
                     end
                     if mask_request_okay_this(iiS)
-                        out(:, :, idxInsert(iiS)) = out(:, :, idxInsert(iiS)) + cast(this_extract, outClass); % which channels for this spike
-                        accum_counter(idxInsert(iiS)) = accum_counter(idxInsert(iiS)) + 1;
+                        if use_distrust_mask
+                            % track a separate accumulator for each entry and zero the distrusted data before adding
+                            this_extract(this_distrust) = 0;
+                            out(:, :, idxInsert(iiS)) = out(:, :, idxInsert(iiS)) + cast(this_extract, outClass); % which channels for this spike
+                            accum_trust_counter(:, :, idxInsert(iiS)) = accum_trust_counter(:, :, idxInsert(iiS)) + ~this_distrust;
+                        else
+                            out(:, :, idxInsert(iiS)) = out(:, :, idxInsert(iiS)) + cast(this_extract, outClass); % which channels for this spike
+                            accum_counter(idxInsert(iiS)) = accum_counter(idxInsert(iiS)) + 1;
+                        end
                     end
                 end
                
@@ -1419,9 +1462,23 @@ classdef ImecDataset < handle
             
             if average_by_cluster_id || average_by_group_id
                  % divide the accumulator by the number of units, don't divide by the sum of average_weights, this is treated as normalized already
-                 out = out ./ shiftdim(accum_counter, -2);
+                 if use_distrust_mask
+                     out = out ./ accum_trust_counter;
+                 else
+                    out = out ./ shiftdim(accum_counter, -2);
+                 end
             else
                 out(:, ~mask_idx_okay(:)) = 0;
+            end
+            if use_distrust_mask
+                out_trust_mask = accum_trust_counter > 0;
+                if isfloat(out)
+                    out(~out_trust_mask) = NaN;
+                else
+                    out(~out_trust_mask) = 0;
+                end
+            else
+                out_trust_mask = [];
             end
             
             if applyScaling
@@ -1429,16 +1486,18 @@ classdef ImecDataset < handle
                 scaleToUv_by_snippet(:) = 1;
             end
             data_ch_by_time_by_snippet = out;
+            data_trust_mask = out_trust_mask;
             if ~isempty(prog), prog.finish(); end
         end
     end
     
     methods  % Read data at specified times
         function snippet_set = readSnippetSet(imec, band, times, window, varargin)
-            [data_ch_by_time_by_snippet, cluster_ids, channel_ids_by_snippet, scaleToUv_by_snippet, group_ids] = ...
+            [data_ch_by_time_by_snippet, cluster_ids, channel_ids_by_snippet, scaleToUv_by_snippet, group_ids, data_trust_mask] = ...
                 imec.readSnippetsRaw(times, window, 'band', band, varargin{:});
             snippet_set = Neuropixel.SnippetSet(imec, band);
             snippet_set.data = data_ch_by_time_by_snippet;
+            snippet_set.data_trust_mask = data_trust_mask;
             snippet_set.scaleToUv = scaleToUv_by_snippet;
             snippet_set.sample_idx = times;
             snippet_set.channel_ids_by_snippet = channel_ids_by_snippet;
