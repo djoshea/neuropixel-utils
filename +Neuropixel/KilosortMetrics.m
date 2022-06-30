@@ -168,6 +168,9 @@ classdef KilosortMetrics < handle
         cluster_signed_peak % nClusters x 1
         
         cluster_signed_extr_ratio % ratio of trough to peak ratio, sign matches which one is bigger
+
+        template_cluster_list % nTemplates { nClustersThisTemplate x 1 }
+        template_cluster_mostUsed % nTemplates x 1 - which cluster id uses this cluster the most, NaN if none
     end
     
     methods % Constructor / metrics and batchwise metrics computation
@@ -338,8 +341,13 @@ classdef KilosortMetrics < handle
             m.cluster_template_weight = single(m.cluster_template_useCount) ./ single(ks.cluster_spike_counts);
             m.cluster_template_weight(isnan(m.cluster_template_weight)) = 0;
             
-            [~, m.cluster_template_mostUsed] = max(m.cluster_template_useCount, [], 2);
-            m.cluster_best_channels = m.template_best_channels(m.cluster_template_mostUsed, :);
+            [nUses, cluster_template_mostUsed] = max(m.cluster_template_useCount, [], 2);
+
+            m.cluster_template_mostUsed = nan(m.nClusters, 1, 'single');
+            m.cluster_template_mostUsed(nUses > 0) = cluster_template_mostUsed(nUses > 0);            
+
+            m.cluster_best_channels = nan(m.nClusters, size(m.template_best_channels, 2), 'single');
+            m.cluster_best_channels(nUses > 0, :) = m.template_best_channels(m.cluster_template_mostUsed(nUses > 0), :);
             
             m.cluster_num_templates = sum(m.cluster_template_useCount > 0, 2);
             maxTemplatesPerCluster = max(m.cluster_num_templates);
@@ -615,6 +623,23 @@ classdef KilosortMetrics < handle
         function assertHasKs(m)
             assert(~isempty(m.ks), 'Must set .ks to KilosortDataset');
         end
+
+        function cluster_id_lists = get.template_cluster_list(m)
+            cluster_id_lists = cell(m.nTemplates, 1);
+            for iT = 1:m.nTemplates
+                cluster_id_lists{iT} = m.cluster_ids(m.cluster_template_useCount(:, iT));
+            end
+        end
+
+        function cluster_ids = get.template_cluster_mostUsed(m)
+            cluster_ids = nan(m.nTemplates, 1, 'single');
+            for iT = 1:m.nTemplates
+                [nUses, cluster_ind] = max(m.cluster_template_useCount(:, iT));
+                if nUses > 1
+                    cluster_ids(iT) = m.cluster_ids(cluster_ind);
+                end
+            end
+        end
     end
     
     methods % Convenience methods
@@ -627,6 +652,62 @@ classdef KilosortMetrics < handle
             
             channel_ids_by_cluster = m.cluster_best_channels(cluster_inds, 1:n_best_each);
             channel_ids_unique = unique(channel_ids_by_cluster(:));
+        end
+    end
+
+    methods % Find clusters on channel
+        function [templates, template_amp_by_ch, templates_scaled] = identifyTemplatesOnChannel(m, channel_ids, varargin)
+            p = inputParser();
+            p.addParameter('best_n_channels', NaN, @isscalar); % up to 24
+            p.addParameter('largest_n', Inf, @isscalar);
+            p.addParameter('min_amplitude', 0, @isscalar);
+            p.parse(varargin{:});
+
+            [channel_inds, channel_ids] = m.lookup_channelIds(channel_ids);
+
+             % figure out actual channels requested
+            if isfinite(p.Results.best_n_channels)
+                channel_ids_by_template = m.template_best_channels(:, 1:p.Results.best_n_channels);
+            else
+                channel_ids_by_template = m.template_best_channels;
+            end
+            
+            template_ch_in_list = ismember(channel_ids_by_template, channel_ids); % nTemplates x nChannels
+            templates = find(any(template_ch_in_list, 2));
+
+            % compute amplitude on each channel
+            template_amp_by_ch = nan(numel(templates), numel(channel_ids), 'single');
+            templates_scaled = nan(numel(templates), size(m.template_scaled, 2), numel(channel_inds), 'single');
+            for iT = 1:numel(templates)
+                template_amp_by_ch(iT, :) = permute(max(m.template_scaled(iT, :, channel_inds), [], 2), [1 3 2]);
+                templates_scaled(iT, :, :) = m.template_scaled(iT, :, channel_inds);
+            end
+
+            if ~isnan(p.Results.min_amplitude)
+                mask = template_amp_by_ch > p.Results.min_amplitude;
+                templates = templates(mask);
+                template_amp_by_ch = template_amp_by_ch(mask, :);
+                templates_scaled = templates_scaled(mask, :, :);
+            end
+            
+            % sort by max amp
+            template_max_amp = max(template_amp_by_ch, [], 2);
+            [~, sortInd] = sort(template_max_amp, 'descend');
+
+            if isfinite(p.Results.largest_n) && numel(template_max_amp) > p.Results.largest_n
+                sortInd = sortInd(1:p.Results.largest_n);
+            end
+
+            templates = templates(sortInd);
+            template_amp_by_ch = template_amp_by_ch(sortInd, :);
+            templates_scaled = templates_scaled(sortInd, :, :);
+        end
+
+        function [cluster_ids, cluster_amp_by_ch, templates_scaled] = identifyClustersOnChannel(m, channel_ids, varargin)
+            [templates, template_amp_by_ch, templates_scaled] = m.identifyTemplatesOnChannel(channel_ids, varargin{:});
+    
+            cluster_ids = m.template_cluster_mostUsed(templates);
+            cluster_amp_by_ch = template_amp_by_ch;
         end
     end
     
