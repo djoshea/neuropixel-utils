@@ -684,7 +684,7 @@ classdef KilosortMetrics < handle
             end
 
             if ~isnan(p.Results.min_amplitude)
-                mask = template_amp_by_ch > p.Results.min_amplitude;
+                mask = any(template_amp_by_ch > p.Results.min_amplitude, 2); % templates x channels
                 templates = templates(mask);
                 template_amp_by_ch = template_amp_by_ch(mask, :);
                 templates_scaled = templates_scaled(mask, :, :);
