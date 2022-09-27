@@ -16,10 +16,16 @@ classdef ChannelMap
         
         syncChannelIndex (:, 1) uint32 % actual index in the AP & LF bin file
         syncChannelId (:, 1) uint32 % arbitrary channel id, typically the same as index
+
+        % version 1 uses 32 ADC that sample 12 channels each
+        channelsPerADC (1, 1) {mustBeInteger} = 32;
     end
     
     properties(Dependent)
         coords
+
+        adcMap (:, 1) uint32 % which adc does each channel belong to (nChannelsMapped x 1)
+        adcSampleShift (:, 1) double % fraction of the sample interval each channel is delayed by (nChannelsMapped x 1)
         
         syncInAPFile
         syncInLFFile
@@ -157,6 +163,36 @@ classdef ChannelMap
     end
     
     methods
+        function adcMap = get.adcMap(map)
+            % set adcBankProperty, based on https://github.com/int-brain-lab/ibl-neuropixel/blob/main/src/neuropixel.py 
+            %     The sampling is serial within the same ADC, but it happens at the same time in all ADCs.
+            %     The ADC to channel mapping is done per odd and even channels:
+            %     ADC1: ch1, ch3, ch5, ch7...
+            %     ADC2: ch2, ch4, ch6....
+            %     ADC3: ch33, ch35, ch37...
+            %     ADC4: ch34, ch36, ch38...
+            %     Therefore, channels 1, 2, 33, 34 get sample at the same time
+
+            %     version 1 uses 32 ADC that sample 12 channels each
+            adc_channels = map.channelsPerADC;
+            n_adc = map.nChannelsMapped / adc_channels;
+            assert(n_adc == round(n_adc), 'Fix adc mapping for this version');
+
+            cind = (0:map.nChannelsMapped-1)';
+            adcMap = floor(cind / (adc_channels * 2)) * 2 + mod(cind, 2) + 1;
+        end
+
+        function adcSampleShift = get.adcSampleShift(map)
+            adc_channels = map.channelsPerADC;
+
+            adcSampleShift = zeros(map.nChannelsMapped, 1);
+            adc = map.adcMap;
+            n_adc = max(adc);
+            for iA = 1:n_adc
+                adcSampleShift(adc == iA) = (0:adc_channels-1)' / adc_channels;
+            end
+        end
+
         function tf = get.syncInAPFile(map)
             tf = ~isempty(map.syncChannelIndex);
         end
