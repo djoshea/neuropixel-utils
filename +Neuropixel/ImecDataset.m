@@ -242,7 +242,9 @@ classdef ImecDataset < handle
             end
             
             % copy snsShankMap in case needed for building channel map
-            imec.snsShankMap = meta.snsShankMap;
+            if isfield(meta, 'snsShankMap')
+                imec.snsShankMap = meta.snsShankMap;
+            end
 
             % look at AP meta fields that might have been set by us
             if isfield(meta, 'badChannels') && ~isempty(meta.badChannels)
@@ -868,7 +870,11 @@ classdef ImecDataset < handle
                 showSync = false;
             end
             syncBits = p.Results.syncBits;
-            if ~isempty(syncBits) && showSync
+            
+            if showSync
+                if isempty(syncBits)
+                    syncBits = 1:imec.nSyncBits;
+                end
                 % make sure we grab sync from the matching band
                 if compareSource
                     sync_this = imec.readSyncBits_idx(syncBits, sampleIdx, 'fromSourceDatasets', false, 'band', band);
@@ -1246,7 +1252,7 @@ classdef ImecDataset < handle
                     end
                     
                     % do we need to specially handle the sync channel?
-                    if syncFromSource ~= fromSourceDatasets  && syncInChannelInds
+                    if syncFromSource ~= fromSourceDatasets && syncInChannelInds
                         handleSyncSeparately = true;
                         if ~syncFromSource
                             mmSync = imec.memmapLF_full();
@@ -1254,7 +1260,7 @@ classdef ImecDataset < handle
                             mmSetSync = imec.memmap_sourceLF_full();
                         end
                      else
-                         handleSyncSeparately = true;
+                         handleSyncSeparately = false;
                      end
                     
                 otherwise
@@ -1517,6 +1523,7 @@ classdef ImecDataset < handle
         function rms = computeRMSByChannel(imec, varargin)
             % output will be nMappedChannels x 1 vector of rms
             p = inputParser();
+            p.addParameter('band', 'ap', @Neuropixel.Utils.isstringlike);
             p.addParameter('sampleMaskFn', [], @(x) isempty(x) || isa(x, 'function_handle')); % sampleMaskFn(data_ch_x_time, sample_idx_time) --> logical_time mask of time samples valid for use, useful if you have artifacts at known times
             p.addParameter('car', false, @islogical);
             p.addParameter('useChunks', 50, @isscalar);
@@ -1526,8 +1533,20 @@ classdef ImecDataset < handle
             sampleMaskFn = p.Results.sampleMaskFn;
             
             % aim for the middle of the file
-            chunkSize = min(imec.fsAP, p.Results.chunkSize);
-            mm = imec.memmapAP_by_chunk(chunkSize);
+            band = string(p.Results.band);
+
+            switch band
+                case "ap"
+                    chunkSize = round(min(imec.fsAP, p.Results.chunkSize));
+                    mm = imec.memmapAP_by_chunk(chunkSize);
+                    scaleToUv = imec.apScaleToUv;
+                case "lf"
+                    chunkSize = round(min(imec.fsLF, p.Results.chunkSize));
+                    mm = imec.memmapLF_by_chunk(chunkSize);
+                    scaleToUv = imec.lfScaleToUv;
+                otherwise
+                    error("Unknown band");
+            end
             nChunks = numel(mm.Data);
             useChunks = min(nChunks, p.Results.useChunks);
             skipChunks = floor((nChunks-useChunks)/2);
@@ -1556,7 +1575,7 @@ classdef ImecDataset < handle
             rms = sqrt(sum(sumByChunk, 2) ./ (useChunks * chunkSize));
             
             rms = rms(ch_mask); % only return mapped channels
-            rms = rms * imec.apScaleToUv;
+            rms = rms * scaleToUv;
         end
     end
 
@@ -1896,14 +1915,20 @@ classdef ImecDataset < handle
     methods % Marking Channels as bad
             function [rmsBadChannels, rmsByChannel] = markBadChannelsByRMS(imec, varargin)
             p = inputParser();
+            p.addParameter('band', 'ap', @Neuropixel.Utils.isstringlike);
             p.addParameter('rmsRange', [3 100], @isvector);
             p.addParameter('sampleMaskFn', [], @(x) isempty(x) || isa(x, 'function_handle')); % sampleMaskFn(data_ch_x_time, sample_idx_time) --> logical_time mask of time samples valid for use, useful if you have artifacts at known times
+            p.addParameter('printMessage', false, @islogical);
             p.parse(varargin{:});
 
-            rmsByChannel = imec.computeRMSByChannel('sampleMaskFn', p.Results.sampleMaskFn);
+            rmsByChannel = imec.computeRMSByChannel('band', p.Results.band, 'sampleMaskFn', p.Results.sampleMaskFn);
             rmsMin = p.Results.rmsRange(1);
             rmsMax = p.Results.rmsRange(2);
             rmsBadMask = rmsByChannel < rmsMin | rmsByChannel > rmsMax;
+
+            if p.Results.printMessage
+                fprintf('Marking %d / %d channels bad with RMS outside [%g %g] uV\n', nnz(rmsBadMask), numel(rmsByChannel), rmsMin, rmsMax);
+            end
             
             badMappedChannels = imec.mappedChannels(rmsBadMask);
             badConnectedChannels = badMappedChannels(ismember(badMappedChannels, imec.connectedChannels));
@@ -2356,9 +2381,9 @@ end
             tf = numel(candidates) == 1;
         end
 
-        function file = findImecFileInDir(fileOrFileStem, type, returnMultiple, errorIfNotFound)
+        function file = findImecFileInDir(fileOrFileStem, search_type, returnMultiple, errorIfNotFound)
             if nargin < 2
-                type = 'ap';
+                search_type = 'ap';
             end
             if nargin < 3
                 returnMultiple = false;
@@ -2371,11 +2396,23 @@ end
             if exist(fileOrFileStem, 'file') == 2
                 file = fileOrFileStem;
                 [~, ~, type] = Neuropixel.ImecDataset.parseImecFileName(file);
-                switch type
+                switch search_type
                     case 'ap'
-                        assert(ismember(type, {'ap', 'ap_CAR'}), 'Specify ap.bin or ap_CAR.bin file rather than %s file', type);
+                        if ismember(type, {'ap', 'ap_CAR'})
+                            return;
+                        else
+                            % wrong type
+                            file = [];
+                        end
+                        %assert(ismember(type, {'ap', 'ap_CAR'}), 'Specify ap.bin or ap_CAR.bin file rather than %s file', search_type);
                     case 'lf'
-                        assert(ismember(type, {'lf'}), 'Specify lf.bin file rather than %s file', type);
+                        if ismember(type, {'lf'})
+                            return;
+                        else
+                            % wrong type
+                            file = [];
+                        end
+%                         assert(ismember(type, {'lf'}), 'Specify lf.bin file rather than %s file', search_type);
                 end
 
             elseif exist(fileOrFileStem, 'dir')
@@ -2383,7 +2420,7 @@ end
                 path = fileOrFileStem;
 %                 [~, leaf] = fileparts(path);
 
-                switch type
+                switch search_type
                     case 'ap'
                         apFiles = Neuropixel.ImecDataset.listAPFilesInDir(path);
                         if ~isempty(apFiles)
@@ -2458,7 +2495,7 @@ end
                 stem = [leaf, ext];
                 
                 % find possible matches
-                switch type
+                switch search_type
                     case 'ap'
                         candidates = Neuropixel.ImecDataset.listAPFilesInDir(parent);
                         bin_ext = '.imec.ap.bin';
@@ -2472,7 +2509,7 @@ end
                 
                 if ~any(mask)
                     if errorIfNotFound
-                        error('No %s matches for %s* exist', type, fileOrFileStem);
+                        error('No %s matches for %s* exist', search_type, fileOrFileStem);
                     else
                         file = strings(0, 1);
                         return;
@@ -2484,7 +2521,7 @@ end
                     if any(exactMatch)
                         mask = exactMatch;
                     elseif ~returnMultiple
-                        error('Multiple %s matches for %s* exist, none exactly matches %s. Narrow down the prefix.', type, fileOrFileStem, exactName);
+                        error('Multiple %s matches for %s* exist, none exactly matches %s. Narrow down the prefix.', search_type, fileOrFileStem, exactName);
                     end
                 end
                 
