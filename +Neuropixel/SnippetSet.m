@@ -190,9 +190,16 @@ classdef SnippetSet < handle & matlab.mixin.Copyable
                 ss.overlay_labels = ss.overlay_labels(p.Results.maskChannels, p.Results.maskTime, maskSnippets);
             end
             
-            ss.cluster_ids = ss.cluster_ids(maskSnippets);
+            if ~isempty(ss.cluster_ids)
+                ss.cluster_ids = ss.cluster_ids(maskSnippets);
+            end
         
-            ss.sample_idx = ss.sample_idx(maskSnippets);
+            time_samples = ss.time_samples(p.Results.maskTime);
+            ss.window = [time_samples(1) time_samples(end)];
+
+            sample_offset = find(p.Results.maskTime, 1) - 1;
+            ss.sample_idx = ss.sample_idx(maskSnippets) + sample_offset;
+            
             if ~isempty(ss.trial_idx)
                 ss.trial_idx = ss.trial_idx(maskSnippets);
             end
