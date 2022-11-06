@@ -11,8 +11,8 @@ classdef ImecDataset < handle
         fileTypeAP = 'ap'; % typically ap or ap_CAR
         fileTypeLF = 'lf'; % typically lf or lf_CAR
         
-        nSamplesAP = 0;
-        nSamplesLF = 0;
+        nSamplesAP (1, 1) uint64 = 0;
+        nSamplesLF (1, 1) uint64 = 0;
         fsAP = NaN; % samples_per_second
         fsLF = NaN; % samples_per_second
         fsSync = NaN;
@@ -115,6 +115,7 @@ classdef ImecDataset < handle
             p.addParameter('channelMap', [], @(x) true);
             p.addParameter('syncBitNames', [], @(x) isempty(x) || isstring(x) || iscellstr(x));
             p.addParameter('sourceDatasets', [], @(x) true);
+            p.addParameter('defaults', struct(), @isstruct);
             p.parse(varargin{:})
 
             fileOrFileStem = char(fileOrFileStem);
@@ -189,6 +190,25 @@ classdef ImecDataset < handle
                 assert(isa(p.Results.sourceDatasets, 'Neuropixel.ImecDataset'));
                 imec.setSourceDatasets(p.Results.sourceDatasets);
             end
+
+            defaults = p.Results.defaults;
+            flds = fieldnames(defaults);
+            for iF = 1:numel(flds)
+                val = defaults.(flds{iF});
+                switch flds{iF}
+                    case 'fsAP'
+                        if isnan(imec.fsAP)
+                            imec.fsAP = val;
+                        end
+                    case 'fsLF'
+                        if isnan(imec.fsLF)
+                            imec.fsLF = val;
+                        end
+                    otherwise
+                        error("Field %s default not handled", flds{iF});
+                end
+            end
+                        
         end
 
         function readInfo(imec)
@@ -260,11 +280,11 @@ classdef ImecDataset < handle
                 bytes = ftell(fid);
                 fclose(fid);
 
-                imec.nSamplesAP = bytes / imec.bytesPerSample / imec.nChannels;
-                if round(imec.nSamplesAP) ~= imec.nSamplesAP
+                nSamplesAP = bytes / imec.bytesPerSample / imec.nChannels; %#ok<*PROP> 
+                if Neuropixel.Utils.isequaltol(round(nSamplesAP), nSamplesAP, 0.001)
                     warning('AP bin file size is not an integral number of samples, file data may not be fully copied, truncating nSamplesAP');
-                    imec.nSamplesAP = floor(imec.nSamplesAP);
                 end
+                imec.nSamplesAP = floor(nSamplesAP);
                 
                 imec.concatenationInfoAP = Neuropixel.ConcatenationInfo(imec, 'ap', metaAP);
             end
@@ -274,11 +294,11 @@ classdef ImecDataset < handle
                 fseek(fid, 0, 'eof');
                 bytes = ftell(fid);
                 fclose(fid);
-                imec.nSamplesLF = bytes / imec.bytesPerSample / imec.nChannels;
-                if round(imec.nSamplesLF) ~= imec.nSamplesLF
+                nSamplesLF = bytes / imec.bytesPerSample / imec.nChannels;
+                if ~Neuropixel.Utils.isequaltol(round(nSamplesLF), nSamplesLF, 0.001)
                     warning('LF bin file size is not an integral number of samples, file data may not be fully copied, truncating nSamplesLF');
-                    imec.nSamplesLF = floor(imec.nSamplesLF);
                 end
+                imec.nSamplesLF = floor(nSamplesLF);
               
                 imec.concatenationInfoLF = Neuropixel.ConcatenationInfo(imec, 'lf', metaLF);
             end 
@@ -568,7 +588,7 @@ classdef ImecDataset < handle
         function sampleIdx = closestSampleAPForTime(imec, timeSeconds)
             sampleIdx = round(timeSeconds * imec.fsAP);
             sampleIdx(sampleIdx == 0) = 1;
-            if any(sampleIdx < 0 | sampleIdx > imec.nSamplesAP)
+            if any(sampleIdx < 0 | sampleIdx > double(imec.nSamplesAP))
                 error('Time seconds out of range');
             end 
         end
@@ -576,7 +596,7 @@ classdef ImecDataset < handle
         function sampleIdx = closestSampleLFForTime(imec, timeSeconds)
             sampleIdx = round(timeSeconds * imec.fsLF);
             sampleIdx(sampleIdx == 0) = 1;
-            if any(sampleIdx < 0 | sampleIdx > imec.nSamplesLF)
+            if any(sampleIdx < 0 | sampleIdx > double(imec.nSamplesLF))
                 error('Time seconds out of range');
             end 
         end
@@ -968,22 +988,22 @@ classdef ImecDataset < handle
     methods % Memory mapped read/write access to data
         function mm = memmapAP_by_sample(imec)
             mm = memmapfile(imec.pathAP, 'Format', {'int16', [imec.nChannels 1], 'x'}, ...
-               'Repeat', imec.nSamplesAP);
+               'Repeat', double(imec.nSamplesAP));
         end
 
         function mm = memmapLF_by_sample(imec)
             mm = memmapfile(imec.pathLF, 'Format', {'int16', [imec.nChannels 1], 'x'}, ...
-               'Repeat', imec.nSamplesLF);
+               'Repeat', double(imec.nSamplesLF));
         end
 
         function mm = memmapAP_by_chunk(imec, nSamplesPerChunk)
             mm = memmapfile(imec.pathAP, 'Format', {'int16', [imec.nChannels nSamplesPerChunk], 'x'}, ...
-               'Repeat', floor(imec.nSamplesAP/nSamplesPerChunk));
+               'Repeat', floor(double(imec.nSamplesAP)/nSamplesPerChunk));
         end
 
         function mm = memmapLF_by_chunk(imec, nSamplesPerChunk)
             mm = memmapfile(imec.pathLF, 'Format', {'int16', [imec.nChannels nSamplesPerChunk], 'x'}, ...
-               'Repeat', floor(imec.nSamplesLF/nSamplesPerChunk));
+               'Repeat', floor(double(imec.nSamplesLF)/nSamplesPerChunk));
         end
 
         function mm = memmapAP_full(imec, varargin)
@@ -991,7 +1011,7 @@ classdef ImecDataset < handle
             p.addParameter('Writable', false, @islogical);
             p.parse(varargin{:});
 
-            mm = memmapfile(imec.pathAP, 'Format', {'int16', [imec.nChannels imec.nSamplesAP], 'x'}, 'Writable', p.Results.Writable);
+            mm = memmapfile(imec.pathAP, 'Format', {'int16', [imec.nChannels double(imec.nSamplesAP)], 'x'}, 'Writable', p.Results.Writable);
         end
 
         function mm = memmapLF_full(imec, varargin)
@@ -999,21 +1019,21 @@ classdef ImecDataset < handle
             p.addParameter('Writable', false, @islogical);
             p.parse(varargin{:});
 
-            mm = memmapfile(imec.pathLF, 'Format', {'int16', [imec.nChannels imec.nSamplesLF], 'x'}, 'Writable', p.Results.Writable);
+            mm = memmapfile(imec.pathLF, 'Format', {'int16', [imec.nChannels double(imec.nSamplesLF)], 'x'}, 'Writable', p.Results.Writable);
         end
 
         function [mm, fsSync] = memmapSync_full(imec)
             if imec.syncInAPFile
                 % still has nChannels
-                mm = memmapfile(imec.pathSync, 'Format', {'int16', [imec.nChannels imec.nSamplesAP], 'x'});
+                mm = memmapfile(imec.pathSync, 'Format', {'int16', [imec.nChannels double(imec.nSamplesAP)], 'x'});
                 fsSync = imec.fsAP;
             elseif imec.syncInLFFile
                 % still has nChannels
-                mm = memmapfile(imec.pathSync, 'Format', {'int16', [imec.nChannels imec.nSamplesLF], 'x'});
+                mm = memmapfile(imec.pathSync, 'Format', {'int16', [imec.nChannels double(imec.nSamplesLF)], 'x'});
                 fsSync = imec.fsLF;
             else
                 % only sync channel
-                mm = memmapfile(imec.pathSync, 'Format', {'int16', [1 imec.nSamplesAP], 'x'});
+                mm = memmapfile(imec.pathSync, 'Format', {'int16', [1 double(imec.nSamplesAP)], 'x'});
                 fsSync = imec.fsAP;
             end
         end
@@ -1047,15 +1067,15 @@ classdef ImecDataset < handle
                 imecSrc = imec.sourceDatasets(iF);
                 if imecSrc.syncInAPFile
                     % still has nChannels
-                    mmSet{iF} = memmapfile(imecSrc.pathSync, 'Format', {'int16', [imec.nChannels imec.nSamplesAP], 'x'});
+                    mmSet{iF} = memmapfile(imecSrc.pathSync, 'Format', {'int16', [imec.nChannels double(imec.nSamplesAP)], 'x'});
                     fsSync(iF) = imec.fsAP;
                 elseif imecSrc.syncInLFFile
                     % still has nChannels
-                    mmSet{iF} = memmapfile(imec.pathSync, 'Format', {'int16', [imec.nChannels imec.nSamplesLF], 'x'});
+                    mmSet{iF} = memmapfile(imec.pathSync, 'Format', {'int16', [imec.nChannels double(imec.nSamplesLF)], 'x'});
                     fsSync(iF) = imec.fsLF;
                 else
                     % only sync channel
-                    mmSet{iF} = memmapfile(imec.pathSync, 'Format', {'int16', [1 imec.nSamplesAP], 'x'});
+                    mmSet{iF} = memmapfile(imec.pathSync, 'Format', {'int16', [1 double(imec.nSamplesAP)], 'x'});
                     fsSync(iF) = imec.fsAP;
                 end
             end
@@ -1217,7 +1237,7 @@ classdef ImecDataset < handle
             
             switch band
                 case 'ap'
-                    nSamples = imec.nSamplesAP;
+                    nSamples = double(imec.nSamplesAP);
                     if ~fromSourceDatasets
                         mm = imec.memmapAP_full();
                         scaleToUv = imec.apScaleToUv;
@@ -1240,7 +1260,7 @@ classdef ImecDataset < handle
                         handleSyncSeparately = false;
                     end
                 case 'lf'
-                    nSamples = imec.nSamplesLF;
+                    nSamples = double(imec.nSamplesLF);
                     if ~fromSourceDatasets
                         mm = imec.memmapLF_full();
                         scaleToUv = imec.lfScaleToUv;
@@ -1369,7 +1389,13 @@ classdef ImecDataset < handle
             idx_request(~mask_idx_okay) = 1; % we'll clear out later
             
             mask_request_okay = all(mask_idx_okay, 1)';
-            
+
+            % check if the request is entirely out of file bounds
+            nBadRequests = nnz(~any(mask_idx_okay, 1));
+            if nBadRequests > 0
+                warning('%d / %d snippets lie completely outside file boundaries', nBadRequests, nS);
+            end
+
             nPerSegment = 50; 
             nSegments = ceil(nS / nPerSegment);
             
@@ -1860,8 +1886,8 @@ classdef ImecDataset < handle
         function meta = generateModifiedAPMeta(imec)
             meta = imec.readAPMeta;
 
-            meta.fileSizeBytes = imec.bytesPerSample * imec.nChannels * imec.nSamplesAP;
-            meta.fileTimeSec = imec.nSamplesAP / imec.fsAP;
+            meta.fileSizeBytes = imec.bytesPerSample * imec.nChannels * double(imec.nSamplesAP);
+            meta.fileTimeSec = double(imec.nSamplesAP) / imec.fsAP;
             meta.syncBitNames = imec.syncBitNames;
             meta.badChannels = imec.badChannels;
         end
@@ -2693,11 +2719,11 @@ end
             % exchange time shifts between LF and AP to ensure consistency
             if writeAP && isempty(timeShiftsAP) && ~isempty(timeShiftsLF)
                 assert(~isnan(fsLF) && ~isnan(fsAP));
-                nSamplesAPList = cellfun(@(imec) imec.nSamplesAP, imecList);
+                nSamplesAPList = cellfun(@(imec) double(imec.nSamplesAP), imecList);
                 timeShiftsAP = arrayfun(@(tsLF, maxSamples) tsLF.convertToDifferentSampleRate(fsLF, fsAP, maxSamples), timeShiftsLF, nSamplesAPList);
             elseif writeLF && isempty(timeShiftsLF) && ~isempty(timeShiftsAP)
                 assert(~isnan(fsLF) && ~isnan(fsAP));
-                nSamplesLFList = cellfun(@(imec) imec.nSamplesLF, imecList);
+                nSamplesLFList = cellfun(@(imec) double(imec.nSamplesLF), imecList);
                 timeShiftsLF = arrayfun(@(tsAP, maxSamples) tsAP.convertToDifferentSampleRate(fsAP, fsLF), timeShiftsAP, nSamplesLFList);
             elseif ~isempty(timeShiftsAP) && ~isempty(timeShiftsLF)
                 warning('Both timeShiftsAP and timeShiftsLF are specified, which may lead to inconsistency in the concatenated output bands');
@@ -2741,7 +2767,7 @@ end
                 % indicate concatenation time points in meta file
 %                 if isConcatenation
                     meta.concatenated = strjoin(stemList, ':');
-                    meta.concatenatedSamples = cellfun(@(imec) imec.nSamplesAP, imecList);
+                    meta.concatenatedSamples = cellfun(@(imec) double(imec.nSamplesAP), imecList);
                     meta.concatenatedGains = gains;
                     meta.concatenatedMultipliers = multipliers;
                     meta.concatenatedAdcBits = cellfun(@(imec) imec.adcBits, imecList);
@@ -2806,7 +2832,7 @@ end
                 % indicate concatenation time points in meta file
 %                 if isConcatenation
                     meta.concatenated = strjoin(stemList, ':');
-                    meta.concatenatedSamples = cellfun(@(imec) imec.nSamplesLF, imecList);
+                    meta.concatenatedSamples = cellfun(@(imec) double(imec.nSamplesLF), imecList);
                     meta.concatenatedGains = gains;
                     meta.concatenatedMultipliers = multipliers;
                     meta.concatenatedAdcBits = cellfun(@(imec) imec.adcBits, imecList);
