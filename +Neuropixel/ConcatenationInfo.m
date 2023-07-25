@@ -36,6 +36,16 @@ classdef ConcatenationInfo < handle
                         ci.fs = imec.fsLF;
                         ci.nSamples = imec.nSamplesLF;
                         ci.samplesPreShift = getor(meta, 'concatenatedSamples', imec.nSamplesLF);
+                    case 'ni'
+                        if isempty(meta), meta = imec.readNIMeta(); end
+                        ci.fs = imec.fsNI;
+                        ci.nSamples = imec.nSamplesNI;
+                        ci.samplesPreShift = getor(meta, 'concatenatedSamples', imec.nSamplesNI);
+                    case 'externalSync'
+                        if isempty(meta), meta = imec.readExternalSyncMeta(); end
+                        ci.fs = imec.fsSync;
+                        ci.nSamples = imec.externalSyncNumSamples;
+                        ci.samplesPreShift = getor(meta, 'concatenatedSamples', imec.externalSyncNumSamples);
                     otherwise
                         error ('unknown mode');
                 end
@@ -66,17 +76,25 @@ classdef ConcatenationInfo < handle
                     ci.names = strings(nC, 1);
                 end
                 
-                ci.gains = getor(meta, 'concatenatedGains', imec.apGain * ones(nC, 1));
                 ci.multipliers = getor(meta, 'concatenatedMultipliers', ones(nC, 1));
                 ci.adcBits = getor(meta, 'concatenatedAdcBits', imec.adcBits * ones(nC, 1));
                 
                 switch mode
                     case 'ap'
+                        ci.gains = getor(meta, 'concatenatedGains', imec.apGain * ones(nC, 1));
                         rmin = Neuropixel.Utils.makecol(getor(meta, 'concatenatedAiRangeMin', imec.apRange(1) * ones(nC, 1)));
                         rmax = Neuropixel.Utils.makecol(getor(meta, 'concatenatedAiRangeMax', imec.apRange(2) * ones(nC, 1)));
                     case 'lf'
+                        ci.gains = getor(meta, 'concatenatedGains', imec.lfGain * ones(nC, 1));
                         rmin = Neuropixel.Utils.makecol(getor(meta, 'concatenatedAiRangeMin', imec.lfRange(1) * ones(nC, 1)));
                         rmax = Neuropixel.Utils.makecol(getor(meta, 'concatenatedAiRangeMax', imec.lfRange(2) * ones(nC, 1)));
+                    case 'ni'
+                        ci.gains = getor(meta, 'concatenatedGains', imec.niGain * ones(nC, 1));
+                        rmin = Neuropixel.Utils.makecol(getor(meta, 'concatenatedAiRangeMin', imec.niRange(1) * ones(nC, 1)));
+                        rmax = Neuropixel.Utils.makecol(getor(meta, 'concatenatedAiRangeMax', imec.niRange(2) * ones(nC, 1)));
+                    case 'externalSync'
+                        rmin = 0;
+                        rmax = 1;
                     otherwise
                         error ('unknown mode');
                 end 

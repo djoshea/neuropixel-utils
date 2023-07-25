@@ -236,6 +236,37 @@ classdef TimeShiftSpec < handle & matlab.mixin.Copyable
             
             spec = Neuropixel.TimeShiftSpec(idxStart, idxStop, regionUpdatedStarts);
         end
+
+        function varargout = autoConvertSamplingRateMultiple(timeShiftsList, generateList, fsList, nSamplesList)
+            arguments
+                timeShiftsList (:, 1) cell % of arrays of TimeShiftSpecs or empty
+                generateList (:, 1) logical
+                fsList (:, 1) double
+                nSamplesList (:, 1) cell
+            end
+
+            is_specified = cellfun(@(x) ~isempty(x), timeShiftsList);
+            if nnz(is_specified) > 1
+                warning('Multiple TimeShiftSpecs are specified, which could lead to inconsistencies');
+            end
+
+            varargout = timeShiftsList;
+            if ~any(is_specified)
+                return;
+            end
+
+            idx = find(is_specified, 1);
+            timeShiftsRef = timeShiftsList{idx};
+            fsRef = fsList(idx);
+
+            for iS = 1:numel(timeShiftsList)
+                if is_specified(iS) || ~generateList(iS)
+                    continue;
+                end
+
+                varargout{iS} = arrayfun(@(ts, maxSamples) ts.convertToDifferentSampleRate(fsRef, fsList(iS), maxSamples), timeShiftsRef, nSamplesList{iS});
+            end
+        end
     end
     
 end

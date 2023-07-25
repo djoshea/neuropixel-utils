@@ -37,6 +37,13 @@ classdef TrialSegmentationInfo < handle & matlab.mixin.Copyable
             tsiNew.idxStart = convert(tsi.idxStart);
             tsiNew.idxStop = convert(tsi.idxStop);
         end
+
+        function tsiNew = applyTimeShift(tsi, timeShift)
+            tsiNew = copy(tsi);
+            
+            tsiNew.idxStart = timeShift.shiftTimes(tsi.idxStart);
+            tsiNew.idxStop = timeShift.shiftTimes(tsi.idxStop);
+        end
         
         function nTrials = get.nTrials(tsi)
             nTrials = numel(tsi.trialId);
