@@ -76,6 +76,7 @@ classdef ImecDataset < handle
         hasSourceAP
         hasSourceLF
         hasSourceSync
+        hasSourceExternalSync
         hasSourceNI
 
         nSamplesSync
@@ -726,16 +727,22 @@ classdef ImecDataset < handle
             p.addParameter('samplingRate', NaN, @isscalar); % indicates that idx is provided in this sampling rate, not fsSync
             p.parse(varargin{:});
 
+            fromSource = p.Results.fromSourceDatasets;
+
             samplingRate = p.Results.samplingRate;
-            if ~isnan(samplingRate) && ~Neuropixel.Utils.isequaltol(samplingRate, imec.fsSync, 1e-2)
+            if fromSource
+                fsSyncActual = imec.sourceDatasets(1).fsSync; % use fsSync from source datasets
+            else
+                fsSyncActual = imec.fsSync;
+            end
+            if ~isnan(samplingRate) && ~Neuropixel.Utils.isequaltol(samplingRate, fsSyncActual, 1e-2)
                 % so we just convert the requested idx into equivalent sample indices at fsSync
-                idx = imec.internal_closestSampleForIdx(samplingRate, imec.fsSync, idx);
+                idx = imec.internal_closestSampleForIdx(samplingRate, fsSyncActual, idx);
                 fs = samplingRate;
             else
-                fs = imec.fsSync;
+                fs = fsSyncActual;
             end
 
-            fromSource = p.Results.fromSourceDatasets;
             if ~fromSource
                 % grab cached data if the sampling rate matches, otherwise use the memmap
                 if ~isempty(imec.syncRaw)
@@ -757,10 +764,17 @@ classdef ImecDataset < handle
                 end
                 
             else
-                switch imec.syncSource
+                switch imec.sourceDatasets(1).syncSource
                     case "ext"
                         mmSet = imec.memmap_sourceExternalSync_full();
-                        [sourceFileInds, sourceSampleInds] = imec.concatenationInfoExternalSync.lookup_sampleIndexInSourceFiles(idx);
+                        % there's a special case here where the source dataset had an external sync file, and it got
+                        % written into the AP file during the transformation to this one. In this case, there won't be a concatenationInfoExternalSync
+                        if isempty(imec.concatenationInfoExternalSync)
+                            concatenationInfoExternalSync = Neuropixel.ConcatenationInfo.inferFromOtherBand(imec, 'extSync', 'ap');
+                        else
+                            concatenationInfoExternalSync = imec.concatenationInfoExternalSync;
+                        end
+                        [sourceFileInds, sourceSampleInds] = concatenationInfoExternalSync.lookup_sampleIndexInSourceFiles(idx);
                         vec = Neuropixel.ImecDataset.multi_mmap_extract_sample_idx(mmSet, sourceFileInds, sourceSampleInds, imec.externalSyncChannelIndex);
                     case "ap"
                         mmSet = imec.memmap_sourceAP_full();
@@ -1222,7 +1236,7 @@ classdef ImecDataset < handle
                 % make sure we grab sync from the matching band
                 if compareSource
                     sync_this = imec.readSyncBits_idx(syncBits, sampleIdx, 'fromSourceDatasets', false, 'samplingRate', fsBand);
-                    sync_source = imec.readSyncBits_idx(syncBits, sampleIdx, 'fromSourceDatasets', true, 'band', band);
+                    sync_source = imec.readSyncBits_idx(syncBits, sampleIdx, 'fromSourceDatasets', true, 'samplingRate', fsBand);
                     syncBitMat = cat(3, sync_this, sync_source);
                 else
                     syncBitMat = imec.readSyncBits_idx(syncBits, sampleIdx, 'fromSourceDatasets', syncFromSource, 'samplingRate', fsBand);
@@ -2325,6 +2339,10 @@ classdef ImecDataset < handle
 
         function tf = get.hasSourceNI(imec)
             tf = imec.hasSourceDatasets && all([imec.sourceDatasets.hasNI]);
+        end
+
+        function tf = get.hasSourceExternalSync(imec)
+            tf = imec.hasSourceDatasets && all([imec.sourceDatasets.hasExternalSync]);
         end
 
         function writeModifiedAPMeta(imec, varargin)

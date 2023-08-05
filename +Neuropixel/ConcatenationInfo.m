@@ -124,10 +124,15 @@ classdef ConcatenationInfo < handle
                     ci.samplesPreShift = arrayfun(@(src) src.nSamplesAP, imec.sourceDatasets);
                     
                 case "lf"
-                    assert(imec.hasSourceLF, 'Must have source AP datasets to infer LF concatenationInfo');
+                    assert(imec.hasSourceLF, 'Must have source LF datasets to infer LF concatenationInfo');
                     fsInfer = imec.sourceDatasets(1).fsLF;
                     ci.samplesPreShift = arrayfun(@(src) src.nSamplesLF, imec.sourceDatasets);
-                    
+
+                case "extSync"
+                    assert(imec.hasSourceExternalSync, 'Must have source external sync to infer external sync concatenationInfo');
+                    fsInfer = imec.sourceDatasets(1).fsSync;
+                    ci.samplesPreShift = arrayfun(@(src) src.externalSyncNumSamples, imec.sourceDatasets);
+
                 otherwise
                     error('Unknown bandInfer %s', bandInfer);
             end
@@ -180,6 +185,11 @@ classdef ConcatenationInfo < handle
                     rmin = arrayfun(@(src) src.lfRange(1), imec.sourceDatasets);
                     rmax = arrayfun(@(src) src.lfRange(2), imec.sourceDatasets);
                     ci.ranges = cat(2, rmin, rmax);
+
+                case 'extSync'
+                    nSource = numel(imec.sourceDatasets);
+                    ci.gains = ones(nSource, 1);
+                    ci.ranges = [zeros(nSource, 1), ones(nSource, 1)];
             end
             
             [ci.multipliers, ~] = Neuropixel.ImecDataset.determineCommonGain(ci.gains, true); % quiet here since the gain is inferred anyway
