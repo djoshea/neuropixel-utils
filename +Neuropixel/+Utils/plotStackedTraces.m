@@ -272,7 +272,7 @@ end
 
 if ~isempty(labels)
     [sorted_offsets, sort_idx] = sort(tform.offsets);
-    set(gca, 'YTick', sorted_offsets, 'YTickLabels', labels(sort_idx));
+    set(gca, 'YTick', sorted_offsets, 'YTickLabels', labels(sort_idx), 'TickLabelInterpreter', 'none');
 end
 
 
