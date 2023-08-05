@@ -111,7 +111,9 @@ classdef TrialSegmentationInfo < handle & matlab.mixin.Copyable
      
         function [idxStart, idxStop, trialStartStop] = computeActiveRegions(tsi, varargin)
             p = inputParser();
-            p.addParameter('maxPauseSec', 20, @isscalar); % in samples
+            p.addParameter('maxPauseSec', 20, @isscalar); 
+            p.addParameter('paddingSec', 0, @isscalar); % add padding around each active region (must be less than 0.5 * maxPauseSec)
+            p.addParameter('nSamples', NaN, @isscalar); % constrain the final sample below this threshold
             p.parse(varargin{:});
             
             if tsi.nTrials == 0
@@ -124,19 +126,28 @@ classdef TrialSegmentationInfo < handle & matlab.mixin.Copyable
             pauses = int64(tsi.idxStart(2:end)) - int64(tsi.idxStop(1:end-1));
             longPauses = find(pauses > maxPauseSamples); % longPause after trial idx
             
+            paddingSamples = p.Results.paddingSec * tsi.fs;
+            assert(paddingSamples*2 < maxPauseSamples, 'Padding must be less than half of maxPause');
+            
             R = numel(longPauses);
             [idxStart, idxStop] = deal(zeros(R+1, 1, 'uint64'));
             trialStartStop = zeros(R+1, 2, 'uint32');
             last = 1;
             for iR = 1:R
-                idxStart(iR) = tsi.idxStart(last);
+                idxStart(iR) = tsi.idxStart(last) - uint64(paddingSamples);
                 idxStop(iR) = tsi.idxStop(longPauses(iR));
                 trialStartStop(iR, :) = [tsi.trialId(last), tsi.trialId(longPauses(iR))];
                 last = longPauses(iR) + 1;
             end
 
-            idxStart(end) = tsi.idxStart(last)-uint64(1);
+            idxStart(end) = tsi.idxStart(last); %  - uint64(1); was here but not sure why this is needed?
             idxStop(end) = tsi.idxStop(end);
+
+            idxStart = max(idxStart, uint64(1));
+            if ~isnan(p.Results.nSamples)
+                idxStop = min(idxStop, uint64(p.Results.nSamples));
+            end
+
             trialStartStop(end, :) = [tsi.trialId(last), tsi.trialId(end)]; 
         end
              
@@ -217,6 +228,7 @@ classdef TrialSegmentationInfo < handle & matlab.mixin.Copyable
             % marks regions that are densely covered with trials (ignoring gaps between trials
             p = inputParser();
             p.addParameter('maxPauseSec', 20, @isscalar); 
+            p.addParameter('paddingSec', 0, @isscalar);
             p.addParameter('time_shifts', [], @(x) isempty(x) || isa(x, 'Neuropixel.TimeShiftSpec'));
             p.addParameter('Color', [0 0 1], @isvector);
             p.addParameter('timeInSeconds', true, @islogical); % if true, x axis is seconds, if false, is samples 
@@ -227,7 +239,7 @@ classdef TrialSegmentationInfo < handle & matlab.mixin.Copyable
             p.parse(varargin{:});
             xOffset = p.Results.xOffset;
             
-            [idxStart, idxStop, trialStartStop] = tsi.computeActiveRegions('maxPauseSec', p.Results.maxPauseSec); %#ok<*PROPLC>
+            [idxStart, idxStop, trialStartStop] = tsi.computeActiveRegions('maxPauseSec', p.Results.maxPauseSec, 'paddingSec', p.Results.paddingSec); %#ok<*PROPLC>
             timeShiftSpec = p.Results.time_shifts;
             if ~isempty(timeShiftSpec)
                 idxStart = timeShiftSpec.shiftTimes(idxStart);
