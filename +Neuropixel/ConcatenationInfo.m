@@ -245,6 +245,27 @@ classdef ConcatenationInfo < handle
                end
            end
         end
+
+        function [sampleInds, valid] = projectSampleIndexInConcatentatedFiles(ci, fileInds, sourceInds)
+            % inverse of lookup_sampleIndexInSourceFiles
+            sampleInds = zeros(size(fileInds), 'uint64');
+            valid = false(size(fileInds));
+            assert(isequal(size(fileInds), size(sourceInds)));
+
+            % sampleInds in the concatenated file will be (offset for the file) + (offset due to time shifting in that file)
+            % 1. compute the offset for the file:
+            nSamplesProj = arrayfun(@(s) s.nShiftedTimes, ci.timeShifts);
+            fileOffsetProjByFile = [0 cumsum(nSamplesProj(1:end-1))];
+
+            % 2. compute the offset within that file and add to the corresponding fileOffset
+            nD = ci.nDatasets;
+            for iD = 1:nD
+                mask_this_file = fileInds == iD;
+                ts = ci.timeShifts(iD);
+                [sampleInds(mask_this_file), valid(mask_this_file)] = ts.shiftTimes(sourceInds(mask_this_file));
+                sampleInds(mask_this_file) = sampleInds(mask_this_file) + fileOffsetProjByFile(iD);
+            end
+        end
         
         function markConcatenatedFileBoundaries(ci, varargin)
             % mark the time points where multiple files were concatenated together

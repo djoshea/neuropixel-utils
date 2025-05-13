@@ -644,7 +644,7 @@ classdef ImecDataset < handle
         
         function [syncRaw, fsSync] = readSync(imec, varargin)
             p = inputParser();
-            p.addOptional('reload', false, @islogical); % if true, ignore cache in memory imec.syncRaw 
+            p.addParameter('reload', false, @islogical); % if true, ignore cache in memory imec.syncRaw 
             p.addParameter('ignoreCached', false, @islogical); % if true, ignore cache on disk in imec.pathSyncCached
             p.parse(varargin{:});
             
@@ -725,6 +725,7 @@ classdef ImecDataset < handle
             p = inputParser();
             p.addParameter('fromSourceDatasets', false, @islogical);
             p.addParameter('samplingRate', NaN, @isscalar); % indicates that idx is provided in this sampling rate, not fsSync
+            p.addParameter('ignoreCached', false, @islogical); % if true, ignore cache on disk in imec.pathSyncCached
             p.parse(varargin{:});
 
             fromSource = p.Results.fromSourceDatasets;
@@ -745,7 +746,10 @@ classdef ImecDataset < handle
 
             if ~fromSource
                 % grab cached data if the sampling rate matches, otherwise use the memmap
-                if ~isempty(imec.syncRaw)
+                if isempty(imec.syncRaw) && exist(imec.pathSyncCached, 'file') && ~p.Results.ignoreCached
+                    imec.readSync(); % will populate from cache
+                end
+                if ~isempty(imec.syncRaw) && ~p.Results.ignoreCached
                     vec = imec.syncRaw(idx);
                 else
                     switch imec.syncSource
@@ -824,7 +828,7 @@ classdef ImecDataset < handle
         end
         
         function sampleIdx = closestSampleLFForTime(imec, timeSeconds)
-            sampleIdx = imec.internal_closestSampleForTime(imec.fsLF, timeSeconds, imec.nSamplesLLF);
+            sampleIdx = imec.internal_closestSampleForTime(imec.fsLF, timeSeconds, imec.nSamplesLF);
         end
 
         function sampleIdx = closestSampleNIForTime(imec, timeSeconds)
@@ -3582,8 +3586,13 @@ end
                                 % pass as many inputs to fn as it can handle, including user provided args at the end
                                 extraArgs = {chIds, source_idx};
                                 if ~isempty(transformExtraArg)
-                                    extraArgs{end+1} = transformExtraArg; %#ok<AGROW>
+                                    thisExtra = transformExtraArg;
+                                else
+                                    thisExtra = struct();
                                 end
+                                thisExtra.fileInd = iF;
+                                extraArgs{end+1} = thisExtra; %#ok<AGROW>
+                                
                                 
                                 ninputs = nargin(fn);
                                 if ninputs > 0 && ninputs < 2 + numel(extraArgs)
